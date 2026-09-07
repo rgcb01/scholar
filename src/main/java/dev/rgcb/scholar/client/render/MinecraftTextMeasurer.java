@@ -1,0 +1,30 @@
+package dev.rgcb.scholar.client.render;
+
+import dev.rgcb.scholar.layout.TextMeasurer;
+import dev.rgcb.scholar.layout.TextStyle;
+import dev.rgcb.scholar.typography.ScholarTypography;
+import net.minecraft.client.gui.Font;
+
+public final class MinecraftTextMeasurer implements TextMeasurer {
+    private final MinecraftTypographyResolver typographyResolver;
+
+    public MinecraftTextMeasurer(Font font) {
+        this(new MinecraftTypographyResolver(font, ScholarTypography.defaultProfile()));
+    }
+
+    public MinecraftTextMeasurer(MinecraftTypographyResolver typographyResolver) {
+        this.typographyResolver = typographyResolver;
+    }
+
+    @Override
+    public int measureWidth(String text, TextStyle style) {
+        var resolved = typographyResolver.resolve(style);
+        return typographyResolver.fontFor(resolved.role()).width(typographyResolver.component(text, resolved));
+    }
+
+    @Override
+    public int lineHeight(TextStyle style) {
+        var resolved = typographyResolver.resolve(style);
+        return typographyResolver.fontFor(resolved.role()).lineHeight + resolved.lineHeightAdjustment();
+    }
+}

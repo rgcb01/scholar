@@ -1,0 +1,26 @@
+{
+  "providers": [
+    {
+      "type": "ttf",
+      "file": "scholar:source_sans_3/bold_italic.ttf",
+      "shift": [0, 0],
+      "size": 11.0,
+      "oversample": 4.0
+    },
+    {
+      "type": "ttf",
+      "file": "scholar:noto_sans_math/regular.ttf",
+      "shift": [0, 0],
+      "size": 11.0,
+      "oversample": 4.0
+    },
+    {
+      "type": "reference",
+      "id": "minecraft:include/default"
+    },
+    {
+      "type": "reference",
+      "id": "minecraft:include/unifont"
+    }
+  ]
+}

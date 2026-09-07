@@ -1,0 +1,232 @@
+# Architecture Decision Records
+
+Architecture Decision Records, or ADRs, capture meaningful project decisions that are expensive to rediscover later.
+
+Do not create ADRs for every small implementation detail. Use them when a decision affects architecture, long-term compatibility, public APIs, persistence formats, module boundaries, or major dependencies.
+
+## Format
+
+Each ADR should use this structure:
+
+```md
+# ADR N - Title
+
+## Status
+
+Proposed | Accepted | Superseded
+
+## Context
+
+What problem, constraint, or tradeoff led to the decision?
+
+## Decision
+
+What are we choosing?
+
+## Alternatives Considered
+
+What other options were considered?
+
+## Consequences
+
+What becomes easier, harder, or constrained because of this decision?
+```
+
+## Statuses
+
+- Proposed: Under discussion and not yet binding.
+- Accepted: Approved and currently guiding implementation.
+- Superseded: Replaced by a later ADR.
+
+## Accepted Records
+
+- [0038 Selection Formatting Toggle Semantics](0038-selection-formatting-toggle-semantics.md)
+- [0039 Explicit Typing Marks Outside Document AST](0039-explicit-typing-marks-outside-document-ast.md)
+- [0040 Formatting Query State Model](0040-formatting-query-state-model.md)
+- [0041 Rich Text Normalization Deferred](0041-rich-text-normalization-deferred.md)
+- [0042 Block Style Is Semantic Block Type](0042-block-style-is-semantic-block-type.md)
+- [0043 Editable Inline Text Blocks Include Paragraph And Heading](0043-editable-inline-text-blocks-include-paragraph-and-heading.md)
+- [0044 Block Style Commands Target Whole Containing Block](0044-block-style-commands-target-whole-containing-block.md)
+- [0045 Single Active Shell Popup Policy](0045-single-active-shell-popup-policy.md)
+- [0046 Enter Produces Structural Blocks Not Inline Newlines](0046-enter-produces-structural-blocks-not-inline-newlines.md)
+- [0047 Heading Enter Boundary Semantics](0047-heading-enter-boundary-semantics.md)
+- [0048 Editable Text Block Boundary Deletion Merges Into Left Block](0048-editable-text-block-boundary-deletion-merges-into-left-block.md)
+- [0049 Basic Caret Navigation Across Editable Block Boundaries](0049-basic-caret-navigation-across-editable-block-boundaries.md)
+- [0050 Typing Mark Carryover Across Structural Splits](0050-typing-mark-carryover-across-structural-splits.md)
+- [0051 Multi-Block Logical DocumentRange](0051-multi-block-logical-documentrange.md)
+- [0052 EquationBlock Is A Text Selection Barrier In First Slice](0052-equationblock-is-a-text-selection-barrier-in-first-slice.md)
+- [0053 Structural Block Boundaries Participate In Text Selection](0053-structural-block-boundaries-participate-in-text-selection.md)
+- [0054 Plain-Text Clipboard Maps Selected Block Boundaries To Newlines](0054-plain-text-clipboard-maps-selected-block-boundaries-to-newlines.md)
+- [0055 Multi-Block Mutation Deferred Behind Safety Gates](0055-multi-block-mutation-deferred-behind-safety-gates.md)
+- [0056 Multi-Block Range Replacement Collapses Into Left Block](0056-multi-block-range-replacement-collapses-into-left-block.md)
+- [0057 Full Multi-Block Deletion Retains One Empty Left-Owned Editable Block](0057-full-multi-block-deletion-retains-one-empty-left-owned-editable-block.md)
+- [0058 Replacement Typing Uses Normalized Selection Start Affinity](0058-replacement-typing-uses-normalized-selection-start-affinity.md)
+- [0059 Multi-Block Selection Replacement Is One History Transaction](0059-multi-block-selection-replacement-is-one-history-transaction.md)
+- [0060 Multiline Paste Remains Flattened During Structural Editing Slice](0060-multiline-paste-remains-flattened-during-structural-editing-slice.md)
+- [0061 Multi-Block Inline Formatting Queries Selected Characters Only](0061-multi-block-inline-formatting-queries-selected-characters-only.md)
+- [0062 Multi-Block Inline Formatting Uses ON OFF MIXED Semantics](0062-multi-block-inline-formatting-uses-on-off-mixed-semantics.md)
+- [0063 Block Style Commands Target Every Touched Editable Block](0063-block-style-commands-target-every-touched-editable-block.md)
+- [0064 Boundary-Only Selection Applies To Block Style But Not Inline Formatting](0064-boundary-only-selection-applies-to-block-style-but-not-inline-formatting.md)
+- [0065 Block Style Selection State Is Single Mixed Or Not Applicable](0065-block-style-selection-state-is-single-mixed-or-not-applicable.md)
+- [0066 Text Selection And Structural Block Selection Are Separate Editor Concepts](0066-text-selection-and-structural-block-selection-are-separate-editor-concepts.md)
+- [0067 Structural Insertions Use Between-Block DocumentInsertionPoint](0067-structural-insertions-use-between-block-documentinsertionpoint.md)
+- [0068 Object Selection Uses Snapshot-Local Block Index Rather Than Persistent IDs](0068-object-selection-uses-snapshot-local-block-index-rather-than-persistent-ids.md)
+- [0069 Non-Text Blocks Are Navigated As Structural Objects](0069-non-text-blocks-are-navigated-as-structural-objects.md)
+- [0070 Structural Object Insertion Preserves A Trailing Authoring Position When Needed](0070-structural-object-insertion-preserves-a-trailing-authoring-position-when-needed.md)
+- [0071 Structural Object Deletion Uses Adjacent Selection Recovery With Left Bias](0071-structural-object-deletion-uses-adjacent-selection-recovery-with-left-bias.md)
+- [0072 Structural Block Insertion May Replace A Text Selection Atomically](0072-structural-block-insertion-may-replace-a-text-selection-atomically.md)
+- [0073 Surviving Right Text After Structural Replacement Becomes Paragraph Body](0073-surviving-right-text-after-structural-replacement-becomes-paragraph-body.md)
+- [0074 Boundary-Only Text Selection Represents A Replaceable Structural Boundary](0074-boundary-only-text-selection-represents-a-replaceable-structural-boundary.md)
+- [0075 Equation Content Editing Uses Dedicated Math Positions](0075-equation-content-editing-uses-dedicated-math-positions.md)
+- [0076 Equation Editing Is A Distinct EditorSelection Mode](0076-equation-editing-is-a-distinct-editorselection-mode.md)
+- [0077 Math Carets Use Snapshot-Local Structural Paths Without Persistent Node IDs](0077-math-carets-use-snapshot-local-structural-paths-without-persistent-node-ids.md)
+- [0078 Empty MathSequence Represents Valid Incomplete Math Authoring Slots](0078-empty-mathsequence-represents-valid-incomplete-math-authoring-slots.md)
+- [0079 Math Editing Uses Virtual Sequence Adapters For Non-Sequence Structural Slots](0079-math-editing-uses-virtual-sequence-adapters-for-non-sequence-structural-slots.md)
+- [0080 Structural Math Nodes Are Navigation Safe And Not Directly Deleted Without Structural Selection](0080-structural-math-nodes-are-navigation-safe-and-not-directly-deleted-without-structural-selection.md)
+- [0081 Structural Math Objects Are Inserted At The Semantic Math Caret](0081-structural-math-objects-are-inserted-at-the-semantic-math-caret.md)
+- [0082 New Fractions Begin With Empty MathSequence Numerator And Denominator Slots](0082-new-fractions-begin-with-empty-mathsequence-numerator-and-denominator-slots.md)
+- [0083 Structural Math Insertion Returns The Exact Inserted Path Rather Than Searching By Equality](0083-structural-math-insertion-returns-the-exact-inserted-path-rather-than-searching-by-equality.md)
+- [0084 Slash Remains Linear Division And Does Not Implicitly Create A Structural Fraction](0084-slash-remains-linear-division-and-does-not-implicitly-create-a-structural-fraction.md)
+- [0085 Math Range Selection Uses Anchor Active Endpoints](0085-math-range-selection-uses-anchor-active-endpoints.md)
+- [0086 Collapsed Math Ranges Canonicalize To Carets](0086-collapsed-math-ranges-canonicalize-to-carets.md)
+- [0087 Math Range Replacement Is Local To One Sequence](0087-math-range-replacement-is-local-to-one-sequence.md)
+- [0088 Fraction Insertion Over Range Wraps Selected Content](0088-fraction-insertion-over-range-wraps-selected-content.md)
+- [0089 Math Selection Geometry Is Derived From Layout Source Mapping](0089-math-selection-geometry-is-derived-from-layout-source-mapping.md)
+- [0090 Native Math Clipboard Uses Process-Local Sidecar Plus Plain OS Text](0090-native-math-clipboard-uses-process-local-sidecar-plus-plain-os-text.md)
+- [0091 Math Clipboard Fragments Use MathSequence As Their Canonical Root](0091-math-clipboard-fragments-use-mathsequence-as-their-canonical-root.md)
+- [0092 Plain Math Clipboard Text Is An Intentionally Lossy Fallback](0092-plain-math-clipboard-text-is-an-intentionally-lossy-fallback.md)
+- [0093 External Slash Paste Remains Linear Division](0093-external-slash-paste-remains-linear-division.md)
+- [0094 Cross-Slot Partial Math Ranges Are Not Copy Or Cut Targets](0094-cross-slot-partial-math-ranges-are-not-copy-or-cut-targets.md)
+- [0095 Clipboard Payloads Store Semantic Content Only](0095-clipboard-payloads-store-semantic-content-only.md)
+- [0096 Scholar Does Not Serialize Java Objects Into The Clipboard](0096-scholar-does-not-serialize-java-objects-into-the-clipboard.md)
+- [0097 External Plain-Text Math Paste Uses A Bounded Lexical Importer](0097-external-plain-text-math-paste-uses-a-bounded-lexical-importer.md)
+- [0098 External Slash Imports As Linear Division](0098-external-slash-imports-as-linear-division.md)
+- [0099 Plain-Text Math Import Does Not Create Structural Math Nodes](0099-plain-text-math-import-does-not-create-structural-math-nodes.md)
+- [0101 External Math Import Is Atomic And Rejects Unsupported Characters](0101-external-math-import-is-atomic-and-rejects-unsupported-characters.md)
+- [0102 Native Scholar Clipboard Takes Priority Over External Text Import](0102-native-scholar-clipboard-takes-priority-over-external-text-import.md)
+- [0103 Ordinary Math Letter Authoring Uses Individual Identifier Atoms](0103-ordinary-math-letter-authoring-uses-individual-identifier-atoms.md)
+- [0104 Structured Multi-Character Identifiers Remain Valid But Are Not Inferred](0104-structured-multi-character-identifiers-remain-valid-but-are-not-inferred.md)
+- [0105 Ordinary Greek Variable Letters Are MathIdentifiers](0105-ordinary-greek-variable-letters-are-mathidentifiers.md)
+- [0106 Named Mathematical Operators Use Explicit Semantic Nodes](0106-named-mathematical-operators-use-explicit-semantic-nodes.md)
+- [0107 Descriptive Text Inside Math Uses Explicit MathText](0107-descriptive-text-inside-math-uses-explicit-mathtext.md)
+- [0108 Semantic Math Constructs Are Never Inferred Silently From Ordinary Input](0108-semantic-math-constructs-are-never-inferred-silently-from-ordinary-input.md)
+- [0109 Known Constants And Special Glyphs Remain MathSymbols Without Evaluation Semantics](0109-known-constants-and-special-glyphs-remain-mathsymbols-without-evaluation-semantics.md)
+- [0110 Math Inter-Atom Spacing Is Derived From Semantic Atom Relationships](0110-math-inter-atom-spacing-is-derived-from-semantic-atom-relationships.md)
+- [0111 Semantic Math Tokens Are Authored Explicitly](0111-semantic-math-tokens-are-authored-explicitly.md)
+- [0112 Semantic Math Tokens Are Atomic In The Initial Editor Slice](0112-semantic-math-tokens-are-atomic-in-the-initial-editor-slice.md)
+- [0113 Semantic Token Conversion Is An Explicit Editor Operation](0113-semantic-token-conversion-is-an-explicit-editor-operation.md)
+- [0114 Multi-Word MathText Uses Dedicated Semantic Text Entry](0114-multi-word-mathtext-uses-dedicated-semantic-text-entry.md)
+- [0115 Structured Math Children Use Explicit MathPath Segments](0115-structured-math-children-use-explicit-mathpath-segments.md)
+- [0116 Editable Empty Math Slots Use Empty MathSequence](0116-editable-empty-math-slots-use-empty-mathsequence.md)
+- [0117 Structural Math Actions Wrap Compatible Selections](0117-structural-math-actions-wrap-compatible-selections.md)
+- [0118 Square Roots Are Authored Explicitly As Structured Math](0118-square-roots-are-authored-explicitly-as-structured-math.md)
+- [0119 MathScript Owns Base And Optional Script Slots](0119-mathscript-owns-base-and-optional-script-slots.md)
+- [0120 Caret Script Characters Are Explicit Structural Authoring Commands](0120-caret-script-characters-are-explicit-structural-authoring-commands.md)
+- [0121 Empty Script Slots Use Present Empty MathSequence](0121-empty-script-slots-use-present-empty-mathsequence.md)
+- [0122 Removing Final Empty Script Slot Unwraps To Base](0122-removing-final-empty-script-slot-unwraps-to-base.md)
+- [0123 MathScript Uses Deterministic Base Subscript Superscript Traversal](0123-mathscript-uses-deterministic-base-subscript-superscript-traversal.md)
+- [0124 Structural Math Groups Coexist With Linear Delimiter Symbols](0124-structural-math-groups-coexist-with-linear-delimiter-symbols.md)
+- [0125 MathGroup Owns Delimiter Kind And Content Slot](0125-mathgroup-owns-delimiter-kind-and-content-slot.md)
+- [0126 Structural Math Group Authoring Is Explicit](0126-structural-math-group-authoring-is-explicit.md)
+- [0127 Empty Math Groups Use Empty MathSequence Content](0127-empty-math-groups-use-empty-mathsequence-content.md)
+- [0128 MathGroup Is A Single Atom Script Base](0128-mathgroup-is-a-single-atom-script-base.md)
+- [0129 Vertical Text Navigation Uses Visual Layout Lines](0129-vertical-text-navigation-uses-visual-layout-lines.md)
+- [0130 Vertical Navigation Preserves Ephemeral Preferred Caret X](0130-vertical-navigation-preserves-ephemeral-preferred-caret-x.md)
+- [0131 Non-Text Scientific Blocks Participate In Document Navigation As Atomic BlockSelections](0131-non-text-scientific-blocks-participate-in-document-navigation-as-atomic-blockselections.md)
+- [0132 Home And End Target Visual Line Boundaries](0132-home-and-end-target-visual-line-boundaries.md)
+- [0133 TableBlock Uses Rectangular Row Cell Model](0133-tableblock-uses-rectangular-row-cell-model.md)
+- [0134 Table Cells Own InlineContent Based TableCellContent](0134-table-cells-own-inlinecontent-based-tablecellcontent.md)
+- [0135 Table Headers Are Semantic Rather Than Inline Formatting](0135-table-headers-are-semantic-rather-than-inline-formatting.md)
+- [0136 TableBlock Is An Atomic Document Selection Target](0136-tableblock-is-an-atomic-document-selection-target.md)
+- [0137 First Table Layout Uses Equal Available Width Columns](0137-first-table-layout-uses-equal-available-width-columns.md)
+- [0138 Table Editing Uses Dedicated TableEditingSelection](0138-table-editing-uses-dedicated-tableeditingselection.md)
+- [0139 Table Cell Text Positions Are Cell Local](0139-table-cell-text-positions-are-cell-local.md)
+- [0140 First Table Editing Slice Supports Only Single Cell Text Selection](0140-first-table-editing-slice-supports-only-single-cell-text-selection.md)
+- [0141 Tab Traverses Table Cells Without Structural Mutation](0141-tab-traverses-table-cells-without-structural-mutation.md)
+- [0142 Table Cell Editing Uses Global Editor History](0142-table-cell-editing-uses-global-editor-history.md)
+- [0143 Table Row Column Mutations Preserve Rectangular Invariants](0143-table-row-column-mutations-preserve-rectangular-invariants.md)
+- [0144 Table Structural Mutations Preserve Table Editing Mode](0144-table-structural-mutations-preserve-table-editing-mode.md)
+- [0145 Semantic Header Row Survives Row Structural Mutations](0145-semantic-header-row-survives-row-structural-mutations.md)
+- [0146 Last Table Row Or Column Cannot Be Removed Through Cell Structural Commands](0146-last-table-row-or-column-cannot-be-removed-through-cell-structural-commands.md)
+- [0147 Native Table Clipboard Preserves TableBlock AST](0147-native-table-clipboard-preserves-tableblock-ast.md)
+- [0148 Whole Table Plain Clipboard Fallback Uses TSV](0148-whole-table-plain-clipboard-fallback-uses-tsv.md)
+- [0149 External TSV Is Not Silently Inferred As Table](0149-external-tsv-is-not-silently-inferred-as-table.md)
+- [0150 Native Table Paste Replaces Selected TableBlock](0150-native-table-paste-replaces-selected-tableblock.md)
+- [0151 Markdown Tables Use Restricted Headered Pipe Subset](0151-markdown-tables-use-restricted-headered-pipe-subset.md)
+- [0152 Markdown Table Headers Map To Semantic Header Rows](0152-markdown-table-headers-map-to-semantic-header-rows.md)
+- [0153 Markdown Table Parsing Rejects Ragged Rows](0153-markdown-table-parsing-rejects-ragged-rows.md)
+- [0154 Markdown Table Alignment Syntax Is Deferred](0154-markdown-table-alignment-syntax-is-deferred.md)
+- [0155 PlotBlock Stores Semantic PlotDefinition](0155-plotblock-stores-semantic-plotdefinition.md)
+- [0156 First Plot Model Supports Static XY Series](0156-first-plot-model-supports-static-xy-series.md)
+- [0157 PlotBlock Begins As Atomic Document Selection Target](0157-plotblock-begins-as-atomic-document-selection-target.md)
+- [0158 Plot Layout Is Pure Java And Renderer Consumes Positioned Geometry](0158-plot-layout-is-pure-java-and-renderer-consumes-positioned-geometry.md)
+- [0159 Presentation Math Is Not Executable Plot Function Logic](0159-presentation-math-is-not-executable-plot-function-logic.md)
+- [0160 Plot Auto Range Does Not Force Zero](0160-plot-auto-range-does-not-force-zero.md)
+- [0161 Linear Plot Ticks Use Deterministic Nice Number Steps](0161-linear-plot-ticks-use-deterministic-nice-number-steps.md)
+- [0162 Plot Layout Owns Resolved Ranges Ticks And Coordinate Transform](0162-plot-layout-owns-resolved-ranges-ticks-and-coordinate-transform.md)
+- [0163 Plot Coordinate Transform Keeps Scientific Y Axis Upward](0163-plot-coordinate-transform-keeps-scientific-y-axis-upward.md)
+
+- [0164 Plot Series Geometry Is Derived In Pure Java Layout](0164-plot-series-geometry-is-derived-in-pure-java-layout.md)
+- [0165 Line Series Preserve Authored Order And Clip To Resolved Ranges](0165-line-series-preserve-authored-order-and-clip-to-resolved-ranges.md)
+- [0166 Scatter Series Render Visible Points With Deterministic Marker Shapes](0166-scatter-series-render-visible-points-with-deterministic-marker-shapes.md)
+- [0167 Automatic Plot Series Styles Do Not Rely On Color Alone](0167-automatic-plot-series-styles-do-not-rely-on-color-alone.md)
+- [0168 Plot Editing Uses Dedicated PlotEditingSelection](0168-plot-editing-uses-dedicated-ploteditingselection.md)
+- [0169 Plot Edit Targets Address Properties Series And Points](0169-plot-edit-targets-address-properties-series-and-points.md)
+- [0170 Plot Data Edits Use Immutable Global History Transactions](0170-plot-data-edits-use-immutable-global-history-transactions.md)
+- [0171 Plot Structural Editing Is Explicit And Does Not Infer Data](0171-plot-structural-editing-is-explicit-and-does-not-infer-data.md)
+- [0172 Plot Hit Testing Uses Pure Java Laid Out Geometry](0172-plot-hit-testing-uses-pure-java-laid-out-geometry.md)
+- [0173 Native Plot Clipboard Preserves PlotBlock AST](0173-native-plot-clipboard-preserves-plotblock-ast.md)
+- [0174 Whole Plot Plain Clipboard Fallback Is A Readable Data Summary](0174-whole-plot-plain-clipboard-fallback-is-a-readable-data-summary.md)
+- [0175 Native Plot Paste Replaces Selected PlotBlock](0175-native-plot-paste-replaces-selected-plotblock.md)
+- [0176 External Plot Text Is Not Silently Inferred As PlotBlock](0176-external-plot-text-is-not-silently-inferred-as-plotblock.md)
+- [0177 Plot Tick Density Is Layout Responsive](0177-plot-tick-density-is-layout-responsive.md)
+- [0178 DiagramBlock Stores Semantic DiagramDefinition](0178-diagramblock-stores-semantic-diagramdefinition.md)
+- [0179 Diagram Connectivity Uses Diagram-Scoped Reference IDs](0179-diagram-connectivity-uses-diagram-scoped-reference-ids.md)
+- [0180 Diagram Geometry Uses Local Logical Canvas Coordinates](0180-diagram-geometry-uses-local-logical-canvas-coordinates.md)
+- [0181 First Diagram Element Is Generic Rectangular Node With Perimeter Ports](0181-first-diagram-element-is-generic-rectangular-node-with-perimeter-ports.md)
+- [0182 Diagram Connections Reference Ports While Routes Are Derived](0182-diagram-connections-reference-ports-while-routes-are-derived.md)
+- [0183 Diagram Layout And Hit Testing Are Pure Java](0183-diagram-layout-and-hit-testing-are-pure-java.md)
+- [0184 Diagram Editing Uses Dedicated Mode And Completed Drags Are Single History Transactions](0184-diagram-editing-uses-dedicated-mode-and-completed-drags-are-single-history-transactions.md)
+- [0185 Electrical And Mechanical Domain Semantics Are Deferred Above M17 Foundation](0185-electrical-and-mechanical-domain-semantics-are-deferred-above-m17-foundation.md)
+
+- [0186 Diagram Structural Edits Preserve Reference Validity In One History Transaction](0186-diagram-structural-edits-preserve-reference-validity-in-one-history-transaction.md)
+- [0187 Incomplete Diagram Connections Live Only In Editor Interaction State](0187-incomplete-diagram-connections-live-only-in-editor-interaction-state.md)
+- [0188 Native Diagram Clipboard Preserves DiagramBlock AST](0188-native-diagram-clipboard-preserves-diagramblock-ast.md)
+- [0189 Whole Diagram Plain Clipboard Fallback Is A Readable Structural Summary](0189-whole-diagram-plain-clipboard-fallback-is-a-readable-structural-summary.md)
+- [0190 Native Diagram Paste Replaces Selected DiagramBlock](0190-native-diagram-paste-replaces-selected-diagramblock.md)
+- [0191 External Diagram Text Is Not Silently Inferred As DiagramBlock](0191-external-diagram-text-is-not-silently-inferred-as-diagramblock.md)
+- [0192 Responsive Diagram Geometry Remains Bounded Under Narrow Layout](0192-responsive-diagram-geometry-remains-bounded-under-narrow-layout.md)
+- [0193 Degenerate Diagram Connections Remain Valid Zero Length Routes](0193-degenerate-diagram-connections-remain-valid-zero-length-routes.md)
+- [0194 Electrical Components Extend DiagramElement Inside DiagramBlock](0194-electrical-components-extend-diagramelement-inside-diagramblock.md)
+- [0195 Electrical Component Kinds Own Stable Terminal Schemas](0195-electrical-component-kinds-own-stable-terminal-schemas.md)
+- [0196 Electrical Symbols Use Derived Normalized Geometry](0196-electrical-symbols-use-derived-normalized-geometry.md)
+- [0197 Electrical Orientation Is Quarter Turn And Preserves Terminal Identity](0197-electrical-orientation-is-quarter-turn-and-preserves-terminal-identity.md)
+- [0198 Electrical Designators And Values Are Authored Annotations Not Simulation State](0198-electrical-designators-and-values-are-authored-annotations-not-simulation-state.md)
+- [0199 First Electrical Wiring Reuses DiagramConnection Without Net Inference](0199-first-electrical-wiring-reuses-diagramconnection-without-net-inference.md)
+- [0200 Schematic Symbols Are Separate From Physical Perfboard Representations](0200-schematic-symbols-are-separate-from-physical-perfboard-representations.md)
+- [0201 First Electrical Component Vocabulary Is Explicit And Bounded](0201-first-electrical-component-vocabulary-is-explicit-and-bounded.md)
+- [0202 Electrical Editing Reuses DiagramEditingSelection And Global History](0202-electrical-editing-reuses-diagrameditingselection-and-global-history.md)
+
+- [0203 DiagramElement Is Open For Domain Extensions](0203-diagramelement-is-open-for-domain-extensions.md)
+- [0204 Electrical Layout Keeps Derived Symbol Geometry Separate From Authored AST](0204-electrical-layout-keeps-derived-symbol-geometry-separate-from-authored-ast.md)
+- [0205 Electrical Hit Testing Reuses Generic Diagram Targets](0205-electrical-hit-testing-reuses-generic-diagram-targets.md)
+- [0206 DiagramElement Provides Immutable Bounds Replacement For Domain Dragging](0206-diagramelement-provides-immutable-bounds-replacement-for-domain-dragging.md)
+- [0207 Electrical Insertion Is Explicit By Kind With Deterministic Convenience Identifiers](0207-electrical-insertion-is-explicit-by-kind-with-deterministic-convenience-identifiers.md)
+- [0208 Electrical Quarter Turn Authoring Preserves Terminal References](0208-electrical-quarter-turn-authoring-preserves-terminal-references.md)
+- [0209 Electrical Reference And Value Edit As One History Transaction](0209-electrical-reference-and-value-edit-as-one-history-transaction.md)
+- [0210 Electrical Junctions Are Explicit Semantic Diagram Elements](0210-electrical-junctions-are-explicit-semantic-diagram-elements.md)
+- [0211 Electrical Nets Are Derived From Semantic Connectivity, Not Wire Geometry](0211-electrical-nets-are-derived-from-semantic-connectivity-not-wire-geometry.md)
+- [0212 Junction Directional Ports Are Internally One Electrical Node](0212-junction-directional-ports-are-internally-one-electrical-node.md)
+- [0213 Net Labels Annotate Explicit Connected Nets Without Merging By Name](0213-net-labels-annotate-explicit-connected-nets-without-merging-by-name.md)
+- [0214 Diagram Zoom And Pan Are Transient Viewport State](0214-diagram-zoom-and-pan-are-transient-viewport-state.md)
+- [0215 Diagram Workspace Height And Logical Canvas Size Are Authored Separately](0215-diagram-workspace-height-and-logical-canvas-size-are-authored-separately.md)
+- [0216 Global Electrical Symbol Scale Rewrites Component Bounds](0216-global-electrical-symbol-scale-rewrites-component-bounds.md)
+- [0217 Transient Diagram Viewports Follow Diagrams Across Block-Index Shifts](0217-transient-diagram-viewports-follow-diagrams-across-block-index-shifts.md)
+- [0218 Derived Electrical Connectivity Exposes Deterministic Semantic Order](0218-derived-electrical-connectivity-exposes-deterministic-semantic-order.md)
+
+- [0219 Electrical Terminal Exits Are Adaptive Derived Presentation](0219-electrical-terminal-exits-are-adaptive-derived-presentation.md)
+
+## Superseded Records
+
+- [0100 Contiguous Alphabetic Runs Import As Named Identifiers](0100-contiguous-alphabetic-runs-import-as-named-identifiers.md)
+
