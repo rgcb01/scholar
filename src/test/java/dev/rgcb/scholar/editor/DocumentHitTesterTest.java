@@ -136,8 +136,8 @@ class DocumentHitTesterTest {
         var layout = layoutEngine.layout(document(heading(2, text("alpha Δe\u0301 gamma"))), 50, textMeasurer);
 
         assertEquals(position(0), hit(layout, -5, 0));
-        assertEquals(position(2), hit(layout, 15, 0));
-        assertEquals(position(8), hit(layout, 15, 10));
+        assertEquals(position(0), hit(layout, 15, 0));
+        assertEquals(position(2), hit(layout, 15, 10));
         assertEquals(position(15), hit(layout, 200, 40));
     }
 

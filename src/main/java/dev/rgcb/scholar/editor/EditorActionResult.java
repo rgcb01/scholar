@@ -6,13 +6,19 @@ import java.util.Optional;
 public record EditorActionResult(
         boolean documentChanged,
         boolean caretShouldBeVisible,
-        Optional<SemanticMathTokenKind> semanticTokenPopup
+        Optional<SemanticMathTokenKind> semanticTokenPopup,
+        boolean crossReferencePopup,
+        boolean toggleOutline
 ) {
-    public static final EditorActionResult NONE = new EditorActionResult(false, false, Optional.empty());
-    public static final EditorActionResult DOCUMENT_CHANGED = new EditorActionResult(true, true, Optional.empty());
+    public static final EditorActionResult NONE = new EditorActionResult(false, false, Optional.empty(), false, false);
+    public static final EditorActionResult DOCUMENT_CHANGED = new EditorActionResult(true, true, Optional.empty(), false, false);
 
     public EditorActionResult(boolean documentChanged, boolean caretShouldBeVisible) {
-        this(documentChanged, caretShouldBeVisible, Optional.empty());
+        this(documentChanged, caretShouldBeVisible, Optional.empty(), false, false);
+    }
+
+    public EditorActionResult(boolean documentChanged, boolean caretShouldBeVisible, Optional<SemanticMathTokenKind> semanticTokenPopup) {
+        this(documentChanged, caretShouldBeVisible, semanticTokenPopup, false, false);
     }
 
     public EditorActionResult {
@@ -20,6 +26,14 @@ public record EditorActionResult(
     }
 
     public static EditorActionResult semanticTokenPopup(SemanticMathTokenKind kind) {
-        return new EditorActionResult(false, false, Optional.of(kind));
+        return new EditorActionResult(false, false, Optional.of(kind), false, false);
+    }
+
+    public static EditorActionResult openCrossReferencePopup() {
+        return new EditorActionResult(false, false, Optional.empty(), true, false);
+    }
+
+    public static EditorActionResult requestToggleOutline() {
+        return new EditorActionResult(false, false, Optional.empty(), false, true);
     }
 }

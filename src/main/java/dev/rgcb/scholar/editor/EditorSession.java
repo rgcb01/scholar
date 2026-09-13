@@ -1,9 +1,20 @@
 package dev.rgcb.scholar.editor;
 
 import dev.rgcb.scholar.document.Document;
+import dev.rgcb.scholar.document.DocumentPlainTextSerializer;
 import dev.rgcb.scholar.document.EquationBlock;
 import dev.rgcb.scholar.document.DiagramBlock;
+import dev.rgcb.scholar.document.FigureBlock;
+import dev.rgcb.scholar.document.FigureNumbering;
+import dev.rgcb.scholar.document.BlockNode;
+import dev.rgcb.scholar.document.CrossReference;
+import dev.rgcb.scholar.document.CrossReferenceResolver;
+import dev.rgcb.scholar.document.CrossReferenceTarget;
+import dev.rgcb.scholar.document.CrossReferenceTargetKind;
+import dev.rgcb.scholar.document.DocumentStructureResolver;
 import dev.rgcb.scholar.document.TableBlock;
+import dev.rgcb.scholar.document.TableOfContentsBlock;
+import dev.rgcb.scholar.document.Heading;
 import dev.rgcb.scholar.document.PlotBlock;
 import dev.rgcb.scholar.document.TextMark;
 import dev.rgcb.scholar.document.TableRow;
@@ -12,7 +23,19 @@ import dev.rgcb.scholar.document.TableCellContent;
 import dev.rgcb.scholar.document.InlineContent;
 import dev.rgcb.scholar.document.InlineNode;
 import dev.rgcb.scholar.document.Text;
+import dev.rgcb.scholar.clipboard.DocumentBlockClipboardPayload;
+import dev.rgcb.scholar.clipboard.InlineContentClipboardPayload;
 import dev.rgcb.scholar.clipboard.ScholarClipboardPayload;
+import dev.rgcb.scholar.data.DatasetColumn;
+import dev.rgcb.scholar.data.DatasetColumnType;
+import dev.rgcb.scholar.data.DatasetPlotBinding;
+import dev.rgcb.scholar.data.DatasetRow;
+import dev.rgcb.scholar.data.DatasetTableBinding;
+import dev.rgcb.scholar.data.DatasetTableResolver;
+import dev.rgcb.scholar.data.DatasetTsvSerializer;
+import dev.rgcb.scholar.data.DatasetValue;
+import dev.rgcb.scholar.data.ScientificDataset;
+import dev.rgcb.scholar.data.clipboard.DatasetClipboardPayload;
 import dev.rgcb.scholar.layout.LaidOutBlock;
 import dev.rgcb.scholar.math.MathDelimiter;
 import dev.rgcb.scholar.math.clipboard.MathClipboardPayload;
@@ -27,12 +50,16 @@ import dev.rgcb.scholar.math.editor.SemanticMathTokenKind;
 import dev.rgcb.scholar.table.clipboard.TableClipboardPayload;
 import dev.rgcb.scholar.table.clipboard.TableTsvSerializer;
 import dev.rgcb.scholar.plot.DataPoint;
+import dev.rgcb.scholar.plot.PlotDefinition;
+import dev.rgcb.scholar.plot.PlotSeries;
 import dev.rgcb.scholar.plot.PlotSeriesKind;
 import dev.rgcb.scholar.plot.clipboard.PlotClipboardPayload;
 import dev.rgcb.scholar.plot.clipboard.PlotPlainTextSerializer;
 import dev.rgcb.scholar.diagram.DiagramCanvas;
 import dev.rgcb.scholar.diagram.clipboard.DiagramClipboardPayload;
 import dev.rgcb.scholar.diagram.clipboard.DiagramPlainTextSerializer;
+import dev.rgcb.scholar.figure.clipboard.FigureClipboardPayload;
+import dev.rgcb.scholar.figure.clipboard.FigurePlainTextSerializer;
 import dev.rgcb.scholar.electrical.ElectricalComponent;
 import dev.rgcb.scholar.electrical.ElectricalComponentKind;
 import dev.rgcb.scholar.electrical.ElectricalJunction;
@@ -47,7 +74,9 @@ import dev.rgcb.scholar.mechanical.MechanicalConstraintKind;
 import dev.rgcb.scholar.mechanical.editor.MechanicalDiagramEditor;
 import dev.rgcb.scholar.layout.LaidOutDocument;
 import dev.rgcb.scholar.layout.TextMeasurer;
+import java.math.BigDecimal;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -65,6 +94,12 @@ public final class EditorSession {
     private final TableTsvSerializer tableTsvSerializer;
     private final PlotPlainTextSerializer plotPlainTextSerializer;
     private final DiagramPlainTextSerializer diagramPlainTextSerializer;
+    private final FigurePlainTextSerializer figurePlainTextSerializer;
+    private final CrossReferenceResolver crossReferenceResolver;
+    private final DocumentStructureResolver structureResolver;
+    private final DocumentPlainTextSerializer documentPlainTextSerializer;
+    private final DatasetTableResolver datasetTableResolver;
+    private final DatasetTsvSerializer datasetTsvSerializer;
     private final PlainTextClipboard clipboard;
     private final EditorHistory history;
     private final CaretGeometryResolver caretGeometryResolver = new CaretGeometryResolver();
@@ -94,6 +129,12 @@ public final class EditorSession {
         tableTsvSerializer = new TableTsvSerializer();
         plotPlainTextSerializer = new PlotPlainTextSerializer();
         diagramPlainTextSerializer = new DiagramPlainTextSerializer();
+        figurePlainTextSerializer = new FigurePlainTextSerializer();
+        crossReferenceResolver = new CrossReferenceResolver();
+        structureResolver = new DocumentStructureResolver();
+        documentPlainTextSerializer = new DocumentPlainTextSerializer();
+        datasetTableResolver = new DatasetTableResolver();
+        datasetTsvSerializer = new DatasetTsvSerializer();
         clipboard = new PlainTextClipboard(editor);
         history = new EditorHistory(editor.initialState(initialDocument, initialBlockIndex));
     }
@@ -102,12 +143,24 @@ public final class EditorSession {
         return history.current();
     }
 
+    public EditorFocusOwner focusOwner() {
+        return EditorFocusOwner.fromSelection(current().selection());
+    }
+
     public boolean canUndo() {
         return history.canUndo();
     }
 
     public boolean canRedo() {
         return history.canRedo();
+    }
+
+    public int undoDepth() {
+        return history.undoDepth();
+    }
+
+    public int redoDepth() {
+        return history.redoDepth();
     }
 
     public void setCurrent(EditorState state) {
@@ -136,6 +189,14 @@ public final class EditorSession {
             return applyMathEdit(result, text);
         }
         if (current().isTableEditingSelection()) {
+            if (isEditingDatasetBackedTable()) {
+                return applyDatasetBackedTableTyping(tableEditor.insertText(
+                        currentTable(),
+                        current().tableEditingSelection().selection(),
+                        text,
+                        Set.of()),
+                        text);
+            }
             return applyTableTyping(tableEditor.insertText(
                     currentTable(),
                     current().tableEditingSelection().selection(),
@@ -143,7 +204,10 @@ public final class EditorSession {
                     tableMarksForReplacement()),
                     text);
         }
-        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isFigureCaptionSelection()) {
+            return applyFigureCaptionTyping(text);
+        }
+        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             history.closeTypingTransaction();
             return false;
         }
@@ -171,7 +235,18 @@ public final class EditorSession {
             history.setCurrent(current().editDiagram(current().blockSelection().blockIndex(), diagramEditor.firstTarget(diagramBlock)));
             return false;
         }
-        if (current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isBlockSelection() && current().document().blocks().get(current().blockSelection().blockIndex()) instanceof FigureBlock figureBlock) {
+            var blockIndex = current().blockSelection().blockIndex();
+            if (figureBlock.content() instanceof PlotBlock plotBlock) {
+                history.setCurrent(current().editPlot(blockIndex, plotEditor.firstTarget(plotBlock)));
+                return false;
+            }
+            if (figureBlock.content() instanceof DiagramBlock diagramBlock) {
+                history.setCurrent(current().editDiagram(blockIndex, diagramEditor.firstTarget(diagramBlock)));
+                return false;
+            }
+        }
+        if (current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             history.closeTypingTransaction();
             return false;
         }
@@ -184,9 +259,17 @@ public final class EditorSession {
             return applyMathEdit(mathEditor.deleteBackward(currentEquation().expression(), current().equationEditingSelection().selection()), "");
         }
         if (current().isTableEditingSelection()) {
+            if (isEditingDatasetBackedTable()) {
+                return applyEditOrSelectionMove(applyDatasetBackedTableEdit(tableEditor.deleteBackward(
+                        currentTable(),
+                        current().tableEditingSelection().selection())));
+            }
             return applyEditOrSelectionMove(applyTableEditResult(tableEditor.deleteBackward(currentTable(), current().tableEditingSelection().selection())));
         }
-        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isFigureCaptionSelection()) {
+            return applyFigureCaptionDeleteBackward();
+        }
+        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             history.closeTypingTransaction();
             return false;
         }
@@ -199,9 +282,17 @@ public final class EditorSession {
             return applyMathEdit(mathEditor.deleteForward(currentEquation().expression(), current().equationEditingSelection().selection()), "");
         }
         if (current().isTableEditingSelection()) {
+            if (isEditingDatasetBackedTable()) {
+                return applyEditOrSelectionMove(applyDatasetBackedTableEdit(tableEditor.deleteForward(
+                        currentTable(),
+                        current().tableEditingSelection().selection())));
+            }
             return applyEditOrSelectionMove(applyTableEditResult(tableEditor.deleteForward(currentTable(), current().tableEditingSelection().selection())));
         }
-        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isFigureCaptionSelection()) {
+            return applyFigureCaptionDeleteForward();
+        }
+        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             history.closeTypingTransaction();
             return false;
         }
@@ -220,7 +311,11 @@ public final class EditorSession {
                     tableEditor.moveLeft(currentTable(), current().tableEditingSelection().selection())));
             return;
         }
-        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isFigureCaptionSelection()) {
+            moveFigureCaption(-1, false);
+            return;
+        }
+        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             history.closeTypingTransaction();
             return;
         }
@@ -239,7 +334,11 @@ public final class EditorSession {
                     tableEditor.moveRight(currentTable(), current().tableEditingSelection().selection())));
             return;
         }
-        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isFigureCaptionSelection()) {
+            moveFigureCaption(1, false);
+            return;
+        }
+        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             history.closeTypingTransaction();
             return;
         }
@@ -258,7 +357,11 @@ public final class EditorSession {
                     tableEditor.extendLeft(currentTable(), current().tableEditingSelection().selection())));
             return;
         }
-        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isFigureCaptionSelection()) {
+            moveFigureCaption(-1, true);
+            return;
+        }
+        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             history.closeTypingTransaction();
             return;
         }
@@ -277,7 +380,11 @@ public final class EditorSession {
                     tableEditor.extendRight(currentTable(), current().tableEditingSelection().selection())));
             return;
         }
-        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isFigureCaptionSelection()) {
+            moveFigureCaption(1, true);
+            return;
+        }
+        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             history.closeTypingTransaction();
             return;
         }
@@ -316,6 +423,36 @@ public final class EditorSession {
         moveToVisualLineBoundary(laidOutDocument, false, true);
     }
 
+    public void selectAll() {
+        clearPreferredCaretX();
+        if (current().isEquationEditingSelection()) {
+            history.setCurrent(current().editEquation(
+                    current().equationEditingSelection().blockIndex(),
+                    mathEditor.selectAll(currentEquation().expression())));
+            return;
+        }
+        if (current().isTableEditingSelection()) {
+            var selection = current().tableEditingSelection();
+            var text = tableEditor.cellText(currentTable(), selection.selection().cell());
+            history.setCurrent(current().editTable(
+                    selection.blockIndex(),
+                    new TableCellTextSelection(selection.selection().cell(), 0, TextBoundary.characterCount(text))));
+            return;
+        }
+        if (current().isFigureCaptionSelection()) {
+            var selection = current().figureCaptionSelection();
+            history.setCurrent(current().editFigureCaption(
+                    selection.blockIndex(),
+                    new FigureCaptionSelection(selection.blockIndex(), 0, captionLength(currentFigureForCaption().caption()))));
+            return;
+        }
+        if (current().isTextSelection()) {
+            history.setCurrent(new EditorState(current().document(), selectCurrentEditableTextScope(), Optional.empty()));
+            return;
+        }
+        history.closeTypingTransaction();
+    }
+
     public void clearPreferredCaretX() {
         preferredCaretX = Optional.empty();
     }
@@ -341,19 +478,19 @@ public final class EditorSession {
     }
 
     public boolean supportsInsertTableRow() {
-        return current().isTableEditingSelection();
+        return current().isTableEditingSelection() && !isEditingDatasetBackedTable();
     }
 
     public boolean supportsDeleteTableRow() {
-        return current().isTableEditingSelection() && tableEditor.canDeleteRow(currentTable());
+        return current().isTableEditingSelection() && !isEditingDatasetBackedTable() && tableEditor.canDeleteRow(currentTable());
     }
 
     public boolean supportsInsertTableColumn() {
-        return current().isTableEditingSelection();
+        return current().isTableEditingSelection() && !isEditingDatasetBackedTable();
     }
 
     public boolean supportsDeleteTableColumn() {
-        return current().isTableEditingSelection() && tableEditor.canDeleteColumn(currentTable());
+        return current().isTableEditingSelection() && !isEditingDatasetBackedTable() && tableEditor.canDeleteColumn(currentTable());
     }
 
     public boolean insertTableRowAbove() {
@@ -892,7 +1029,7 @@ public final class EditorSession {
     public boolean generateMechanicalBom(){
         if(!supportsGenerateMechanicalBom())return false;var refs=currentDiagram().definition().elements().stream().filter(MechanicalPartReference.class::isInstance).map(MechanicalPartReference.class::cast).sorted(java.util.Comparator.comparingInt(MechanicalPartReference::itemNumber)).toList();
         var rows=new java.util.ArrayList<TableRow>();rows.add(bomRow("ITEM","PART","QTY","DESCRIPTION"));for(var ref:refs)rows.add(bomRow(Integer.toString(ref.itemNumber()),ref.partName(),Integer.toString(ref.quantity()),ref.description()));
-        var table=new TableBlock(rows,1);var blockIndex=current().diagramEditingSelection().blockIndex();var blocks=new java.util.ArrayList<>(current().document().blocks());blocks.add(blockIndex+1,table);var document=new Document(blocks);return history.applyEdit(new EditResult(document,new BlockSelection(blockIndex+1),Optional.empty(),true));
+        var table=new TableBlock(rows,1);var blockIndex=current().diagramEditingSelection().blockIndex();var blocks=new java.util.ArrayList<>(current().document().blocks());blocks.add(blockIndex+1,table);var document=withCurrentDatasets(blocks);return history.applyEdit(new EditResult(document,new BlockSelection(blockIndex+1),Optional.empty(),true));
     }
     private static TableRow bomRow(String item,String part,String qty,String description){return new TableRow(java.util.List.of(bomCell(item),bomCell(part),bomCell(qty),bomCell(description)));}
     private static TableCell bomCell(String text){return new TableCell(new TableCellContent(new InlineContent(java.util.List.of((InlineNode)new Text(text,Set.of())))));}
@@ -1255,7 +1392,7 @@ public final class EditorSession {
     }
 
     public boolean supportsBlockStyle() {
-        if (current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             return false;
         }
         return editor.supportsBlockStyle(current());
@@ -1267,7 +1404,7 @@ public final class EditorSession {
     }
 
     public BlockStyleSelectionState blockStyleSelectionState() {
-        if (current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             return BlockStyleSelectionState.notApplicable();
         }
         return editor.blockStyleSelectionState(current());
@@ -1287,7 +1424,7 @@ public final class EditorSession {
         if (current().isTableEditingSelection()) {
             return tableEditor.formattingState(currentTable(), current().tableEditingSelection().selection(), mark);
         }
-        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             return FormattingState.NOT_APPLICABLE;
         }
         return editor.formattingState(current(), mark);
@@ -1299,7 +1436,7 @@ public final class EditorSession {
                     .map(Set::copyOf)
                     .orElseGet(() -> tableEditor.marksForInsertion(currentTable(), current().tableEditingSelection().selection()));
         }
-        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             return Set.of();
         }
         return editor.marksForInsertion(current());
@@ -1312,6 +1449,9 @@ public final class EditorSession {
             return false;
         }
         if (current().isTableEditingSelection()) {
+            if (isEditingDatasetBackedTable()) {
+                return false;
+            }
             if (!current().tableEditingSelection().selection().isCaret()) {
                 return history.applyEdit(applyTableEditResult(tableEditor.toggleMark(
                         currentTable(),
@@ -1356,10 +1496,41 @@ public final class EditorSession {
         if (current().isTableEditingSelection()) {
             return tableEditor.copy(currentTable(), current().tableEditingSelection().selection());
         }
-        if (current().isBlockSelection() || current().isEquationEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isBlockSelection() || current().isEquationEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             return Optional.empty();
         }
         return clipboard.copy(current());
+    }
+
+    public List<CrossReferenceTarget> availableCrossReferenceTargets() {
+        return crossReferenceResolver.targets(current().document());
+    }
+
+    public boolean supportsInsertCrossReference() {
+        if (availableCrossReferenceTargets().isEmpty()) {
+            return false;
+        }
+        if (current().isFigureCaptionSelection()) {
+            return true;
+        }
+        return !current().isBlockSelection()
+                && !current().isEquationEditingSelection()
+                && !current().isTableEditingSelection()
+                && !current().isPlotEditingSelection()
+                && !current().isDiagramEditingSelection();
+    }
+
+    public boolean insertCrossReference(CrossReferenceTargetKind kind, String targetId) {
+        Objects.requireNonNull(kind, "kind");
+        Objects.requireNonNull(targetId, "targetId");
+        if (!supportsInsertCrossReference()) {
+            return false;
+        }
+        var reference = new CrossReference(kind, targetId);
+        if (current().isFigureCaptionSelection()) {
+            return history.applyEdit(applyFigureCaptionReplacement(new InlineContent(List.of(reference))));
+        }
+        return history.applyEdit(editor.insertCrossReference(current(), reference));
     }
 
     public Optional<ClipboardCopyResult> copyForClipboard() {
@@ -1373,17 +1544,20 @@ public final class EditorSession {
             return tableEditor.copy(currentTable(), current().tableEditingSelection().selection())
                     .map(ClipboardCopyResult::plainText);
         }
-        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             return Optional.empty();
         }
-        return clipboard.copy(current()).map(ClipboardCopyResult::plainText);
+        return copyInlineContentForClipboard().or(() -> clipboard.copy(current()).map(ClipboardCopyResult::plainText));
     }
 
     public Optional<ClipboardEditResult> cutSelection() {
         if (current().isTableEditingSelection()) {
+            if (isEditingDatasetBackedTable()) {
+                return Optional.empty();
+            }
             return tableEditor.cut(new TableEditor.DocumentSource(current().document(), current().tableEditingSelection().blockIndex(), currentTable()), current().tableEditingSelection().selection());
         }
-        if (current().isBlockSelection() || current().isEquationEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isBlockSelection() || current().isEquationEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             return Optional.empty();
         }
         return clipboard.cut(current());
@@ -1399,11 +1573,12 @@ public final class EditorSession {
         if (current().isTableEditingSelection()) {
             return cutTableForClipboard();
         }
-        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             return Optional.empty();
         }
-        return clipboard.cut(current())
-                .map(cut -> ClipboardCutResult.plainText(cut.clipboardText(), cut.editResult()));
+        return cutInlineContentForClipboard()
+                .or(() -> clipboard.cut(current())
+                        .map(cut -> ClipboardCutResult.plainText(cut.clipboardText(), cut.editResult())));
     }
 
     public boolean applyCut(ClipboardEditResult cut) {
@@ -1423,10 +1598,12 @@ public final class EditorSession {
         clearPreferredCaretX();
         if (current().isTableEditingSelection()) {
             return pasteIntoTableCell(text)
-                    .filter(result -> history.applyEdit(clearTypingMarks(applyTableEditResult(result))))
+                    .filter(result -> history.applyEdit(clearTypingMarks(isEditingDatasetBackedTable()
+                            ? applyDatasetBackedTableEdit(result)
+                            : applyTableEditResult(result))))
                     .isPresent();
         }
-        if (current().isBlockSelection() || current().isEquationEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isBlockSelection() || current().isEquationEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             return false;
         }
         var result = clipboard.paste(current(), text);
@@ -1457,8 +1634,17 @@ public final class EditorSession {
                     .filter(TableEditResult::changed)
                     .isPresent();
         }
-        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             return false;
+        }
+        if (inlineContentFromClipboard(payload).isPresent()) {
+            return supportsPasteInlineContentFromClipboard();
+        }
+        if (documentBlockFromClipboard(payload).isPresent()) {
+            return supportsPasteDocumentBlockFromClipboard(documentBlockFromClipboard(payload).orElseThrow().block());
+        }
+        if (datasetFromClipboard(payload).isPresent()) {
+            return supportsDatasetDocumentAction();
         }
         if (tableFromClipboard(payload).isPresent()) {
             return supportsPasteTableFromClipboard();
@@ -1468,6 +1654,9 @@ public final class EditorSession {
         }
         if (diagramFromClipboard(payload).isPresent()) {
             return supportsPasteDiagramFromClipboard();
+        }
+        if (figureFromClipboard(payload).isPresent()) {
+            return supportsPasteFigureFromClipboard();
         }
         return !current().isBlockSelection();
     }
@@ -1487,11 +1676,25 @@ public final class EditorSession {
         }
         if (current().isTableEditingSelection()) {
             return pasteIntoTableCell(text)
-                    .filter(result -> history.applyEdit(clearTypingMarks(applyTableEditResult(result))))
+                    .filter(result -> history.applyEdit(clearTypingMarks(isEditingDatasetBackedTable()
+                            ? applyDatasetBackedTableEdit(result)
+                            : applyTableEditResult(result))))
                     .isPresent();
         }
-        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             return false;
+        }
+        var inlinePayload = inlineContentFromClipboard(payload);
+        if (inlinePayload.isPresent()) {
+            return pasteInlineContentFromClipboard(inlinePayload.orElseThrow().content());
+        }
+        var documentBlockPayload = documentBlockFromClipboard(payload);
+        if (documentBlockPayload.isPresent()) {
+            return pasteDocumentBlockFromClipboard(documentBlockPayload.orElseThrow().block());
+        }
+        var datasetPayload = datasetFromClipboard(payload);
+        if (datasetPayload.isPresent()) {
+            return addDataset(datasetPayload.orElseThrow().dataset());
         }
         var tablePayload = tableFromClipboard(payload);
         if (tablePayload.isPresent()) {
@@ -1505,6 +1708,10 @@ public final class EditorSession {
         if (diagramPayload.isPresent()) {
             return pasteDiagramFromClipboard(diagramPayload.orElseThrow().diagram());
         }
+        var figurePayload = figureFromClipboard(payload);
+        if (figurePayload.isPresent()) {
+            return pasteFigureFromClipboard(figurePayload.orElseThrow().figure());
+        }
         return pasteText(text);
     }
 
@@ -1517,7 +1724,7 @@ public final class EditorSession {
     }
 
     public boolean supportsInsertEquation() {
-        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             return false;
         }
         return editor.supportsInsertBlock(current());
@@ -1531,11 +1738,158 @@ public final class EditorSession {
         return history.applyEdit(editor.insertDefaultTable(current()));
     }
 
-    public boolean supportsInsertTable() {
-        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+    public boolean insertTableOfContents() {
+        clearPreferredCaretX();
+        if (!supportsInsertTableOfContents()) {
+            return false;
+        }
+        return history.applyEdit(editor.insertTableOfContents(current()));
+    }
+
+    public boolean supportsInsertTableOfContents() {
+        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             return false;
         }
         return editor.supportsInsertBlock(current());
+    }
+
+    public boolean supportsDatasetDocumentAction() {
+        return !current().isEquationEditingSelection()
+                && !current().isTableEditingSelection()
+                && !current().isPlotEditingSelection()
+                && !current().isDiagramEditingSelection()
+                && !current().isFigureCaptionSelection();
+    }
+
+    public boolean createDefaultDataset() {
+        return addDataset(defaultDataset(uniqueDatasetId("projectile-test")));
+    }
+
+    public boolean addDataset(ScientificDataset dataset) {
+        Objects.requireNonNull(dataset, "dataset");
+        if (!supportsDatasetDocumentAction()) {
+            return false;
+        }
+        var datasets = new java.util.ArrayList<>(current().document().datasets());
+        var candidate = dataset;
+        var candidateId = candidate.id();
+        if (datasets.stream().anyMatch(existing -> existing.id().equals(candidateId))) {
+            candidate = candidate.withId(uniqueDatasetId(candidate.id()));
+        }
+        datasets.add(candidate);
+        return history.applyEdit(new EditResult(new Document(current().document().blocks(), datasets), current().selection(), current().explicitTypingMarks(), true));
+    }
+
+    public boolean deleteDataset(String datasetId) {
+        Objects.requireNonNull(datasetId, "datasetId");
+        var datasets = current().document().datasets().stream()
+                .filter(dataset -> !dataset.id().equals(datasetId))
+                .toList();
+        if (datasets.size() == current().document().datasets().size()) {
+            return false;
+        }
+        return history.applyEdit(new EditResult(new Document(current().document().blocks(), datasets), current().selection(), current().explicitTypingMarks(), true));
+    }
+
+    public Optional<ClipboardCopyResult> copyDatasetForClipboard(String datasetId) {
+        Objects.requireNonNull(datasetId, "datasetId");
+        return current().document().datasets().stream()
+                .filter(dataset -> dataset.id().equals(datasetId))
+                .findFirst()
+                .map(dataset -> ClipboardCopyResult.structured(
+                        datasetTsvSerializer.serialize(dataset),
+                        new DatasetClipboardPayload(dataset)));
+    }
+
+    public boolean renameDataset(String datasetId, String displayName) {
+        return replaceDataset(datasetId, dataset -> dataset.withDisplayName(displayName));
+    }
+
+    public boolean renameDatasetColumn(String datasetId, String columnId, String displayName) {
+        return replaceDataset(datasetId, dataset -> dataset.withColumnDisplayName(columnId, displayName));
+    }
+
+    public boolean editDatasetCell(String datasetId, int rowIndex, String columnId, DatasetValue value) {
+        return replaceDataset(datasetId, dataset -> dataset.withCell(rowIndex, columnId, value));
+    }
+
+    public boolean addDatasetRow(String datasetId, DatasetRow row) {
+        return replaceDataset(datasetId, dataset -> dataset.withAddedRow(row));
+    }
+
+    public boolean deleteDatasetRow(String datasetId, int rowIndex) {
+        return replaceDataset(datasetId, dataset -> dataset.withoutRow(rowIndex));
+    }
+
+    public boolean addDatasetColumn(String datasetId, DatasetColumn column, DatasetValue defaultValue) {
+        return replaceDataset(datasetId, dataset -> dataset.withAddedColumn(column, defaultValue));
+    }
+
+    public boolean deleteDatasetColumn(String datasetId, String columnId) {
+        return replaceDataset(datasetId, dataset -> dataset.withoutColumn(columnId));
+    }
+
+    public boolean supportsInsertDatasetTable() {
+        return supportsDatasetDocumentAction()
+                && !current().document().datasets().isEmpty()
+                && editor.supportsInsertBlock(current());
+    }
+
+    public boolean insertDatasetTableForFirstDataset() {
+        if (!supportsInsertDatasetTable()) {
+            return false;
+        }
+        var dataset = current().document().datasets().get(0);
+        return history.applyEdit(editor.insertBlock(current(), new TableBlock(new DatasetTableBinding(dataset.id()))));
+    }
+
+    public boolean supportsBindSelectedPlotToFirstDataset() {
+        return current().isBlockSelection()
+                && current().document().blocks().get(current().blockSelection().blockIndex()) instanceof PlotBlock
+                && current().document().datasets().stream().anyMatch(dataset -> dataset.columns().size() >= 2);
+    }
+
+    public boolean bindSelectedPlotToFirstDataset() {
+        if (!supportsBindSelectedPlotToFirstDataset()) {
+            return false;
+        }
+        var blockIndex = current().blockSelection().blockIndex();
+        var plot = (PlotBlock) current().document().blocks().get(blockIndex);
+        var dataset = current().document().datasets().stream()
+                .filter(candidate -> candidate.columns().size() >= 2)
+                .findFirst()
+                .orElseThrow();
+        var binding = new DatasetPlotBinding(dataset.id(), dataset.columns().get(0).id(), dataset.columns().get(1).id());
+        var definition = plot.definition();
+        var series = definition.series().isEmpty()
+                ? List.of(new PlotSeries(dataset.displayLabel(), PlotSeriesKind.LINE, binding))
+                : replaceFirstSeriesBinding(definition.series(), binding);
+        var updatedPlot = new PlotBlock(new PlotDefinition(definition.title(), definition.xAxis(), definition.yAxis(), series, definition.legendVisible(), definition.gridVisible(), definition.height()));
+        var blocks = new java.util.ArrayList<BlockNode>(current().document().blocks());
+        blocks.set(blockIndex, updatedPlot);
+        return history.applyEdit(new EditResult(new Document(blocks, current().document().datasets()), new BlockSelection(blockIndex), Optional.empty(), true));
+    }
+
+    public boolean supportsInsertTable() {
+        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
+            return false;
+        }
+        return editor.supportsInsertBlock(current());
+    }
+
+    public boolean navigateToHeadingId(String targetId) {
+        Objects.requireNonNull(targetId, "targetId");
+        var section = structureResolver.resolve(current().document()).sectionById(targetId);
+        if (section.isEmpty()) {
+            return false;
+        }
+        history.setCurrent(new EditorState(
+                current().document(),
+                new TextSelection(
+                        new DocumentPosition(section.orElseThrow().blockIndex(), 0),
+                        new DocumentPosition(section.orElseThrow().blockIndex(), 0)),
+                current().explicitTypingMarks()));
+        return true;
     }
 
     public boolean insertDefaultPlot() {
@@ -1547,7 +1901,7 @@ public final class EditorSession {
     }
 
     public boolean supportsInsertPlot() {
-        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             return false;
         }
         return editor.supportsInsertBlock(current());
@@ -1562,10 +1916,83 @@ public final class EditorSession {
     }
 
     public boolean supportsInsertDiagram() {
-        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             return false;
         }
         return editor.supportsInsertBlock(current());
+    }
+
+    public boolean supportsWrapSelectedPlotInFigure() {
+        return current().isBlockSelection()
+                && current().document().blocks().get(current().blockSelection().blockIndex()) instanceof PlotBlock;
+    }
+
+    public boolean supportsWrapSelectedDiagramInFigure() {
+        return current().isBlockSelection()
+                && current().document().blocks().get(current().blockSelection().blockIndex()) instanceof DiagramBlock;
+    }
+
+    public boolean wrapSelectedPlotInFigure() {
+        return wrapSelectedBlockInFigure("figure");
+    }
+
+    public boolean wrapSelectedDiagramInFigure() {
+        return wrapSelectedBlockInFigure("figure");
+    }
+
+    public boolean supportsEditFigureCaption() {
+        return current().isBlockSelection()
+                && current().document().blocks().get(current().blockSelection().blockIndex()) instanceof FigureBlock;
+    }
+
+    public boolean editFigureCaption() {
+        if (!supportsEditFigureCaption()) {
+            return false;
+        }
+        var blockIndex = current().blockSelection().blockIndex();
+        var figure = (FigureBlock) current().document().blocks().get(blockIndex);
+        history.setCurrent(current().editFigureCaption(
+                blockIndex,
+                FigureCaptionSelection.caret(blockIndex, captionLength(figure.caption()))));
+        return true;
+    }
+
+    public boolean supportsUnwrapFigure() {
+        return current().isBlockSelection()
+                && current().document().blocks().get(current().blockSelection().blockIndex()) instanceof FigureBlock;
+    }
+
+    public boolean unwrapFigure() {
+        clearPreferredCaretX();
+        if (!supportsUnwrapFigure()) {
+            return false;
+        }
+        var blockIndex = current().blockSelection().blockIndex();
+        var figure = (FigureBlock) current().document().blocks().get(blockIndex);
+        var blocks = new java.util.ArrayList<BlockNode>(current().document().blocks());
+        blocks.set(blockIndex, figure.content());
+        var updated = withCurrentDatasets(blocks);
+        return history.applyEdit(new EditResult(updated, new BlockSelection(blockIndex), Optional.empty(), !updated.equals(current().document())));
+    }
+
+    public boolean setFigureCaptionText(int blockIndex, String captionText) {
+        Objects.requireNonNull(captionText, "captionText");
+        if (blockIndex < 0 || blockIndex >= current().document().blocks().size()) {
+            throw new IllegalArgumentException("blockIndex is outside the document.");
+        }
+        if (!(current().document().blocks().get(blockIndex) instanceof FigureBlock figure)) {
+            return false;
+        }
+        var caption = captionFromText(captionText);
+        var updatedFigure = figure.withCaption(caption);
+        var blocks = new java.util.ArrayList<BlockNode>(current().document().blocks());
+        blocks.set(blockIndex, updatedFigure);
+        var updated = withCurrentDatasets(blocks);
+        return history.applyEdit(new EditResult(
+                updated,
+                FigureCaptionSelection.caret(blockIndex, captionLength(caption)),
+                Optional.empty(),
+                !updated.equals(current().document())));
     }
 
     public boolean supportsInsertFraction() {
@@ -1729,7 +2156,7 @@ public final class EditorSession {
             moveWithinTableCell(laidOutDocument, textMeasurer, up, extend);
             return;
         }
-        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             history.closeTypingTransaction();
             return;
         }
@@ -1828,11 +2255,126 @@ public final class EditorSession {
         history.setCurrent(current().editTable(tableSelection.blockIndex(), nextSelection));
     }
 
+    private TextSelection selectCurrentEditableTextScope() {
+        var blocks = current().document().blocks();
+        var blockIndex = current().textSelection().active().blockIndex();
+        var first = blockIndex;
+        while (first > 0 && EditableInlineBlock.supports(blocks.get(first - 1))) {
+            first--;
+        }
+        var last = blockIndex;
+        while (last + 1 < blocks.size() && EditableInlineBlock.supports(blocks.get(last + 1))) {
+            last++;
+        }
+        var endOffset = InlineContentEditor.characterCount(EditableInlineBlock.contentOf(blocks.get(last)));
+        return new TextSelection(new DocumentPosition(first, 0), new DocumentPosition(last, endOffset));
+    }
+
     private static dev.rgcb.scholar.layout.LaidOutTableCell laidOutTableCell(LaidOutDocument laidOutDocument, TableEditingSelection selection) {
         var block = laidOutDocument.blocks().get(selection.blockIndex());
         var table = block.table().orElseThrow();
         var coordinate = selection.selection().cell();
         return table.rows().get(coordinate.rowIndex()).cells().get(coordinate.columnIndex());
+    }
+
+    private boolean wrapSelectedBlockInFigure(String idBase) {
+        clearPreferredCaretX();
+        if (!current().isBlockSelection()) {
+            return false;
+        }
+        var blockIndex = current().blockSelection().blockIndex();
+        var block = current().document().blocks().get(blockIndex);
+        if (!FigureBlock.supportsContent(block)) {
+            return false;
+        }
+        var figure = new FigureBlock(uniqueFigureId(current().document(), idBase, Optional.empty()), block, new InlineContent(List.of()));
+        var blocks = new java.util.ArrayList<BlockNode>(current().document().blocks());
+        blocks.set(blockIndex, figure);
+        return history.applyEdit(new EditResult(
+                withCurrentDatasets(blocks),
+                new BlockSelection(blockIndex),
+                Optional.empty(),
+                true));
+    }
+
+    private boolean applyFigureCaptionTyping(String text) {
+        return history.applyEdit(applyFigureCaptionReplacement(text));
+    }
+
+    private boolean applyFigureCaptionDeleteBackward() {
+        var selection = current().figureCaptionSelection();
+        if (!selection.isCaret()) {
+            return history.applyEdit(applyFigureCaptionReplacement(""));
+        }
+        if (selection.activeOffset() == 0) {
+            return false;
+        }
+        var figure = currentFigureForCaption();
+        var previous = TextBoundary.previousOffset(captionText(figure.caption()), selection.activeOffset());
+        return history.applyEdit(applyFigureCaptionReplacement(previous, selection.activeOffset(), ""));
+    }
+
+    private boolean applyFigureCaptionDeleteForward() {
+        var selection = current().figureCaptionSelection();
+        if (!selection.isCaret()) {
+            return history.applyEdit(applyFigureCaptionReplacement(""));
+        }
+        var figure = currentFigureForCaption();
+        var text = captionText(figure.caption());
+        if (selection.activeOffset() == TextBoundary.characterCount(text)) {
+            return false;
+        }
+        var next = TextBoundary.nextOffset(text, selection.activeOffset());
+        return history.applyEdit(applyFigureCaptionReplacement(selection.activeOffset(), next, ""));
+    }
+
+    private void moveFigureCaption(int direction, boolean extend) {
+        var selection = current().figureCaptionSelection();
+        var text = captionText(currentFigureForCaption().caption());
+        var active = selection.activeOffset();
+        var next = active;
+        if (direction < 0 && active > 0) {
+            next = TextBoundary.previousOffset(text, active);
+        } else if (direction > 0 && active < TextBoundary.characterCount(text)) {
+            next = TextBoundary.nextOffset(text, active);
+        }
+        var replacement = extend
+                ? new FigureCaptionSelection(selection.blockIndex(), selection.anchorOffset(), next)
+                : FigureCaptionSelection.caret(selection.blockIndex(), next);
+        history.setCurrent(current().editFigureCaption(selection.blockIndex(), replacement));
+    }
+
+    private EditResult applyFigureCaptionReplacement(String replacement) {
+        var selection = current().figureCaptionSelection();
+        return applyFigureCaptionReplacement(selection.startOffset(), selection.endOffset(), captionFromText(replacement));
+    }
+
+    private EditResult applyFigureCaptionReplacement(InlineContent replacement) {
+        var selection = current().figureCaptionSelection();
+        return applyFigureCaptionReplacement(selection.startOffset(), selection.endOffset(), replacement);
+    }
+
+    private EditResult applyFigureCaptionReplacement(int startOffset, int endOffset, String replacement) {
+        return applyFigureCaptionReplacement(startOffset, endOffset, captionFromText(replacement));
+    }
+
+    private EditResult applyFigureCaptionReplacement(int startOffset, int endOffset, InlineContent middle) {
+        var selection = current().figureCaptionSelection();
+        var figure = currentFigureForCaption();
+        var captionText = captionText(figure.caption());
+        TextBoundary.validateRange(captionText, startOffset, endOffset);
+        var left = InlineContentEditor.split(figure.caption(), startOffset).left();
+        var right = InlineContentEditor.split(figure.caption(), endOffset).right();
+        var updatedCaption = InlineContentEditor.concat(InlineContentEditor.concat(left, middle), right);
+        var blocks = new java.util.ArrayList<BlockNode>(current().document().blocks());
+        blocks.set(selection.blockIndex(), figure.withCaption(updatedCaption));
+        var updatedDocument = withCurrentDatasets(blocks);
+        var caret = startOffset + InlineContentEditor.characterCount(middle);
+        return new EditResult(
+                updatedDocument,
+                FigureCaptionSelection.caret(selection.blockIndex(), caret),
+                Optional.empty(),
+                !updatedDocument.equals(current().document()));
     }
 
     private boolean applyEditOrSelectionMove(EditResult result) {
@@ -1857,9 +2399,9 @@ public final class EditorSession {
     private EditResult applyPlotEditResult(PlotEditResult result) {
         var blockIndex = current().plotEditingSelection().blockIndex();
         var blocks = new java.util.ArrayList<>(current().document().blocks());
-        blocks.set(blockIndex, result.plot());
+        blocks.set(blockIndex, replacePlotContent(blocks.get(blockIndex), result.plot()));
         return new EditResult(
-                new Document(blocks),
+                withCurrentDatasets(blocks),
                 new PlotEditingSelection(blockIndex, result.target()),
                 Optional.empty(),
                 result.changed());
@@ -1886,8 +2428,8 @@ public final class EditorSession {
     private Document documentWithDiagramEdit(DiagramEditResult result) {
         var blockIndex = current().diagramEditingSelection().blockIndex();
         var blocks = new java.util.ArrayList<>(current().document().blocks());
-        blocks.set(blockIndex, result.diagram());
-        return new Document(blocks);
+        blocks.set(blockIndex, replaceDiagramContent(blocks.get(blockIndex), result.diagram()));
+        return withCurrentDatasets(blocks);
     }
 
     private boolean applyStructuralMathEdit(dev.rgcb.scholar.math.editor.MathEditResult result) {
@@ -1896,9 +2438,9 @@ public final class EditorSession {
         }
         var blockIndex = current().equationEditingSelection().blockIndex();
         var blocks = new java.util.ArrayList<>(current().document().blocks());
-        blocks.set(blockIndex, new EquationBlock(result.expression()));
+        blocks.set(blockIndex, currentEquation().withExpression(result.expression()));
         return history.applyEdit(new EditResult(
-                new Document(blocks),
+                withCurrentDatasets(blocks),
                 new EquationEditingSelection(blockIndex, result.selection()),
                 Optional.empty(),
                 true));
@@ -1911,15 +2453,84 @@ public final class EditorSession {
         return history.applyTyping(applyTableEditResult(result), insertedText);
     }
 
+    private boolean applyDatasetBackedTableTyping(TableEditResult result, String insertedText) {
+        if (!current().isTableEditingSelection()) {
+            return false;
+        }
+        return history.applyTyping(applyDatasetBackedTableEdit(result), insertedText);
+    }
+
     private EditResult applyTableEditResult(TableEditResult result) {
         var blockIndex = current().tableEditingSelection().blockIndex();
         var blocks = new java.util.ArrayList<>(current().document().blocks());
         blocks.set(blockIndex, result.table());
         return new EditResult(
-                new Document(blocks),
+                withCurrentDatasets(blocks),
                 new TableEditingSelection(blockIndex, result.selection()),
                 result.explicitTypingMarks(),
                 result.changed());
+    }
+
+    private EditResult applyDatasetBackedTableEdit(TableEditResult result) {
+        var blockIndex = current().tableEditingSelection().blockIndex();
+        if (!(current().document().blocks().get(blockIndex) instanceof TableBlock boundTable)
+                || boundTable.datasetBinding().isEmpty()
+                || !result.changed()) {
+            return new EditResult(
+                    current().document(),
+                    new TableEditingSelection(blockIndex, result.selection()),
+                    result.explicitTypingMarks(),
+                    false);
+        }
+        var binding = boundTable.datasetBinding().orElseThrow();
+        var datasetIndex = datasetIndex(binding.datasetId());
+        if (datasetIndex < 0) {
+            return new EditResult(
+                    current().document(),
+                    new TableEditingSelection(blockIndex, current().tableEditingSelection().selection()),
+                    Optional.empty(),
+                    false);
+        }
+        var dataset = current().document().datasets().get(datasetIndex);
+        var originalCell = current().tableEditingSelection().selection().cell();
+        var columnId = datasetColumnId(dataset, binding, originalCell.columnIndex());
+        if (columnId.isEmpty()) {
+            return new EditResult(
+                    current().document(),
+                    new TableEditingSelection(blockIndex, current().tableEditingSelection().selection()),
+                    Optional.empty(),
+                    false);
+        }
+
+        var replacementText = tableEditor.cellText(result.table(), originalCell);
+        if (originalCell.rowIndex() == 0 && replacementText.trim().isEmpty()) {
+            return new EditResult(
+                    current().document(),
+                    new TableEditingSelection(blockIndex, current().tableEditingSelection().selection()),
+                    Optional.empty(),
+                    false);
+        }
+        var updatedDataset = originalCell.rowIndex() == 0
+                ? dataset.withColumnDisplayName(columnId.orElseThrow(), replacementText)
+                : dataset.withCell(
+                        originalCell.rowIndex() - 1,
+                        columnId.orElseThrow(),
+                        datasetValueFromText(replacementText, dataset.column(columnId.orElseThrow()).orElseThrow()));
+        if (updatedDataset.equals(dataset)) {
+            return new EditResult(
+                    current().document(),
+                    new TableEditingSelection(blockIndex, result.selection()),
+                    result.explicitTypingMarks(),
+                    false);
+        }
+        var datasets = new java.util.ArrayList<>(current().document().datasets());
+        datasets.set(datasetIndex, updatedDataset);
+        var document = new Document(current().document().blocks(), datasets);
+        return new EditResult(
+                document,
+                new TableEditingSelection(blockIndex, result.selection()),
+                result.explicitTypingMarks(),
+                true);
     }
 
     private boolean applyMathEdit(dev.rgcb.scholar.math.editor.MathEditResult result, String insertedText) {
@@ -1932,9 +2543,9 @@ public final class EditorSession {
         }
         var blockIndex = current().equationEditingSelection().blockIndex();
         var blocks = new java.util.ArrayList<>(current().document().blocks());
-        blocks.set(blockIndex, new EquationBlock(result.expression()));
+        blocks.set(blockIndex, currentEquation().withExpression(result.expression()));
         var edit = new EditResult(
-                new Document(blocks),
+                withCurrentDatasets(blocks),
                 new EquationEditingSelection(blockIndex, result.selection()),
                 Optional.empty(),
                 true);
@@ -2000,6 +2611,39 @@ public final class EditorSession {
         return plainText.map(text -> ClipboardCopyResult.structured(text, new MathClipboardPayload(fragment.orElseThrow())));
     }
 
+    private Optional<ClipboardCopyResult> copyInlineContentForClipboard() {
+        if (!current().hasSelection() || !current().selectionRange().isSingleBlock()) {
+            return Optional.empty();
+        }
+        var range = current().selectionRange();
+        var block = current().document().blocks().get(range.start().blockIndex());
+        if (!EditableInlineBlock.supports(block)) {
+            return Optional.empty();
+        }
+        var selected = InlineContentEditor.slice(
+                EditableInlineBlock.contentOf(block),
+                range.start().characterOffset(),
+                range.end().characterOffset());
+        if (selected.nodes().stream().noneMatch(CrossReference.class::isInstance)) {
+            return Optional.empty();
+        }
+        return clipboard.copy(current())
+                .map(text -> ClipboardCopyResult.structured(text, new InlineContentClipboardPayload(selected)));
+    }
+
+    private Optional<ClipboardCutResult> cutInlineContentForClipboard() {
+        var copy = copyInlineContentForClipboard();
+        if (copy.isEmpty()) {
+            return Optional.empty();
+        }
+        var result = editor.replaceRange(current().document(), current().selectionRange(), "");
+        if (!result.changed()) {
+            return Optional.empty();
+        }
+        var copied = copy.orElseThrow();
+        return Optional.of(new ClipboardCutResult(copied.plainText(), copied.payload(), result));
+    }
+
     private Optional<ClipboardCopyResult> copySelectedBlockForClipboard() {
         var blockIndex = current().blockSelection().blockIndex();
         var block = current().document().blocks().get(blockIndex);
@@ -2018,6 +2662,22 @@ public final class EditorSession {
                     diagramPlainTextSerializer.serialize(diagram),
                     new DiagramClipboardPayload(diagram)));
         }
+        if (block instanceof EquationBlock equation) {
+            return Optional.of(ClipboardCopyResult.structured(
+                    documentPlainTextSerializer.serializeBlock(current().document(), blockIndex, equation),
+                    new DocumentBlockClipboardPayload(equation)));
+        }
+        if (block instanceof FigureBlock figure) {
+            var number = FigureNumbering.numberFor(current().document(), blockIndex).orElseThrow();
+            return Optional.of(ClipboardCopyResult.structured(
+                    figurePlainTextSerializer.serialize(current().document(), figure, number),
+                    new FigureClipboardPayload(figure)));
+        }
+        if (block instanceof Heading || block instanceof TableOfContentsBlock) {
+            return Optional.of(ClipboardCopyResult.structured(
+                    documentPlainTextSerializer.serializeBlock(current().document(), blockIndex, block),
+                    new DocumentBlockClipboardPayload(block)));
+        }
         return Optional.empty();
     }
 
@@ -2035,7 +2695,7 @@ public final class EditorSession {
     }
 
     private boolean supportsPasteTableFromClipboard() {
-        if (current().isEquationEditingSelection() || current().isTableEditingSelection()) {
+        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isFigureCaptionSelection()) {
             return false;
         }
         if (current().isBlockSelection()) {
@@ -2054,19 +2714,19 @@ public final class EditorSession {
                 return false;
             }
             var blocks = new java.util.ArrayList<>(current().document().blocks());
-            blocks.set(blockIndex, table);
-            var document = new Document(blocks);
+            blocks.set(blockIndex, remapTableForPaste(table, Optional.of(blockIndex)));
+            var document = withCurrentDatasets(blocks);
             return history.applyEdit(new EditResult(
                     document,
                     new BlockSelection(blockIndex),
                     Optional.empty(),
                     !document.equals(current().document())));
         }
-        return history.applyEdit(editor.insertBlock(current(), table));
+        return history.applyEdit(editor.insertBlock(current(), remapTableForPaste(table, Optional.empty())));
     }
 
     private boolean supportsPastePlotFromClipboard() {
-        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             return false;
         }
         if (current().isBlockSelection()) {
@@ -2086,7 +2746,7 @@ public final class EditorSession {
             }
             var blocks = new java.util.ArrayList<>(current().document().blocks());
             blocks.set(blockIndex, plot);
-            var document = new Document(blocks);
+            var document = withCurrentDatasets(blocks);
             return history.applyEdit(new EditResult(
                     document,
                     new BlockSelection(blockIndex),
@@ -2097,7 +2757,7 @@ public final class EditorSession {
     }
 
     private boolean supportsPasteDiagramFromClipboard() {
-        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection()) {
+        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
             return false;
         }
         if (current().isBlockSelection()) {
@@ -2117,7 +2777,7 @@ public final class EditorSession {
             }
             var blocks = new java.util.ArrayList<>(current().document().blocks());
             blocks.set(blockIndex, diagram);
-            var document = new Document(blocks);
+            var document = withCurrentDatasets(blocks);
             diagramConnectionSource = null;
             diagramDragInteraction = null;
             return history.applyEdit(new EditResult(
@@ -2131,6 +2791,45 @@ public final class EditorSession {
         return history.applyEdit(editor.insertBlock(current(), diagram));
     }
 
+    private boolean supportsPasteFigureFromClipboard() {
+        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
+            return false;
+        }
+        if (current().isBlockSelection()) {
+            return current().document().blocks().get(current().blockSelection().blockIndex()) instanceof FigureBlock;
+        }
+        return editor.supportsInsertBlock(current());
+    }
+
+    private boolean pasteFigureFromClipboard(FigureBlock figure) {
+        if (!supportsPasteFigureFromClipboard()) {
+            return false;
+        }
+        var replacing = current().isBlockSelection()
+                ? Optional.of(current().blockSelection().blockIndex())
+                : Optional.<Integer>empty();
+        var pasted = figure.withId(uniqueFigureId(current().document(), figure.id(), replacing));
+        if (current().isBlockSelection()) {
+            var blockIndex = current().blockSelection().blockIndex();
+            if (!(current().document().blocks().get(blockIndex) instanceof FigureBlock)) {
+                return false;
+            }
+            var blocks = new java.util.ArrayList<>(current().document().blocks());
+            blocks.set(blockIndex, pasted);
+            var document = withCurrentDatasets(blocks);
+            diagramConnectionSource = null;
+            diagramDragInteraction = null;
+            return history.applyEdit(new EditResult(
+                    document,
+                    new BlockSelection(blockIndex),
+                    Optional.empty(),
+                    !document.equals(current().document())));
+        }
+        diagramConnectionSource = null;
+        diagramDragInteraction = null;
+        return history.applyEdit(editor.insertBlock(current(), pasted));
+    }
+
     private Optional<ClipboardCutResult> cutMathForClipboard() {
         var copy = copyMathForClipboard();
         if (copy.isEmpty()) {
@@ -2142,9 +2841,9 @@ public final class EditorSession {
         }
         var blockIndex = current().equationEditingSelection().blockIndex();
         var blocks = new java.util.ArrayList<>(current().document().blocks());
-        blocks.set(blockIndex, new EquationBlock(result.expression()));
+        blocks.set(blockIndex, currentEquation().withExpression(result.expression()));
         var edit = new EditResult(
-                new Document(blocks),
+                withCurrentDatasets(blocks),
                 new EquationEditingSelection(blockIndex, result.selection()),
                 Optional.empty(),
                 true);
@@ -2186,6 +2885,185 @@ public final class EditorSession {
                 .map(DiagramClipboardPayload.class::cast);
     }
 
+    private static Optional<FigureClipboardPayload> figureFromClipboard(Optional<ScholarClipboardPayload> payload) {
+        return payload.filter(FigureClipboardPayload.class::isInstance)
+                .map(FigureClipboardPayload.class::cast);
+    }
+
+    private static Optional<InlineContentClipboardPayload> inlineContentFromClipboard(Optional<ScholarClipboardPayload> payload) {
+        return payload.filter(InlineContentClipboardPayload.class::isInstance)
+                .map(InlineContentClipboardPayload.class::cast);
+    }
+
+    private static Optional<DocumentBlockClipboardPayload> documentBlockFromClipboard(Optional<ScholarClipboardPayload> payload) {
+        return payload.filter(DocumentBlockClipboardPayload.class::isInstance)
+                .map(DocumentBlockClipboardPayload.class::cast);
+    }
+
+    private static Optional<DatasetClipboardPayload> datasetFromClipboard(Optional<ScholarClipboardPayload> payload) {
+        return payload.filter(DatasetClipboardPayload.class::isInstance)
+                .map(DatasetClipboardPayload.class::cast);
+    }
+
+    private boolean supportsPasteInlineContentFromClipboard() {
+        return !current().isBlockSelection()
+                && !current().isEquationEditingSelection()
+                && !current().isTableEditingSelection()
+                && !current().isPlotEditingSelection()
+                && !current().isDiagramEditingSelection()
+                && !current().isFigureCaptionSelection()
+                && (!current().hasSelection() || current().selectionRange().isSingleBlock());
+    }
+
+    private boolean pasteInlineContentFromClipboard(InlineContent content) {
+        if (!supportsPasteInlineContentFromClipboard()) {
+            return false;
+        }
+        return history.applyEdit(editor.insertInlineContent(current(), content));
+    }
+
+    private boolean supportsPasteDocumentBlockFromClipboard(BlockNode block) {
+        if (!(block instanceof Heading || block instanceof EquationBlock || block instanceof TableOfContentsBlock)) {
+            return false;
+        }
+        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
+            return false;
+        }
+        return editor.supportsInsertBlock(current());
+    }
+
+    private boolean pasteDocumentBlockFromClipboard(BlockNode block) {
+        if (!supportsPasteDocumentBlockFromClipboard(block)) {
+            return false;
+        }
+        return history.applyEdit(editor.insertBlock(current(), remapDocumentBlockForPaste(block)));
+    }
+
+    private BlockNode remapDocumentBlockForPaste(BlockNode block) {
+        if (block instanceof Heading heading && heading.id().isPresent()) {
+            return heading.withId(uniqueHeadingId(heading.id().orElseThrow()));
+        }
+        if (block instanceof EquationBlock equation && equation.id().isPresent()) {
+            return equation.withId(uniqueEquationId(equation.id().orElseThrow()));
+        }
+        return block;
+    }
+
+    private TableBlock remapTableForPaste(TableBlock table, Optional<Integer> replacingBlockIndex) {
+        if (table.id().isEmpty()) {
+            return table;
+        }
+        return table.withId(uniqueTableId(table.id().orElseThrow(), replacingBlockIndex));
+    }
+
+    private String uniqueHeadingId(String baseId) {
+        var existing = new java.util.HashSet<String>();
+        for (var block : current().document().blocks()) {
+            if (block instanceof Heading heading) {
+                heading.id().ifPresent(existing::add);
+            }
+        }
+        if (!existing.contains(baseId)) {
+            return baseId;
+        }
+        var suffix = 2;
+        while (existing.contains(baseId + "-" + suffix)) {
+            suffix++;
+        }
+        return baseId + "-" + suffix;
+    }
+
+    private String uniqueEquationId(String baseId) {
+        var existing = new java.util.HashSet<String>();
+        for (var block : current().document().blocks()) {
+            if (block instanceof EquationBlock equation) {
+                equation.id().ifPresent(existing::add);
+            }
+        }
+        return uniqueId(baseId, "equation", existing);
+    }
+
+    private String uniqueTableId(String baseId, Optional<Integer> replacingBlockIndex) {
+        var existing = new java.util.HashSet<String>();
+        for (var index = 0; index < current().document().blocks().size(); index++) {
+            if (replacingBlockIndex.isPresent() && replacingBlockIndex.orElseThrow() == index) {
+                continue;
+            }
+            var block = current().document().blocks().get(index);
+            if (block instanceof TableBlock table) {
+                table.id().ifPresent(existing::add);
+            }
+        }
+        return uniqueId(baseId, "table", existing);
+    }
+
+    private static String uniqueId(String baseId, String fallback, java.util.Set<String> existing) {
+        var base = Objects.requireNonNull(baseId, "baseId").trim();
+        if (base.isEmpty()) {
+            base = fallback;
+        }
+        if (!existing.contains(base)) {
+            return base;
+        }
+        var suffix = 2;
+        while (existing.contains(base + "-" + suffix)) {
+            suffix++;
+        }
+        return base + "-" + suffix;
+    }
+
+    private boolean replaceDataset(String datasetId, java.util.function.UnaryOperator<ScientificDataset> replacement) {
+        Objects.requireNonNull(datasetId, "datasetId");
+        Objects.requireNonNull(replacement, "replacement");
+        var datasets = new java.util.ArrayList<>(current().document().datasets());
+        for (var index = 0; index < datasets.size(); index++) {
+            if (datasets.get(index).id().equals(datasetId)) {
+                var updated = replacement.apply(datasets.get(index));
+                if (updated.equals(datasets.get(index))) {
+                    return false;
+                }
+                datasets.set(index, updated);
+                return history.applyEdit(new EditResult(new Document(current().document().blocks(), datasets), current().selection(), current().explicitTypingMarks(), true));
+            }
+        }
+        return false;
+    }
+
+    private String uniqueDatasetId(String baseId) {
+        var existing = current().document().datasets().stream()
+                .map(ScientificDataset::id)
+                .collect(java.util.stream.Collectors.toSet());
+        if (!existing.contains(baseId)) {
+            return baseId;
+        }
+        var suffix = 2;
+        while (existing.contains(baseId + "-" + suffix)) {
+            suffix++;
+        }
+        return baseId + "-" + suffix;
+    }
+
+    private static ScientificDataset defaultDataset(String id) {
+        return new ScientificDataset(
+                id,
+                "Projectile Test",
+                List.of(
+                        new DatasetColumn("time", "Time", DatasetColumnType.NUMBER),
+                        new DatasetColumn("height", "Height", DatasetColumnType.NUMBER)),
+                List.of(
+                        new DatasetRow(List.of(DatasetValue.number("0.0"), DatasetValue.number("0.00"))),
+                        new DatasetRow(List.of(DatasetValue.number("0.5"), DatasetValue.number("3.78"))),
+                        new DatasetRow(List.of(DatasetValue.number("1.0"), DatasetValue.number("5.10"))),
+                        new DatasetRow(List.of(DatasetValue.number("1.5"), DatasetValue.number("3.98"))),
+                        new DatasetRow(List.of(DatasetValue.number("2.0"), DatasetValue.number("0.42")))));
+    }
+
+    private static List<PlotSeries> replaceFirstSeriesBinding(List<PlotSeries> source, DatasetPlotBinding binding) {
+        var updated = new java.util.ArrayList<>(source);
+        updated.set(0, source.get(0).withDatasetBinding(binding));
+        return List.copyOf(updated);
+    }
+
     private EquationBlock currentEquation() {
         var selection = current().equationEditingSelection();
         return (EquationBlock) current().document().blocks().get(selection.blockIndex());
@@ -2193,17 +3071,99 @@ public final class EditorSession {
 
     private TableBlock currentTable() {
         var selection = current().tableEditingSelection();
-        return (TableBlock) current().document().blocks().get(selection.blockIndex());
+        var table = (TableBlock) current().document().blocks().get(selection.blockIndex());
+        if (table.datasetBinding().isPresent()) {
+            return datasetTableResolver.resolve(current().document(), table);
+        }
+        return table;
+    }
+
+    private boolean isEditingDatasetBackedTable() {
+        if (!current().isTableEditingSelection()) {
+            return false;
+        }
+        return current().document().blocks().get(current().tableEditingSelection().blockIndex()) instanceof TableBlock table
+                && table.datasetBinding().isPresent();
+    }
+
+    private int datasetIndex(String datasetId) {
+        for (var index = 0; index < current().document().datasets().size(); index++) {
+            if (current().document().datasets().get(index).id().equals(datasetId)) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private static Optional<String> datasetColumnId(ScientificDataset dataset, DatasetTableBinding binding, int visibleColumnIndex) {
+        if (visibleColumnIndex < 0) {
+            return Optional.empty();
+        }
+        if (binding.usesAllColumns()) {
+            return visibleColumnIndex < dataset.columns().size()
+                    ? Optional.of(dataset.columns().get(visibleColumnIndex).id())
+                    : Optional.empty();
+        }
+        return visibleColumnIndex < binding.columnIds().size()
+                ? Optional.of(binding.columnIds().get(visibleColumnIndex))
+                : Optional.empty();
+    }
+
+    private static DatasetValue datasetValueFromText(String text, DatasetColumn column) {
+        var trimmed = Objects.requireNonNull(text, "text").trim();
+        if (trimmed.isEmpty()) {
+            return DatasetValue.missing();
+        }
+        if (column.type() == DatasetColumnType.NUMBER) {
+            try {
+                return DatasetValue.number(new BigDecimal(trimmed));
+            } catch (NumberFormatException exception) {
+                return DatasetValue.text(text);
+            }
+        }
+        return DatasetValue.text(text);
+    }
+
+    private Document withCurrentDatasets(List<BlockNode> blocks) {
+        return new Document(blocks, current().document().datasets());
     }
 
     private PlotBlock currentPlot() {
         var selection = current().plotEditingSelection();
-        return (PlotBlock) current().document().blocks().get(selection.blockIndex());
+        var block = current().document().blocks().get(selection.blockIndex());
+        if (block instanceof PlotBlock plotBlock) {
+            return plotBlock;
+        }
+        if (block instanceof FigureBlock figureBlock && figureBlock.content() instanceof PlotBlock plotBlock) {
+            return plotBlock;
+        }
+        throw new IllegalStateException("Current selection does not target a plot block.");
     }
 
     private DiagramBlock currentDiagram() {
         var selection = current().diagramEditingSelection();
-        return (DiagramBlock) current().document().blocks().get(selection.blockIndex());
+        var block = current().document().blocks().get(selection.blockIndex());
+        if (block instanceof DiagramBlock diagramBlock) {
+            return diagramBlock;
+        }
+        if (block instanceof FigureBlock figureBlock && figureBlock.content() instanceof DiagramBlock diagramBlock) {
+            return diagramBlock;
+        }
+        throw new IllegalStateException("Current selection does not target a diagram block.");
+    }
+
+    private static BlockNode replacePlotContent(BlockNode block, PlotBlock plot) {
+        if (block instanceof FigureBlock figureBlock) {
+            return figureBlock.withContent(plot);
+        }
+        return plot;
+    }
+
+    private static BlockNode replaceDiagramContent(BlockNode block, DiagramBlock diagram) {
+        if (block instanceof FigureBlock figureBlock) {
+            return figureBlock.withContent(diagram);
+        }
+        return diagram;
     }
 
     private Set<TextMark> tableMarksForReplacement() {
@@ -2226,6 +3186,53 @@ public final class EditorSession {
 
     private static EditResult clearTypingMarks(EditResult result) {
         return new EditResult(result.document(), result.selection(), Optional.empty(), result.changed());
+    }
+
+    private FigureBlock currentFigureForCaption() {
+        var selection = current().figureCaptionSelection();
+        return (FigureBlock) current().document().blocks().get(selection.blockIndex());
+    }
+
+    private static InlineContent captionFromText(String text) {
+        Objects.requireNonNull(text, "text");
+        return text.isEmpty()
+                ? new InlineContent(List.of())
+                : new InlineContent(List.of((InlineNode) new Text(text, Set.of())));
+    }
+
+    private static String captionText(InlineContent caption) {
+        return InlineContentEditor.logicalText(caption);
+    }
+
+    private static int captionLength(InlineContent caption) {
+        return TextBoundary.characterCount(captionText(caption));
+    }
+
+    private static String uniqueFigureId(Document document, String base, Optional<Integer> replacingBlockIndex) {
+        var sanitized = Objects.requireNonNull(base, "base").trim().toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("[^a-z0-9_-]+", "-")
+                .replaceAll("^-+|-+$", "");
+        if (sanitized.isEmpty()) {
+            sanitized = "figure";
+        }
+        var candidate = sanitized;
+        var suffix = 2;
+        while (figureIdExists(document, candidate, replacingBlockIndex)) {
+            candidate = sanitized + "-" + suffix++;
+        }
+        return candidate;
+    }
+
+    private static boolean figureIdExists(Document document, String id, Optional<Integer> replacingBlockIndex) {
+        for (var index = 0; index < document.blocks().size(); index++) {
+            if (replacingBlockIndex.isPresent() && replacingBlockIndex.orElseThrow() == index) {
+                continue;
+            }
+            if (document.blocks().get(index) instanceof FigureBlock figureBlock && figureBlock.id().equals(id)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private record DiagramDragInteraction(

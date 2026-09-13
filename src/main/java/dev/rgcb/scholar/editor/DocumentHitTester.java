@@ -65,7 +65,7 @@ public final class DocumentHitTester {
         var firstRun = firstSourceRun(line, blockIndex);
         var lastRun = lastSourceRun(line, blockIndex);
         if (firstRun == null || lastRun == null) {
-            return Optional.empty();
+            return Optional.of(new DocumentPosition(blockIndex, nearestBoundaryForDisplayOnlyLine(block, line, blockIndex)));
         }
 
         if (x <= firstRun.x()) {
@@ -178,6 +178,20 @@ public final class DocumentHitTester {
             var run = lastSourceRun(line, blockIndex);
             if (run != null) {
                 last = run;
+            }
+        }
+        return last == null ? 0 : last.sourceEnd();
+    }
+
+    private static int nearestBoundaryForDisplayOnlyLine(LaidOutBlock block, LaidOutLine targetLine, int blockIndex) {
+        LaidOutText last = null;
+        for (var line : block.lines()) {
+            var first = firstSourceRun(line, blockIndex);
+            if (first != null) {
+                if (targetLine.y() <= line.y()) {
+                    return first.sourceStart();
+                }
+                last = lastSourceRun(line, blockIndex);
             }
         }
         return last == null ? 0 : last.sourceEnd();

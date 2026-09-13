@@ -100,9 +100,9 @@ class SelectionGeometryResolverTest {
         var rects = resolver.resolve(range(3, 14), layout, textMeasurer);
 
         assertEquals(List.of(
-                new SelectionRect(30, 0, 20, 10),
-                new SelectionRect(0, 10, 40, 10),
-                new SelectionRect(0, 20, 30, 10)), rects);
+                new SelectionRect(30, 10, 20, 10),
+                new SelectionRect(0, 20, 40, 10),
+                new SelectionRect(0, 30, 30, 10)), rects);
     }
 
     @Test

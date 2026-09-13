@@ -170,12 +170,14 @@ class EditorActionTest {
                 EditorActionId.REDO,
                 EditorActionId.CUT,
                 EditorActionId.COPY,
-                EditorActionId.PASTE), actions.stream().map(EditorAction::id).toList());
+                EditorActionId.PASTE,
+                EditorActionId.DELETE), actions.stream().map(EditorAction::id).toList());
         assertEquals("Ctrl+Z", actions.get(0).shortcut().orElseThrow().displayText());
         assertEquals("Ctrl+Y", actions.get(1).shortcut().orElseThrow().displayText());
         assertEquals("Ctrl+X", actions.get(2).shortcut().orElseThrow().displayText());
         assertEquals("Ctrl+C", actions.get(3).shortcut().orElseThrow().displayText());
         assertEquals("Ctrl+V", actions.get(4).shortcut().orElseThrow().displayText());
+        assertEquals("Del", actions.get(5).shortcut().orElseThrow().displayText());
     }
 
     @Test
@@ -187,6 +189,8 @@ class EditorActionTest {
                 EditorActionId.INSERT_TABLE,
                 EditorActionId.INSERT_PLOT,
                 EditorActionId.INSERT_DIAGRAM,
+                EditorActionId.INSERT_CROSS_REFERENCE,
+                EditorActionId.INSERT_TABLE_OF_CONTENTS,
                 EditorActionId.MATH_INSERT_FRACTION,
                 EditorActionId.MATH_INSERT_ROOT,
                 EditorActionId.MATH_INSERT_PARENTHESES_GROUP,
@@ -200,20 +204,33 @@ class EditorActionTest {
         assertEquals("Table", actions.get(1).label());
         assertEquals("Plot", actions.get(2).label());
         assertEquals("Diagram", actions.get(3).label());
-        assertEquals("Fraction", actions.get(4).label());
-        assertEquals("Insert fraction", actions.get(4).tooltip());
-        assertEquals("Root", actions.get(5).label());
-        assertEquals("Insert square root", actions.get(5).tooltip());
-        assertEquals("Parentheses", actions.get(6).label());
-        assertEquals("Insert parentheses group", actions.get(6).tooltip());
-        assertEquals("Brackets", actions.get(7).label());
-        assertEquals("Insert brackets group", actions.get(7).tooltip());
-        assertEquals("Braces", actions.get(8).label());
-        assertEquals("Insert braces group", actions.get(8).tooltip());
-        assertEquals("Superscript", actions.get(9).label());
-        assertEquals("Insert superscript", actions.get(9).tooltip());
-        assertEquals("Subscript", actions.get(10).label());
-        assertEquals("Insert subscript", actions.get(10).tooltip());
+        assertEquals("Cross Reference", actions.get(4).label());
+        assertEquals("Insert cross-reference", actions.get(4).tooltip());
+        assertEquals("Table of Contents", actions.get(5).label());
+        assertEquals("Insert table of contents", actions.get(5).tooltip());
+        assertEquals("Fraction", actions.get(6).label());
+        assertEquals("Insert fraction", actions.get(6).tooltip());
+        assertEquals("Root", actions.get(7).label());
+        assertEquals("Insert square root", actions.get(7).tooltip());
+        assertEquals("Parentheses", actions.get(8).label());
+        assertEquals("Insert parentheses group", actions.get(8).tooltip());
+        assertEquals("Brackets", actions.get(9).label());
+        assertEquals("Insert brackets group", actions.get(9).tooltip());
+        assertEquals("Braces", actions.get(10).label());
+        assertEquals("Insert braces group", actions.get(10).tooltip());
+        assertEquals("Superscript", actions.get(11).label());
+        assertEquals("Insert superscript", actions.get(11).tooltip());
+        assertEquals("Subscript", actions.get(12).label());
+        assertEquals("Insert subscript", actions.get(12).tooltip());
+    }
+
+    @Test
+    void viewMenuActionsContainOutlineToggle() {
+        var actions = BuiltInEditorActions.viewMenuActions();
+
+        assertEquals(List.of(EditorActionId.TOGGLE_OUTLINE), actions.stream().map(EditorAction::id).toList());
+        assertEquals("Outline", actions.get(0).label());
+        assertEquals("Show or hide document outline", actions.get(0).tooltip());
     }
 
     @Test
@@ -301,7 +318,7 @@ class EditorActionTest {
     @Test
     void blockAndInlineActionsAreDisabledForUnsupportedBlocks() {
         var session = session("editable");
-        session.setCurrent(new EditorState(document(new EquationBlock(new MathIdentifier("x"))), new DocumentPosition(0, 0)));
+        session.setCurrent(new EditorState(document(new EquationBlock(new MathIdentifier("x"))), new BlockSelection(0), java.util.Optional.empty()));
         var context = new EditorActionContext(session, new FakeClipboard());
         var heading1 = BuiltInEditorActions.heading(1);
         var bold = BuiltInEditorActions.bold();
@@ -382,8 +399,8 @@ class EditorActionTest {
         session.setCurrent(new EditorState(session.current().document(), new BlockSelection(1), java.util.Optional.empty()));
         var context = new EditorActionContext(session, new FakeClipboard());
 
-        assertFalse(BuiltInEditorActions.copy().isEnabled(context));
-        assertFalse(BuiltInEditorActions.cut().isEnabled(context));
+        assertTrue(BuiltInEditorActions.copy().isEnabled(context));
+        assertTrue(BuiltInEditorActions.cut().isEnabled(context));
         assertFalse(BuiltInEditorActions.paste().isEnabled(context));
         assertFalse(BuiltInEditorActions.bold().isEnabled(context));
         assertFalse(BuiltInEditorActions.italic().isEnabled(context));

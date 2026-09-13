@@ -20,7 +20,7 @@ public final class BuiltInEditorActions {
     }
 
     public static List<EditorAction> editMenuActions() {
-        return List.of(undo(), redo(), cut(), copy(), paste());
+        return List.of(undo(), redo(), cut(), copy(), paste(), deleteSelection());
     }
 
     public static List<EditorAction> insertMenuActions() {
@@ -29,6 +29,8 @@ public final class BuiltInEditorActions {
                 insertTable(),
                 insertPlot(),
                 insertDiagram(),
+                insertCrossReference(),
+                insertTableOfContents(),
                 insertFraction(),
                 insertRoot(),
                 insertParenthesesGroup(),
@@ -141,6 +143,135 @@ public final class BuiltInEditorActions {
                 deleteDiagramConnection());
     }
 
+    public static List<EditorAction> figureMenuActions() {
+        return List.of(
+                wrapPlotInFigure(),
+                wrapDiagramInFigure(),
+                editFigureCaption(),
+                unwrapFigure());
+    }
+
+    public static List<EditorAction> viewMenuActions() {
+        return List.of(toggleOutline());
+    }
+
+    public static List<EditorAction> dataMenuActions() {
+        return List.of(newDataset(), insertDatasetTable(), bindPlotToDataset());
+    }
+
+    public static EditorAction wrapPlotInFigure() {
+        return new SimpleAction(
+                EditorActionId.FIGURE_WRAP_PLOT,
+                "Wrap Plot",
+                null,
+                context -> context.session().supportsWrapSelectedPlotInFigure(),
+                context -> context.session().wrapSelectedPlotInFigure()
+                        ? EditorActionResult.DOCUMENT_CHANGED
+                        : EditorActionResult.NONE);
+    }
+
+    public static EditorAction wrapDiagramInFigure() {
+        return new SimpleAction(
+                EditorActionId.FIGURE_WRAP_DIAGRAM,
+                "Wrap Diagram",
+                null,
+                context -> context.session().supportsWrapSelectedDiagramInFigure(),
+                context -> context.session().wrapSelectedDiagramInFigure()
+                        ? EditorActionResult.DOCUMENT_CHANGED
+                        : EditorActionResult.NONE);
+    }
+
+    public static EditorAction insertCrossReference() {
+        return new SimpleAction(
+                EditorActionId.INSERT_CROSS_REFERENCE,
+                "Cross Reference",
+                "Insert cross-reference",
+                null,
+                context -> context.session().supportsInsertCrossReference(),
+                context -> EditorActionResult.openCrossReferencePopup());
+    }
+
+    public static EditorAction insertTableOfContents() {
+        return new SimpleAction(
+                EditorActionId.INSERT_TABLE_OF_CONTENTS,
+                "Table of Contents",
+                "Insert table of contents",
+                null,
+                context -> context.session().supportsInsertTableOfContents(),
+                context -> context.session().insertTableOfContents()
+                        ? EditorActionResult.DOCUMENT_CHANGED
+                        : EditorActionResult.NONE);
+    }
+
+    public static EditorAction toggleOutline() {
+        return new SimpleAction(
+                EditorActionId.TOGGLE_OUTLINE,
+                "Outline",
+                "Show or hide document outline",
+                null,
+                context -> true,
+                context -> EditorActionResult.requestToggleOutline());
+    }
+
+    public static EditorAction newDataset() {
+        return new SimpleAction(
+                EditorActionId.DATA_NEW_DATASET,
+                "New Dataset",
+                "Create sample dataset",
+                null,
+                context -> context.session().supportsDatasetDocumentAction(),
+                context -> context.session().createDefaultDataset()
+                        ? EditorActionResult.DOCUMENT_CHANGED
+                        : EditorActionResult.NONE);
+    }
+
+    public static EditorAction insertDatasetTable() {
+        return new SimpleAction(
+                EditorActionId.DATA_INSERT_DATASET_TABLE,
+                "Dataset Table",
+                "Insert dataset-backed table",
+                null,
+                context -> context.session().supportsInsertDatasetTable(),
+                context -> context.session().insertDatasetTableForFirstDataset()
+                        ? EditorActionResult.DOCUMENT_CHANGED
+                        : EditorActionResult.NONE);
+    }
+
+    public static EditorAction bindPlotToDataset() {
+        return new SimpleAction(
+                EditorActionId.DATA_BIND_PLOT_TO_DATASET,
+                "Bind Plot",
+                "Bind selected plot to dataset",
+                null,
+                context -> context.session().supportsBindSelectedPlotToFirstDataset(),
+                context -> context.session().bindSelectedPlotToFirstDataset()
+                        ? EditorActionResult.DOCUMENT_CHANGED
+                        : EditorActionResult.NONE);
+    }
+
+    public static EditorAction editFigureCaption() {
+        return new SimpleAction(
+                EditorActionId.FIGURE_EDIT_CAPTION,
+                "Edit Caption",
+                null,
+                context -> context.session().supportsEditFigureCaption(),
+                context -> {
+                    context.session().editFigureCaption();
+                    return EditorActionResult.NONE;
+                });
+    }
+
+    public static EditorAction unwrapFigure() {
+        return new SimpleAction(
+                EditorActionId.FIGURE_UNWRAP,
+                "Unwrap Figure",
+                null,
+                context -> context.session().supportsUnwrapFigure(),
+                context -> context.session().unwrapFigure()
+                        ? EditorActionResult.DOCUMENT_CHANGED
+                        : EditorActionResult.NONE);
+    }
+
     public static List<EditorAction> blockStyleActions() {
         return List.of(paragraph(), heading(1), heading(2), heading(3), heading(4), heading(5), heading(6));
     }
@@ -224,6 +355,23 @@ public final class BuiltInEditorActions {
                         ? EditorActionResult.DOCUMENT_CHANGED
                         : EditorActionResult.NONE;
                 });
+    }
+
+    public static EditorAction deleteSelection() {
+        return new SimpleAction(
+                EditorActionId.DELETE,
+                "Delete",
+                new ActionShortcut("Del"),
+                context -> context.session().current().isBlockSelection()
+                        || context.session().current().hasSelection()
+                        || context.session().current().isTableEditingSelection()
+                        || context.session().current().isEquationEditingSelection()
+                        || context.session().current().isFigureCaptionSelection()
+                        || context.session().current().isPlotEditingSelection()
+                        || context.session().current().isDiagramEditingSelection(),
+                context -> context.session().deleteForward()
+                        ? EditorActionResult.DOCUMENT_CHANGED
+                        : EditorActionResult.NONE);
     }
 
     public static EditorAction insertEquation() {

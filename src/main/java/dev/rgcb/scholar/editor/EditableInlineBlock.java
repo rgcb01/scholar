@@ -4,6 +4,7 @@ import dev.rgcb.scholar.document.BlockNode;
 import dev.rgcb.scholar.document.Heading;
 import dev.rgcb.scholar.document.InlineContent;
 import dev.rgcb.scholar.document.Paragraph;
+import dev.rgcb.scholar.document.CrossReference;
 import dev.rgcb.scholar.document.Text;
 
 final class EditableInlineBlock {
@@ -30,7 +31,7 @@ final class EditableInlineBlock {
             return new Paragraph(content);
         }
         if (block instanceof Heading heading) {
-            return new Heading(heading.level(), content);
+            return new Heading(heading.level(), content, heading.id());
         }
         throw new IllegalArgumentException("Unsupported editable inline block: " + block.getClass().getName());
     }
@@ -47,10 +48,10 @@ final class EditableInlineBlock {
 
     static BlockNode withStyle(BlockNode block, BlockStyle style) {
         var content = contentOf(block);
-        return style.isParagraph() ? new Paragraph(content) : new Heading(style.headingLevel(), content);
+        return style.isParagraph() ? new Paragraph(content) : new Heading(style.headingLevel(), content, block instanceof Heading heading ? heading.id() : java.util.Optional.empty());
     }
 
     private static boolean textOnly(InlineContent content) {
-        return content.nodes().stream().allMatch(Text.class::isInstance);
+        return content.nodes().stream().allMatch(node -> node instanceof Text || node instanceof CrossReference);
     }
 }

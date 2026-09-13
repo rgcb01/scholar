@@ -1,10 +1,6 @@
 package dev.rgcb.scholar.editor;
 
 import dev.rgcb.scholar.document.Document;
-import dev.rgcb.scholar.document.EquationBlock;
-import dev.rgcb.scholar.document.DiagramBlock;
-import dev.rgcb.scholar.document.TableBlock;
-import dev.rgcb.scholar.document.PlotBlock;
 import dev.rgcb.scholar.document.TextMark;
 import java.util.Objects;
 import java.util.Optional;
@@ -32,52 +28,7 @@ public record EditorState(
         selection = Objects.requireNonNull(selection, "selection");
         explicitTypingMarks = Objects.requireNonNull(explicitTypingMarks, "explicitTypingMarks")
                 .map(Set::copyOf);
-        if (selection instanceof BlockSelection blockSelection) {
-            var blockIndex = blockSelection.blockIndex();
-            if (blockIndex >= document.blocks().size()) {
-                throw new IllegalArgumentException("block selection index is outside the document.");
-            }
-            if (EditableInlineBlock.supports(document.blocks().get(blockIndex))) {
-                throw new IllegalArgumentException("Paragraph and Heading blocks use text selection.");
-            }
-        } else if (selection instanceof EquationEditingSelection equationEditingSelection) {
-            var blockIndex = equationEditingSelection.blockIndex();
-            if (blockIndex >= document.blocks().size()) {
-                throw new IllegalArgumentException("equation editing block index is outside the document.");
-            }
-            if (!(document.blocks().get(blockIndex) instanceof EquationBlock)) {
-                throw new IllegalArgumentException("Equation editing selection requires an EquationBlock.");
-            }
-        } else if (selection instanceof TableEditingSelection tableEditingSelection) {
-            var blockIndex = tableEditingSelection.blockIndex();
-            if (blockIndex >= document.blocks().size()) {
-                throw new IllegalArgumentException("table editing block index is outside the document.");
-            }
-            if (!(document.blocks().get(blockIndex) instanceof TableBlock tableBlock)) {
-                throw new IllegalArgumentException("Table editing selection requires a TableBlock.");
-            }
-            new TableEditor().validateSelection(tableBlock, tableEditingSelection.selection());
-        } else if (selection instanceof PlotEditingSelection plotEditingSelection) {
-            var blockIndex = plotEditingSelection.blockIndex();
-            if (blockIndex >= document.blocks().size()) {
-                throw new IllegalArgumentException("plot editing block index is outside the document.");
-            }
-            if (!(document.blocks().get(blockIndex) instanceof PlotBlock plotBlock)) {
-                throw new IllegalArgumentException("Plot editing selection requires a PlotBlock.");
-            }
-            new PlotEditor().validateSelection(plotBlock, plotEditingSelection.target());
-        } else if (selection instanceof DiagramEditingSelection diagramEditingSelection) {
-            var blockIndex = diagramEditingSelection.blockIndex();
-            if (blockIndex >= document.blocks().size()) {
-                throw new IllegalArgumentException("diagram editing block index is outside the document.");
-            }
-            if (!(document.blocks().get(blockIndex) instanceof DiagramBlock diagramBlock)) {
-                throw new IllegalArgumentException("Diagram editing selection requires a DiagramBlock.");
-            }
-            new DiagramEditor().validateSelection(diagramBlock, diagramEditingSelection.target());
-        } else if (!(selection instanceof TextSelection)) {
-            throw new IllegalArgumentException("Unsupported editor selection: " + selection.getClass().getName());
-        }
+        new EditorSelectionValidator().validate(document, selection);
     }
 
     public DocumentPosition caret() {
@@ -114,6 +65,10 @@ public record EditorState(
 
     public boolean isDiagramEditingSelection() {
         return selection instanceof DiagramEditingSelection;
+    }
+
+    public boolean isFigureCaptionSelection() {
+        return selection instanceof FigureCaptionSelection;
     }
 
     public TextSelection textSelection() {
@@ -158,6 +113,13 @@ public record EditorState(
         throw new IllegalStateException("Current editor selection is not a diagram editing selection.");
     }
 
+    public FigureCaptionSelection figureCaptionSelection() {
+        if (selection instanceof FigureCaptionSelection figureCaptionSelection) {
+            return figureCaptionSelection;
+        }
+        throw new IllegalStateException("Current editor selection is not a figure caption selection.");
+    }
+
     public boolean hasSelection() {
         return isTextSelection() && !textSelection().isCaret();
     }
@@ -194,6 +156,13 @@ public record EditorState(
         return new EditorState(document, new DiagramEditingSelection(blockIndex, target), Optional.empty());
     }
 
+    public EditorState editFigureCaption(int blockIndex, FigureCaptionSelection captionSelection) {
+        if (captionSelection.blockIndex() != blockIndex) {
+            throw new IllegalArgumentException("Caption selection block index must match.");
+        }
+        return new EditorState(document, captionSelection, Optional.empty());
+    }
+
     public EditorState withActive(DocumentPosition position) {
         return new EditorState(document, anchor(), position, explicitTypingMarks);
     }
@@ -207,4 +176,5 @@ public record EditorState(
                 ? new EditorState(document, selection, Optional.empty())
                 : this;
     }
+
 }

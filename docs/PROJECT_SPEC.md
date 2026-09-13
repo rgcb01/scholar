@@ -24,6 +24,43 @@ This document captures approved high-level scope for the current project. It sho
 - Large technologies should be implemented as carefully chosen subsets rather than completeness projects.
 - The project should develop incrementally and remain functional at each milestone.
 
+## Current Context Menu Slice
+
+- Right-click menus are transient Minecraft shell UI.
+- Context menus resolve relevant existing `EditorAction`s from the current semantic `EditorState`.
+- Context menus do not own editing behavior and do not bypass action enable predicates.
+- Right-click inside an active text or table-cell text selection preserves that selection.
+- Right-click outside the active selection first targets the clicked semantic object.
+- Empty document space preserves editor selection and exposes only empty-area actions.
+- Context menu placement is viewport bounded and long menus scroll.
+- Nested submenus remain deferred.
+
+## Current Structural Editing Hardening Slice
+
+- Current structural edits must leave a document with no `DocumentValidator` errors and a valid `EditorSelection`.
+- Atomic block boundary deletion is two-step: first select the adjacent atomic block, then an explicit Delete/Backspace removes it.
+- Deleting the only selected block leaves one empty paragraph as the editor fallback.
+- Paragraph splits preserve inline content and text marks.
+- Heading middle splits keep the original stable heading ID only on the left heading; the new right heading is ID-less.
+- Text block merges keep the left block style and stable identity.
+- Plot/Diagram wrapping creates a unique `FigureBlock`; unwrapping restores the contained semantic block.
+- Dataset-backed table and plot view deletion does not delete dataset resources.
+- Structural paste remaps duplicate stable IDs for supported ID-bearing payloads.
+- Validators are used as structural regression oracles in tests, not as mandatory production checks after every keystroke.
+
+## Current History Transaction Slice
+
+- One logical semantic user edit creates at most one undoable history transaction.
+- `EditorHistory` stores `EditorState` snapshots: semantic `Document`, coherent editor selection, and explicit typing marks when present.
+- Undo/redo does not store menus, popups, hover, layout geometry, renderer objects, Minecraft widgets, scroll state, or diagram viewport cameras.
+- Selection and caret movement, nested-editor entry/exit, outline/TOC navigation, context-menu open/close, drag begin/preview/cancel, zoom, pan, and Fit are transient and do not create undo entries.
+- Semantic edits after undo clear redo; transient navigation after undo does not.
+- Redo restores snapshots rather than re-executing commands, so generated stable IDs remain deterministic.
+- Contiguous typing coalesces according to the current editor policy; structural and formatting edits close the typing group.
+- Diagram drag commit, figure wrap/unwrap/caption edits, table edits, plot edits, dataset edits, cut, paste, and structural edits are one transaction when they change semantics.
+- Copy is not history; cut and paste are history when they mutate the document.
+- Derived labels, TOC/outline entries, dataset-backed views, diagram layout, and electrical nets are recomputed from restored document snapshots.
+
 ## Long-Term Goals
 
 - Provide a structured document model suitable for scientific and educational content.
@@ -89,6 +126,18 @@ This document captures approved high-level scope for the current project. It sho
 - Presentation `MathExpression` nodes are not executable plot-function logic.
 
 
+## Current Figure Slice
+
+- Scholar supports immutable semantic `FigureBlock(id, content, caption)` document blocks.
+- Figure content is deliberately limited in M20 to existing `PlotBlock` and `DiagramBlock` values. Images and broader scientific media are deferred.
+- A figure's stable `id` is stored for future references; the displayed `Figure N.` number is derived from current document order and is not stored in the AST.
+- Captions are semantic `InlineContent`. Layout prepends the generated bold `Figure N.` prefix and renders the authored caption below the visual content.
+- Figure layout keeps the scientific content above the caption and exposes a single figure block whose bounds include both.
+- A selected figure is an atomic document block. Enter edits the contained plot or diagram, while the Figure menu exposes wrapping, caption editing, and unwrapping.
+- Native whole-figure clipboard uses `FigureClipboardPayload(FigureBlock)` plus a deterministic readable plain-text fallback. Pasting preserves content/caption structure and remaps the stable ID only when needed to avoid duplicates.
+- Markdown explicitly rejects `FigureBlock`; figure Markdown/media interchange remains a future milestone.
+
+
 ## Current Diagram Foundation
 
 M17 is complete through M17G and manually accepted. The governing design remains `DIAGRAM_SPEC.md` plus ADRs 0178-0193.
@@ -147,18 +196,89 @@ M18A-M18G are accepted and manually validated. M18H final electrical visual poli
 - Consecutive Up and Down movement preserves an ephemeral preferred horizontal caret position in the editor session.
 - Home and End target the current visual line start and end, not the containing block start and end.
 - Shift variants extend the active text-selection endpoint while preserving the selection anchor.
-- Non-text scientific blocks such as `EquationBlock`, `TableBlock`, `PlotBlock`, and `DiagramBlock` participate in plain document navigation as atomic block selections.
+- Non-text scientific blocks such as `EquationBlock`, `TableBlock`, `PlotBlock`, `DiagramBlock`, `FigureBlock`, and `TableOfContentsBlock` participate in plain document navigation as atomic block selections.
 - Up, Down, Home, and End inside structured math editing remain deferred.
+- `EditorState` validates transient selections against the current document. Text selections require contiguous editable inline blocks and cannot cross atomic non-text blocks.
+- Nested selections validate against their owning block: equations use math positions, tables use cell-local offsets against the resolved table view, plots and diagrams use semantic targets, and figure captions use caption-local logical offsets.
+- `Ctrl+A` selects the current editing scope rather than the whole document: contiguous prose/heading run, equation root, current table cell, or figure caption. Atomic block, plot-editing, and diagram-editing selections remain unchanged.
+- Inline cross-references are atomic source nodes. They contribute one logical caret unit even when their rendered labels are derived from current document numbering.
+
+## Current Cross-Reference Slice
+
+- Cross-references are first-class semantic inline nodes, not plain rendered labels.
+- A reference stores `CrossReferenceTargetKind` plus stable target ID; displayed labels are derived from the current document.
+- The initial supported target kinds are Figure, Table, Equation, and Section.
+- `FigureBlock` already owns a stable ID; headings, tables, and equations may now carry optional stable IDs when they should be reference targets.
+- Unresolved references remain in the document and render/export as `[Missing reference]`.
+- Inline layout renders resolved labels through the normal text pipeline while preserving the reference as one logical source character for editing.
+- The editor offers Insert > Cross Reference using a target picker instead of raw ID entry.
+- Native Scholar clipboard preserves inline references inside selected text when possible; the OS clipboard receives resolved readable text.
+- Markdown export writes resolved readable labels only. Semantic Markdown reference round-trip remains deferred.
+
+## Current Document Structure And Navigation Slice
+
+- Document structure is derived from the flat ordered block list; there is no authoritative `Section` AST.
+- Headings may carry stable IDs when they are navigation/reference targets.
+- Section numbers are derived display state and are not stored in heading content or metadata.
+- Skipped heading levels use deterministic zero placeholders, for example `1.0.1`.
+- Heading rendering prefixes the derived section number as display-only text; the prefix is not editable heading content.
+- Section cross-reference labels use the same structure resolver and display hierarchical labels such as `Section 2.1`.
+- `TableOfContentsBlock` is semantic and stores no entries; TOC layout/plain text derive entries from current headings.
+- The editor outline is transient UI state derived from the same structure resolver.
+- TOC and outline navigation resolve stable heading IDs to current block positions and do not create undo history.
+- Pasting a copied heading remaps duplicate stable IDs. Pasted TOC blocks remain semantic and derive entries from the destination document.
+
+## Current Dataset Slice
+
+- Scholar documents can own immutable `ScientificDataset` resources separately from their ordered block list.
+- Dataset IDs are stable document-local identifiers. Column IDs are stable within a dataset and are separate from editable display names.
+- Row IDs are optional and reserved for future workflows; M23 row editing remains ordered/index-based.
+- Dataset cells store numeric decimal values, text values, or explicit missing values. Units, formulas, uncertainty, and spreadsheet semantics remain deferred.
+- Dataset-backed tables use `DatasetTableBinding(datasetId, columnIds)` and are resolved as current table views during layout and export. Empty `columnIds` means all current dataset columns.
+- Dataset-backed plot series use `DatasetPlotBinding(datasetId, xColumnId, yColumnId)` and are resolved into current XY points during layout.
+- Dataset-backed views do not own copied data. Editing a dataset propagates to every bound table and plot view through resolver output.
+- Missing datasets and missing selected columns produce deterministic broken table states; missing dataset/column plot bindings resolve to empty series data rather than invented points.
+- Dataset-backed plot resolution skips rows where either X or Y is missing or nonnumeric.
+- Whole dataset native clipboard uses a `DatasetClipboardPayload` plus a readable TSV fallback. Pasting a duplicate dataset remaps the dataset ID instead of overwriting existing data.
+- Markdown and plain-text export flatten dataset-backed tables as current resolved snapshots. Scholar does not yet define Markdown dataset syntax.
+
+## Current Validation Slice
+
+- Scholar provides a pure Java `DocumentValidator` for structural document diagnostics.
+- Validation is read-only and never mutates, normalizes, repairs, renders, or launches Minecraft.
+- Diagnostics distinguish structural `ERROR`s from valid degraded-state `WARNING`s.
+- Stable IDs are unique within their own namespaces: figures, headings/sections, tables, equations, datasets, dataset columns, and diagram elements.
+- Broken cross-references and missing dataset bindings remain valid degraded state and are reported as warnings.
+- Validation is intended for trust boundaries such as import, load, save, and explicit diagnostics rather than being embedded as renderer behavior.
+
+## Current Input And Focus Slice
+
+- `EditorSession.focusOwner()` derives one semantic input owner from the current `EditorState.selection()`.
+- The current focus owners are document text, atomic block, equation, table, plot, diagram, and figure caption.
+- Minecraft screen dispatch prioritizes modal popups, context menus, menu/toolbar popups, nested editors, document editing, and then screen fallback.
+- Higher-priority UI layers consume events for isolation so one physical input event cannot mutate multiple editor domains.
+- Entering and leaving nested editing modes is transient selection/focus movement and does not create undo history.
+- Escape unwinds one active interaction layer at a time.
+- `Ctrl+A` selects the active editing scope rather than the whole document.
+- Menu/context actions continue to route through `EditorAction` enable guards.
+
+## Current Editor Foundation v1
+
+- M24G closes the current editor-foundation pass without adding a new feature surface.
+- The accepted foundation is documented in `M24_EDITOR_FOUNDATION_V1.md`.
+- The foundation regression suite now includes canonical mixed-document coverage across prose, math, authored and dataset-backed tables, authored and dataset-backed plots, diagrams, electrical/mechanical vocabularies, figures, captions, cross-references, TOC, datasets, validation, context actions, focus, clipboard, and history.
+- M24G classifies current invariants as model-enforced, validator-enforced, editor-state-enforced, history-enforced, interaction-enforced, or documented-only in `M24G_FOUNDATION_AUDIT.md`.
+- No M24G ADRs were added because this milestone consolidates M24A-M24F decisions rather than making new architecture decisions.
 
 ## Non-Goals For The Current Milestone
 
-- M18H is the current implementation slice and is pending authoritative Gradle/manual QA. It is presentation-only terminal/wire-join polish; no new schematic vocabulary, authored geometry, simulation behavior, terminal identity, or connectivity semantics are added.
+- M24G is the current implementation slice. It adds final foundation-level regression coverage, documentation, and manual QA fixtures only; document-wide multi-object selection, repair workflows, persistence migration, validation UI, schema serialization, and automatic fixes remain deferred.
+- M23 adds reusable dataset resources and first dataset-backed table/plot views only; units, formulas, spreadsheet semantics, dataset persistence format design, dataset manager UI, dynamic data sources, and dataset-backed Markdown syntax remain deferred.
 - Electrical simulation, PCB/breadboard/perfboard physical layout, arbitrary-angle rotation/mirroring, user-defined symbols, netlist import/export, and automatic net inference remain outside the initial M18 scope.
 - Node resizing, port creation/deletion/repositioning, snapping, multi-selection, and partial element clipboard remain deferred unless later diagram-domain evidence requires them.
 - No function evaluation, authored series styling, advanced chart types, or dynamic plot sources in the current plot slice.
 - No row or column resizing.
 - No multi-cell table selection.
-- No TSV import or CSV import/export.
 - No spreadsheet semantics.
 - No table alignment, captions, or multiline cell content.
 - No networking.

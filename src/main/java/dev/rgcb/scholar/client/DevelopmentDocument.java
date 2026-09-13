@@ -11,10 +11,21 @@ import dev.rgcb.scholar.diagram.DiagramPort;
 import dev.rgcb.scholar.diagram.DiagramPortId;
 import dev.rgcb.scholar.diagram.DiagramPortPlacement;
 import dev.rgcb.scholar.diagram.DiagramPortSide;
+import dev.rgcb.scholar.data.DatasetColumn;
+import dev.rgcb.scholar.data.DatasetColumnType;
+import dev.rgcb.scholar.data.DatasetPlotBinding;
+import dev.rgcb.scholar.data.DatasetRow;
+import dev.rgcb.scholar.data.DatasetTableBinding;
+import dev.rgcb.scholar.data.DatasetValue;
+import dev.rgcb.scholar.data.ScientificDataset;
 import dev.rgcb.scholar.document.BlockNode;
+import dev.rgcb.scholar.document.CrossReference;
+import dev.rgcb.scholar.document.CrossReferenceTargetKind;
 import dev.rgcb.scholar.document.DiagramBlock;
 import dev.rgcb.scholar.document.Document;
 import dev.rgcb.scholar.document.EquationBlock;
+import dev.rgcb.scholar.document.FigureBlock;
+import dev.rgcb.scholar.document.Heading;
 import dev.rgcb.scholar.document.InlineContent;
 import dev.rgcb.scholar.document.InlineNode;
 import dev.rgcb.scholar.document.Paragraph;
@@ -22,6 +33,7 @@ import dev.rgcb.scholar.document.PlotBlock;
 import dev.rgcb.scholar.document.TableBlock;
 import dev.rgcb.scholar.document.TableCell;
 import dev.rgcb.scholar.document.TableCellContent;
+import dev.rgcb.scholar.document.TableOfContentsBlock;
 import dev.rgcb.scholar.document.TableRow;
 import dev.rgcb.scholar.document.Text;
 import dev.rgcb.scholar.electrical.ElectricalComponent;
@@ -94,6 +106,9 @@ public final class DevelopmentDocument {
     public static Document create() {
         var parsedDocument = new MarkdownParser().parse(SOURCE).document();
         var blocks = new ArrayList<BlockNode>(parsedDocument.blocks());
+        if (blocks.get(0) instanceof Heading heading) {
+            blocks.set(0, heading.withId("motion-section"));
+        }
         blocks.add(4, averageVelocityEquation());
         blocks.add(5, paragraph("The display equation above is built from the Scholar Math AST, not from Markdown math syntax."));
         blocks.add(6, semanticTokenEquation());
@@ -109,10 +124,33 @@ public final class DevelopmentDocument {
         blocks.add(16, nestedStructureReference());
         blocks.add(17, paragraph("The table below is a development-only check for structured scientific table layout."));
         blocks.add(18, scientificTable());
-        blocks.add(19, paragraph("The plot below is the M16D visual check for semantic LINE and SCATTER XY series."));
-        blocks.add(20, samplePlot());
-        blocks.add(21, paragraph("The diagram below is the M17B visual check for semantic nodes, ports, and a derived connection."));
-        blocks.add(22, sampleDiagram());
+        blocks.add(19, paragraph(
+                text("Cross-reference check: see "),
+                ref(CrossReferenceTargetKind.SECTION, "motion-section"),
+                text(", "),
+                ref(CrossReferenceTargetKind.EQUATION, "average-velocity-equation"),
+                text(", "),
+                ref(CrossReferenceTargetKind.TABLE, "scientific-table"),
+                text(", and "),
+                ref(CrossReferenceTargetKind.FIGURE, "measured-response"),
+                text(".")));
+        blocks.add(20, paragraph(
+                text("Broken reference check: "),
+                ref(CrossReferenceTargetKind.FIGURE, "missing-development-figure"),
+                text(".")));
+        blocks.add(21, paragraph("The plot below is the M16D visual check for semantic LINE and SCATTER XY series."));
+        blocks.add(22, samplePlot());
+        blocks.add(23, paragraph("The next table and plot are M23 dataset-backed views. Editing the Projectile Test dataset should update both without changing their bindings."));
+        blocks.add(24, datasetBackedProjectileTable());
+        blocks.add(25, datasetBackedProjectilePlot());
+        blocks.add(26, paragraph("The compact table below uses a stable column subset from the same dataset."));
+        blocks.add(27, datasetBackedProjectileHeightTable());
+        blocks.add(28, paragraph("The next table intentionally points at a missing dataset so broken bindings remain visible and deterministic."));
+        blocks.add(29, brokenDatasetTable());
+        blocks.add(30, paragraph("The mixed dataset below includes text, numbers, and missing values for import/export and rendering checks."));
+        blocks.add(31, datasetBackedMixedTable());
+        blocks.add(32, paragraph("The diagram below is the M17B visual check for semantic nodes, ports, and a derived connection."));
+        blocks.add(33, sampleDiagram());
         blocks.add(paragraph("The schematic below is the M18B visual check for semantic electrical components and derived symbols."));
         blocks.add(sampleElectricalDiagram());
         blocks.add(paragraph("The symbol sheet below is the M18C visual check for diode, LED, SPST switch, and quarter-turn geometry."));
@@ -129,16 +167,50 @@ public final class DevelopmentDocument {
         blocks.add(sampleMechanicalSymbolsDiagram());
         blocks.add(paragraph("The drawing below is the M19E visual check for editable mechanical labels, notes, and leader callouts."));
         blocks.add(sampleMechanicalAnnotationsDiagram());
-        blocks.add(paragraph("The assembly below is the M19F visual check for semantic item balloons and generated BOM data."));
-        blocks.add(sampleMechanicalAssemblyDiagram());
+        blocks.add(paragraph("The assembly below is the first M20 Figure check: a semantic figure wraps an existing mechanical diagram and owns a generated number plus caption."));
+        blocks.add(figure("shaft-assembly", sampleMechanicalAssemblyDiagram(), "Mechanical shaft assembly."));
         blocks.add(sampleMechanicalAssemblyBom());
-        return new Document(blocks);
+        blocks.add(paragraph("The following figures verify document-order numbering across mixed scientific media."));
+        blocks.add(figure("measured-response", samplePlot(), "Measured response."));
+        blocks.add(figure("control-loop", sampleDiagram(), "Signal path from sensor to processor."));
+        blocks.add(paragraph("The headings below are M22 structure fixtures for derived numbering, outline navigation, skipped levels, and section references."));
+        blocks.add(heading("m22-introduction", 1, "M22 Document Structure"));
+        blocks.add(paragraph(text("This paragraph references "), ref(CrossReferenceTargetKind.SECTION, "m22-methods"), text(" and "), ref(CrossReferenceTargetKind.SECTION, "m22-skipped-calibration"), text(".")));
+        blocks.add(heading("m22-methods", 2, "Methods"));
+        blocks.add(heading("m22-setup", 3, "Experimental setup"));
+        blocks.add(heading("m22-results", 2, "Results"));
+        blocks.add(heading("m22-skipped-calibration", 4, "Skipped calibration detail"));
+        assignMissingHeadingIds(blocks);
+        blocks.add(1, new TableOfContentsBlock());
+        return new Document(blocks, developmentDatasets());
     }
 
     public static Document createEditable() {
         return new Document(List.of(
                 paragraph("Editable paragraph: velocity changes over time, and notes may include Δx, Δt, θ, λ, or café. "
                         + "Type more text here to verify that the paragraph wraps and reflows while the caret follows the edited document."),
+                new TableOfContentsBlock(),
+                heading("m24b-editor-navigation", 2, "M24B editor navigation fixture"),
+                paragraph(
+                        text("Inline atomic reference check: move across "),
+                        ref(CrossReferenceTargetKind.FIGURE, "shaft-assembly"),
+                        text(" with Left/Right and Shift+Left/Right.")),
+                heading("m24d-structural-editing", 2, "M24D structural editing fixture"),
+                paragraph("Use this local fixture for Enter split, Backspace merge, Delete at atomic boundaries, block Cut/Paste, right-click structural actions, and validation checks."),
+                heading("m24e-history-transactions", 2, "M24E history transaction fixture"),
+                paragraph("Use this section for repeated Ctrl+Z and Ctrl+Y checks after text edits, heading splits, table edits, plot edits, diagram drags, figure caption edits, dataset cell edits, block paste, and structural deletes."),
+                paragraph("Navigation, right-click menus, outline jumps, TOC jumps, scroll, zoom, pan, drag preview, and popup open or close should not add undo steps."),
+                heading("m24f-input-focus", 2, "M24F input and focus fixture"),
+                paragraph("Use this section to move between prose, equations, tables, plots, diagrams, figure captions, context menus, popups, and toolbar menus. One input event should have one visible owner and one deterministic result."),
+                paragraph("Manual checks: Escape unwinds one layer at a time, Tab moves within nested controls, Ctrl+A selects the active scope, clipboard shortcuts follow the active selection, and undo/redo restore valid focus."),
+                heading("m24g-final-foundation", 2, "M24G final foundation fixture"),
+                paragraph("Use the mixed blocks below as the final editor-foundation regression document: prose, equation, dataset-backed views, electrical and mechanical diagrams, figures, cross-references, TOC, table editing, object selection, clipboard, and undo/redo should remain coherent together."),
+                paragraph("Manual pass: click into each editable domain, use arrow keys and Tab where supported, right-click the active target, copy/cut/paste supported selections, then undo and redo across systems without leaving stale focus or invalid selections."),
+                averageVelocityEquation(),
+                paragraph("Paragraph after the equation for atomic block traversal, Enter-to-edit, and Escape-return checks."),
+                paragraph("M23 dataset-backed table and plot below share the Projectile Test dataset."),
+                datasetBackedProjectileTable(),
+                datasetBackedProjectilePlot(),
                 sampleElectricalDiagram(),
                 paragraph("The M18E branched circuit below exercises an explicit junction and one multi-terminal electrical net."),
                 sampleElectricalNetDiagram(),
@@ -154,16 +226,24 @@ public final class DevelopmentDocument {
                 sampleMechanicalSymbolsDiagram(),
                 paragraph("The M19E drawing below exercises semantic part labels, notes, and leader callouts."),
                 sampleMechanicalAnnotationsDiagram(),
-                paragraph("The M19F assembly below exercises item balloons linked by semantic target IDs."),
-                sampleMechanicalAssemblyDiagram(),
+                paragraph("The M20 figure below wraps the M19F assembly diagram with semantic caption and derived numbering."),
+                figure("shaft-assembly", sampleMechanicalAssemblyDiagram(), "Mechanical shaft assembly."),
+                paragraph(
+                        text("Cross-reference editing check: see "),
+                        ref(CrossReferenceTargetKind.FIGURE, "shaft-assembly"),
+                        text(", "),
+                        ref(CrossReferenceTargetKind.FIGURE, "measured-response"),
+                        text(", and broken "),
+                        ref(CrossReferenceTargetKind.FIGURE, "missing-editable-figure"),
+                        text(".")),
                 sampleMechanicalAssemblyBom(),
                 paragraph("Paragraph between the electrical schematic and plot for atomic navigation checks."),
-                samplePlot(),
+                figure("measured-response", samplePlot(), "Measured response."),
                 paragraph("Paragraph between the plot and generic diagram for atomic navigation checks."),
-                sampleDiagram(),
+                figure("system-diagram", sampleDiagram(), "Generic system diagram."),
                 paragraph("Paragraph between the diagram and table for atomic navigation checks."),
                 scientificTable(),
-                paragraph("Paragraph after the table for atomic navigation, selection, deletion, and undo/redo checks.")));
+                paragraph("Paragraph after the table for atomic navigation, selection, deletion, and undo/redo checks.")), developmentDatasets());
     }
 
     private static EquationBlock averageVelocityEquation() {
@@ -174,14 +254,14 @@ public final class DevelopmentDocument {
                 new MathSymbol("Δ", MathSymbolKind.GREEK),
                 new MathIdentifier("t")));
         var fraction = new MathFraction(numerator, denominator);
-        return new EquationBlock(new MathSequence(List.of(
+        return new EquationBlock("average-velocity-equation", new MathSequence(List.of(
                 new MathIdentifier("v"),
                 new MathOperator("=", MathOperatorRole.RELATION),
                 fraction)));
     }
 
     private static EquationBlock semanticTokenEquation() {
-        return new EquationBlock(new MathSequence(List.of(
+        return new EquationBlock("semantic-token-equation", new MathSequence(List.of(
                 new MathNamedOperator("sin"),
                 new MathSymbol("(", MathSymbolKind.OTHER),
                 new MathIdentifier("x"),
@@ -285,7 +365,34 @@ public final class DevelopmentDocument {
                                 List.of(
                                         new DataPoint(0.5, 0.25),
                                         new DataPoint(1.5, 2.25),
-                                        new DataPoint(2.5, 6.25))))));
+                        new DataPoint(2.5, 6.25))))));
+    }
+
+    private static TableBlock datasetBackedProjectileTable() {
+        return new TableBlock(new DatasetTableBinding("projectile-test"));
+    }
+
+    private static TableBlock datasetBackedProjectileHeightTable() {
+        return new TableBlock(new DatasetTableBinding("projectile-test", List.of("time", "height")));
+    }
+
+    private static TableBlock datasetBackedMixedTable() {
+        return new TableBlock(new DatasetTableBinding("mixed-observations"));
+    }
+
+    private static TableBlock brokenDatasetTable() {
+        return new TableBlock(new DatasetTableBinding("missing-dataset"));
+    }
+
+    private static PlotBlock datasetBackedProjectilePlot() {
+        return new PlotBlock(PlotDefinition.of(
+                "Projectile Test Dataset",
+                AxisDefinition.linear("Time (s)"),
+                AxisDefinition.linear("Height (m)"),
+                List.of(new PlotSeries(
+                        "Height",
+                        PlotSeriesKind.LINE,
+                        new DatasetPlotBinding("projectile-test", "time", "height")))));
     }
 
     private static DiagramBlock sampleDiagram() {
@@ -546,7 +653,7 @@ public final class DevelopmentDocument {
     }
 
     private static TableBlock sampleMechanicalAssemblyBom() {
-        return new TableBlock(List.of(
+        return new TableBlock("assembly-bom", List.of(
                 new TableRow(List.of(tableCell("ITEM"),tableCell("PART"),tableCell("QTY"),tableCell("DESCRIPTION"))),
                 new TableRow(List.of(tableCell("1"),tableCell("SHAFT"),tableCell("1"),tableCell("Drive shaft"))),
                 new TableRow(List.of(tableCell("2"),tableCell("BEARING"),tableCell("2"),tableCell("Support bearing"))),
@@ -555,13 +662,46 @@ public final class DevelopmentDocument {
     }
 
     private static TableBlock scientificTable() {
-        return new TableBlock(List.of(
+        return new TableBlock("scientific-table", List.of(
                 tableRow("Quantity", "Value", "Unit"),
                 tableRow("Voltage", "12", "V"),
                 tableRow("Current", "2", "A"),
                 tableRow("Resistance", "6", "Ω"),
                 new TableRow(List.of(tableCell("Empty check"), TableCell.empty(), tableCell("reserved")))
         ), 1);
+    }
+
+    private static List<ScientificDataset> developmentDatasets() {
+        return List.of(projectileDataset(), mixedObservationsDataset());
+    }
+
+    private static ScientificDataset projectileDataset() {
+        return new ScientificDataset(
+                "projectile-test",
+                "Projectile Test",
+                List.of(
+                        new DatasetColumn("time", "Time (s)", DatasetColumnType.NUMBER),
+                        new DatasetColumn("height", "Height (m)", DatasetColumnType.NUMBER),
+                        new DatasetColumn("note", "Note", DatasetColumnType.TEXT)),
+                List.of(
+                        new DatasetRow(List.of(DatasetValue.number("0"), DatasetValue.number("0"), DatasetValue.text("launch"))),
+                        new DatasetRow(List.of(DatasetValue.number("1"), DatasetValue.number("5"), DatasetValue.text("apex"))),
+                        new DatasetRow(List.of(DatasetValue.number("2"), DatasetValue.number("0"), DatasetValue.text("landing")))));
+    }
+
+    private static ScientificDataset mixedObservationsDataset() {
+        return new ScientificDataset(
+                "mixed-observations",
+                "Mixed Observations",
+                List.of(
+                        new DatasetColumn("trial", "Trial", DatasetColumnType.TEXT),
+                        new DatasetColumn("temperature", "Temperature", DatasetColumnType.NUMBER),
+                        new DatasetColumn("status", "Status", DatasetColumnType.TEXT),
+                        new DatasetColumn("reading", "Reading", DatasetColumnType.NUMBER)),
+                List.of(
+                        new DatasetRow(List.of(DatasetValue.text("A"), DatasetValue.number("21.5"), DatasetValue.text("ok"), DatasetValue.number("3.2"))),
+                        new DatasetRow(List.of(DatasetValue.text("B"), DatasetValue.missing(), DatasetValue.text("missing temperature"), DatasetValue.number("4.1"))),
+                        new DatasetRow(List.of(DatasetValue.text("C"), DatasetValue.number("22"), DatasetValue.text("text reading"), DatasetValue.text("n/a")))));
     }
 
     private static EquationBlock equation(dev.rgcb.scholar.math.MathExpression... expressions) {
@@ -595,6 +735,38 @@ public final class DevelopmentDocument {
 
     private static Paragraph paragraph(String text) {
         return new Paragraph(new InlineContent(List.of((InlineNode) new Text(text, Set.of()))));
+    }
+
+    private static Paragraph paragraph(InlineNode... nodes) {
+        return new Paragraph(new InlineContent(List.of(nodes)));
+    }
+
+    private static Heading heading(String id, int level, String text) {
+        return new Heading(id, level, new InlineContent(List.of((InlineNode) new Text(text, Set.of()))));
+    }
+
+    private static Text text(String text) {
+        return new Text(text, Set.of());
+    }
+
+    private static CrossReference ref(CrossReferenceTargetKind kind, String targetId) {
+        return new CrossReference(kind, targetId);
+    }
+
+    private static FigureBlock figure(String id, BlockNode content, String caption) {
+        return new FigureBlock(id, content, new InlineContent(List.of((InlineNode) new Text(caption, Set.of()))));
+    }
+
+    private static void assignMissingHeadingIds(List<BlockNode> blocks) {
+        var headingNumber = 1;
+        for (var index = 0; index < blocks.size(); index++) {
+            if (blocks.get(index) instanceof Heading heading && heading.id().isEmpty()) {
+                blocks.set(index, heading.withId("development-section-" + headingNumber));
+            }
+            if (blocks.get(index) instanceof Heading) {
+                headingNumber++;
+            }
+        }
     }
 
     private static TableRow tableRow(String... cells) {

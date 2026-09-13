@@ -38,6 +38,14 @@ public final class EditorHistory {
         return !redo.isEmpty();
     }
 
+    public int undoDepth() {
+        return undo.size();
+    }
+
+    public int redoDepth() {
+        return redo.size();
+    }
+
     public void setCurrent(EditorState state) {
         current = Objects.requireNonNull(state, "state").withoutExplicitTypingMarks();
         closeTypingGroup();

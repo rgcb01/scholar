@@ -89,7 +89,7 @@ class EditorSessionVisualNavigationTest {
         session.extendDown(layout(document, 100), textMeasurer);
 
         assertEquals(new DocumentPosition(0, 1), session.current().anchor());
-        assertEquals(new DocumentPosition(1, 1), session.current().active());
+        assertEquals(new DocumentPosition(1, 0), session.current().active());
     }
 
     @Test

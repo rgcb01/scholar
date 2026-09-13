@@ -180,10 +180,15 @@ public final class VisualLineNavigator {
     }
 
     private static Optional<VisualLine> firstTextLine(int blockIndex, LaidOutBlock block) {
-        if (block.lines().isEmpty()) {
-            return Optional.empty();
+        for (var lineIndex = 0; lineIndex < block.lines().size(); lineIndex++) {
+            var line = block.lines().get(lineIndex);
+            if (hasSourceRun(line, blockIndex)) {
+                return Optional.of(new VisualLine(blockIndex, lineIndex, line));
+            }
         }
-        return Optional.of(new VisualLine(blockIndex, 0, block.lines().get(0)));
+        return block.lines().isEmpty()
+                ? Optional.empty()
+                : Optional.of(new VisualLine(blockIndex, 0, block.lines().get(0)));
     }
 
     private static VisualLine lineAt(LaidOutDocument document, int blockIndex, int lineIndex) {
@@ -191,11 +196,19 @@ public final class VisualLineNavigator {
     }
 
     private static Optional<VisualLine> lastTextLine(int blockIndex, LaidOutBlock block) {
-        if (block.lines().isEmpty()) {
-            return Optional.empty();
+        for (var lineIndex = block.lines().size() - 1; lineIndex >= 0; lineIndex--) {
+            var line = block.lines().get(lineIndex);
+            if (hasSourceRun(line, blockIndex)) {
+                return Optional.of(new VisualLine(blockIndex, lineIndex, line));
+            }
         }
-        var lineIndex = block.lines().size() - 1;
-        return Optional.of(new VisualLine(blockIndex, lineIndex, block.lines().get(lineIndex)));
+        return block.lines().isEmpty()
+                ? Optional.empty()
+                : Optional.of(new VisualLine(blockIndex, block.lines().size() - 1, block.lines().get(block.lines().size() - 1)));
+    }
+
+    private static boolean hasSourceRun(LaidOutLine line, int blockIndex) {
+        return line.textRuns().stream().anyMatch(run -> run.sourceBlockIndex() == blockIndex);
     }
 
     private static DocumentPosition closestPosition(

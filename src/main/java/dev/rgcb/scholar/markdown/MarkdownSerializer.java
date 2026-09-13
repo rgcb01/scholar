@@ -1,7 +1,11 @@
 package dev.rgcb.scholar.markdown;
 
+import dev.rgcb.scholar.data.DatasetTableResolver;
 import dev.rgcb.scholar.document.DiagramBlock;
+import dev.rgcb.scholar.document.CrossReference;
+import dev.rgcb.scholar.document.CrossReferenceResolver;
 import dev.rgcb.scholar.document.Document;
+import dev.rgcb.scholar.document.FigureBlock;
 import dev.rgcb.scholar.document.Heading;
 import dev.rgcb.scholar.document.InlineContent;
 import dev.rgcb.scholar.document.InlineNode;
@@ -9,6 +13,7 @@ import dev.rgcb.scholar.document.Paragraph;
 import dev.rgcb.scholar.document.PlotBlock;
 import dev.rgcb.scholar.document.TableBlock;
 import dev.rgcb.scholar.document.TableCell;
+import dev.rgcb.scholar.document.TableOfContentsBlock;
 import dev.rgcb.scholar.document.Text;
 import dev.rgcb.scholar.document.TextMark;
 import java.util.Objects;
@@ -18,6 +23,9 @@ import java.util.Set;
  * Canonical serializer for Scholar Markdown v0.1.
  */
 public final class MarkdownSerializer {
+    private final CrossReferenceResolver referenceResolver = new CrossReferenceResolver();
+    private final DatasetTableResolver datasetTableResolver = new DatasetTableResolver();
+
     public String serialize(Document document) {
         Objects.requireNonNull(document, "document");
 
@@ -31,15 +39,19 @@ public final class MarkdownSerializer {
             if (block instanceof Heading heading) {
                 output.append("#".repeat(heading.level()))
                         .append(' ')
-                        .append(serializeInline(heading.content()));
+                        .append(serializeInline(document, heading.content()));
             } else if (block instanceof Paragraph paragraph) {
-                output.append(serializeInline(paragraph.content()));
+                output.append(serializeInline(document, paragraph.content()));
             } else if (block instanceof TableBlock table) {
-                output.append(serializeTable(table));
+                output.append(serializeTable(document, datasetTableResolver.resolve(document, table)));
+            } else if (block instanceof TableOfContentsBlock) {
+                output.append("Contents");
             } else if (block instanceof PlotBlock) {
                 throw new IllegalArgumentException("Markdown plot serialization is not supported.");
             } else if (block instanceof DiagramBlock) {
                 throw new IllegalArgumentException("Markdown diagram serialization is not supported.");
+            } else if (block instanceof FigureBlock) {
+                throw new IllegalArgumentException("Markdown figure serialization is not supported.");
             } else {
                 throw new IllegalArgumentException("Unsupported block node: " + block.getClass().getName());
             }
@@ -49,13 +61,13 @@ public final class MarkdownSerializer {
         return output.toString();
     }
 
-    private static String serializeTable(TableBlock table) {
+    private String serializeTable(Document document, TableBlock table) {
         if (table.headerRowCount() != 1) {
             throw new IllegalArgumentException("Markdown table serialization requires exactly one semantic header row.");
         }
 
         var output = new StringBuilder();
-        output.append(serializeTableRow(table.rows().get(0)));
+        output.append(serializeTableRow(document, table.rows().get(0)));
         output.append('\n');
         output.append("| ");
         for (var columnIndex = 0; columnIndex < table.columnCount(); columnIndex++) {
@@ -67,38 +79,41 @@ public final class MarkdownSerializer {
         output.append(" |");
         for (var rowIndex = 1; rowIndex < table.rows().size(); rowIndex++) {
             output.append('\n');
-            output.append(serializeTableRow(table.rows().get(rowIndex)));
+            output.append(serializeTableRow(document, table.rows().get(rowIndex)));
         }
         return output.toString();
     }
 
-    private static String serializeTableRow(dev.rgcb.scholar.document.TableRow row) {
+    private String serializeTableRow(Document document, dev.rgcb.scholar.document.TableRow row) {
         var output = new StringBuilder("| ");
         for (var columnIndex = 0; columnIndex < row.cells().size(); columnIndex++) {
             if (columnIndex > 0) {
                 output.append(" | ");
             }
-            output.append(serializeTableCell(row.cells().get(columnIndex)));
+            output.append(serializeTableCell(document, row.cells().get(columnIndex)));
         }
         output.append(" |");
         return output.toString();
     }
 
-    private static String serializeTableCell(TableCell cell) {
-        return serializeInline(cell.content().content());
+    private String serializeTableCell(Document document, TableCell cell) {
+        return serializeInline(document, cell.content().content());
     }
 
-    private static String serializeInline(InlineContent content) {
+    private String serializeInline(Document document, InlineContent content) {
         var output = new StringBuilder();
         for (var node : content.nodes()) {
-            output.append(serializeInlineNode(node));
+            output.append(serializeInlineNode(document, node));
         }
         return output.toString();
     }
 
-    private static String serializeInlineNode(InlineNode node) {
+    private String serializeInlineNode(Document document, InlineNode node) {
         if (node instanceof Text text) {
             return serializeText(text);
+        }
+        if (node instanceof CrossReference reference) {
+            return escape(referenceResolver.resolve(document, reference).displayText());
         }
         throw new IllegalArgumentException("Unsupported inline node: " + node.getClass().getName());
     }

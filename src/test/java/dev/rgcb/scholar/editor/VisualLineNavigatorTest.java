@@ -67,9 +67,9 @@ class VisualLineNavigatorTest {
         var toParagraph = navigator.moveDown(new EditorState(document, toHeading, java.util.Optional.empty()), layout, textMeasurer, 20, true).orElseThrow();
         var backToHeading = navigator.moveUp(new EditorState(document, toParagraph, java.util.Optional.empty()), layout, textMeasurer, 20, true).orElseThrow();
 
-        assertEquals(caret(1, 2), toHeading);
+        assertEquals(caret(1, 0), toHeading);
         assertEquals(caret(2, 2), toParagraph);
-        assertEquals(caret(1, 2), backToHeading);
+        assertEquals(caret(1, 0), backToHeading);
     }
 
     @Test

@@ -14,6 +14,7 @@ import dev.rgcb.scholar.diagram.DiagramPortId;
 import dev.rgcb.scholar.diagram.DiagramPortPlacement;
 import dev.rgcb.scholar.diagram.DiagramPortSide;
 import dev.rgcb.scholar.document.DiagramBlock;
+import dev.rgcb.scholar.document.CrossReference;
 import dev.rgcb.scholar.document.EquationBlock;
 import dev.rgcb.scholar.document.Heading;
 import dev.rgcb.scholar.document.InlineContent;
@@ -21,6 +22,7 @@ import dev.rgcb.scholar.document.InlineNode;
 import dev.rgcb.scholar.document.Paragraph;
 import dev.rgcb.scholar.document.PlotBlock;
 import dev.rgcb.scholar.document.TableBlock;
+import dev.rgcb.scholar.document.TableOfContentsBlock;
 import dev.rgcb.scholar.document.Text;
 import dev.rgcb.scholar.document.TextMark;
 import dev.rgcb.scholar.math.MathSequence;
@@ -64,6 +66,56 @@ public final class DocumentEditor {
                 text,
                 marksForReplacement(state, marks));
         return new EditResult(result.document(), result.caret(), state.explicitTypingMarks(), result.changed());
+    }
+
+    public EditResult insertCrossReference(EditorState state, CrossReference reference) {
+        Objects.requireNonNull(state, "state");
+        Objects.requireNonNull(reference, "reference");
+        if (state.isBlockSelection() || state.isEquationEditingSelection()) {
+            return new EditResult(state.document(), state.selection(), Optional.empty(), false);
+        }
+        var range = state.hasSelection() ? state.selectionRange() : DocumentRange.caret(state.caret());
+        validateEditableRange(state.document(), range);
+        if (!range.isSingleBlock()) {
+            return new EditResult(state.document(), state.selection(), state.explicitTypingMarks(), false);
+        }
+        var blockIndex = range.start().blockIndex();
+        var block = editableInlineBlock(state.document(), blockIndex);
+        var updatedInlineNodes = replaceBlockRange(block, range, reference);
+        var updatedBlocks = new ArrayList<BlockNode>(state.document().blocks());
+        updatedBlocks.set(blockIndex, EditableInlineBlock.withContent(block, new InlineContent(updatedInlineNodes)));
+        var updatedDocument = withBlocks(state.document(), updatedBlocks);
+        return new EditResult(
+                updatedDocument,
+                new DocumentPosition(blockIndex, range.start().characterOffset() + 1),
+                Optional.empty(),
+                !updatedDocument.equals(state.document()));
+    }
+
+    public EditResult insertInlineContent(EditorState state, InlineContent replacementContent) {
+        Objects.requireNonNull(state, "state");
+        Objects.requireNonNull(replacementContent, "replacementContent");
+        if (state.isBlockSelection() || state.isEquationEditingSelection()) {
+            return new EditResult(state.document(), state.selection(), Optional.empty(), false);
+        }
+        var range = state.hasSelection() ? state.selectionRange() : DocumentRange.caret(state.caret());
+        validateEditableRange(state.document(), range);
+        if (!range.isSingleBlock()) {
+            return new EditResult(state.document(), state.selection(), state.explicitTypingMarks(), false);
+        }
+        var blockIndex = range.start().blockIndex();
+        var block = editableInlineBlock(state.document(), blockIndex);
+        var before = InlineContentEditor.split(EditableInlineBlock.contentOf(block), range.start().characterOffset()).left();
+        var after = InlineContentEditor.split(EditableInlineBlock.contentOf(block), range.end().characterOffset()).right();
+        var updatedContent = InlineContentEditor.concat(InlineContentEditor.concat(before, replacementContent), after);
+        var updatedBlocks = new ArrayList<BlockNode>(state.document().blocks());
+        updatedBlocks.set(blockIndex, EditableInlineBlock.withContent(block, updatedContent));
+        var updatedDocument = withBlocks(state.document(), updatedBlocks);
+        return new EditResult(
+                updatedDocument,
+                new DocumentPosition(blockIndex, range.start().characterOffset() + InlineContentEditor.characterCount(replacementContent)),
+                Optional.empty(),
+                !updatedDocument.equals(state.document()));
     }
 
     public EditResult moveLeft(EditorState state) {
@@ -187,21 +239,24 @@ public final class DocumentEditor {
 
         if (block instanceof Heading heading && blockLength == 0) {
             updatedBlocks.set(blockIndex, new Paragraph(new InlineContent(List.of())));
-            return new EditResult(new Document(updatedBlocks), new DocumentPosition(blockIndex, 0), typingMarks, true);
+            return new EditResult(withBlocks(splitState.document(), updatedBlocks), new DocumentPosition(blockIndex, 0), typingMarks, true);
         }
         if (block instanceof Heading heading && splitState.caret().characterOffset() == 0) {
             updatedBlocks.add(blockIndex, new Paragraph(new InlineContent(List.of())));
-            return new EditResult(new Document(updatedBlocks), new DocumentPosition(blockIndex, 0), typingMarks, true);
+            return new EditResult(withBlocks(splitState.document(), updatedBlocks), new DocumentPosition(blockIndex, 0), typingMarks, true);
         }
         if (block instanceof Heading heading && splitState.caret().characterOffset() == blockLength) {
-            updatedBlocks.set(blockIndex, new Heading(heading.level(), split.left()));
+            updatedBlocks.set(blockIndex, new Heading(heading.level(), split.left(), heading.id()));
             updatedBlocks.add(blockIndex + 1, new Paragraph(split.right()));
-            return new EditResult(new Document(updatedBlocks), new DocumentPosition(blockIndex + 1, 0), typingMarks, true);
+            return new EditResult(withBlocks(splitState.document(), updatedBlocks), new DocumentPosition(blockIndex + 1, 0), typingMarks, true);
         }
 
         updatedBlocks.set(blockIndex, EditableInlineBlock.withContent(block, split.left()));
-        updatedBlocks.add(blockIndex + 1, EditableInlineBlock.withContent(block, split.right()));
-        return new EditResult(new Document(updatedBlocks), new DocumentPosition(blockIndex + 1, 0), typingMarks, true);
+        var rightBlock = block instanceof Heading heading
+                ? new Heading(heading.level(), split.right())
+                : EditableInlineBlock.withContent(block, split.right());
+        updatedBlocks.add(blockIndex + 1, rightBlock);
+        return new EditResult(withBlocks(splitState.document(), updatedBlocks), new DocumentPosition(blockIndex + 1, 0), typingMarks, true);
     }
 
     public EditResult replaceRange(Document document, DocumentRange range, String replacement) {
@@ -225,7 +280,7 @@ public final class DocumentEditor {
         var updatedInlineNodes = replaceBlockRange(block, range, replacement, Set.copyOf(replacementMarks));
         var updatedBlocks = new ArrayList<BlockNode>(document.blocks());
         updatedBlocks.set(blockIndex, EditableInlineBlock.withContent(block, new InlineContent(updatedInlineNodes)));
-        var updatedDocument = new Document(updatedBlocks);
+        var updatedDocument = withBlocks(document, updatedBlocks);
         var updatedCaret = new DocumentPosition(
                 blockIndex,
                 range.start().characterOffset() + TextBoundary.characterCount(replacement));
@@ -277,11 +332,10 @@ public final class DocumentEditor {
             var localRange = selectedLocalRange(block, range, blockIndex);
             var logicalOffset = 0;
             for (var node : EditableInlineBlock.contentOf(block).nodes()) {
-                var text = (Text) node;
-                var nodeLength = TextBoundary.characterCount(text.content());
+                var nodeLength = InlineContentEditor.characterCount(node);
                 var selectedStart = Math.max(localRange.start().characterOffset(), logicalOffset);
                 var selectedEnd = Math.min(localRange.end().characterOffset(), logicalOffset + nodeLength);
-                if (selectedStart < selectedEnd) {
+                if (node instanceof Text text && selectedStart < selectedEnd) {
                     var selectedLength = selectedEnd - selectedStart;
                     if (text.marks().contains(mark)) {
                         marked += selectedLength;
@@ -397,7 +451,7 @@ public final class DocumentEditor {
             var block = editableInlineBlock(state.document(), blockIndex);
             updatedBlocks.set(blockIndex, EditableInlineBlock.withStyle(block, style));
         }
-        var updatedDocument = new Document(updatedBlocks);
+        var updatedDocument = withBlocks(state.document(), updatedBlocks);
         if (updatedDocument.equals(state.document())) {
             return new EditResult(state.document(), state.anchor(), state.active(), state.explicitTypingMarks(), false);
         }
@@ -426,6 +480,10 @@ public final class DocumentEditor {
 
     public EditResult insertDefaultTable(EditorState state) {
         return insertBlock(state, TableBlock.empty(2, 2));
+    }
+
+    public EditResult insertTableOfContents(EditorState state) {
+        return insertBlock(state, new TableOfContentsBlock());
     }
 
     public EditResult insertDefaultPlot(EditorState state) {
@@ -522,7 +580,7 @@ public final class DocumentEditor {
         }
 
         appendAuthoringFallbackIfNeeded(updatedBlocks, insertedBlockIndex);
-        var updatedDocument = new Document(updatedBlocks);
+        var updatedDocument = withBlocks(state.document(), updatedBlocks);
         return new EditResult(
                 updatedDocument,
                 new BlockSelection(insertedBlockIndex),
@@ -550,9 +608,9 @@ public final class DocumentEditor {
         updatedBlocks.remove(blockIndex);
         if (updatedBlocks.isEmpty()) {
             updatedBlocks.add(new Paragraph(new InlineContent(List.of())));
-            return new EditResult(new Document(updatedBlocks), new DocumentPosition(0, 0), true);
+            return new EditResult(withBlocks(state.document(), updatedBlocks), new DocumentPosition(0, 0), true);
         }
-        var updatedDocument = new Document(updatedBlocks);
+        var updatedDocument = withBlocks(state.document(), updatedBlocks);
         var nextSelection = selectionAfterBlockDeletion(updatedDocument, blockIndex);
         return new EditResult(updatedDocument, nextSelection, Optional.empty(), true);
     }
@@ -568,15 +626,12 @@ public final class DocumentEditor {
         var inserted = false;
 
         for (var node : EditableInlineBlock.contentOf(block).nodes()) {
-            if (!(node instanceof Text text)) {
-                throw new IllegalArgumentException("Unsupported inline node: " + node.getClass().getName());
-            }
-
+            var nodeLength = InlineContentEditor.characterCount(node);
             var nodeStart = logicalOffset;
-            var nodeEnd = nodeStart + TextBoundary.characterCount(text.content());
+            var nodeEnd = nodeStart + nodeLength;
             if (nodeEnd <= range.start().characterOffset() || nodeStart >= range.end().characterOffset()) {
-                nodes.add(text);
-            } else {
+                nodes.add(node);
+            } else if (node instanceof Text text) {
                 var keepBeforeEnd = Math.max(0, range.start().characterOffset() - nodeStart);
                 var keepAfterStart = Math.min(TextBoundary.characterCount(text.content()), range.end().characterOffset() - nodeStart);
                 if (keepBeforeEnd > 0) {
@@ -591,6 +646,11 @@ public final class DocumentEditor {
                 if (keepAfterStart < TextBoundary.characterCount(text.content())) {
                     nodes.add(new Text(TextBoundary.substring(text.content(), keepAfterStart, TextBoundary.characterCount(text.content())), text.marks()));
                 }
+            } else if (!inserted) {
+                if (!replacement.isEmpty()) {
+                    nodes.add(new Text(replacement, replacementMarks));
+                }
+                inserted = true;
             }
             logicalOffset = nodeEnd;
         }
@@ -604,18 +664,52 @@ public final class DocumentEditor {
         return nodes;
     }
 
+    private static List<InlineNode> replaceBlockRange(BlockNode block, DocumentRange range, InlineNode replacement) {
+        var nodes = new ArrayList<InlineNode>();
+        var logicalOffset = 0;
+        var inserted = false;
+
+        for (var node : EditableInlineBlock.contentOf(block).nodes()) {
+            var nodeLength = InlineContentEditor.characterCount(node);
+            var nodeStart = logicalOffset;
+            var nodeEnd = nodeStart + nodeLength;
+            if (nodeEnd <= range.start().characterOffset() || nodeStart >= range.end().characterOffset()) {
+                nodes.add(node);
+            } else if (node instanceof Text text) {
+                var keepBeforeEnd = Math.max(0, range.start().characterOffset() - nodeStart);
+                var keepAfterStart = Math.min(TextBoundary.characterCount(text.content()), range.end().characterOffset() - nodeStart);
+                if (keepBeforeEnd > 0) {
+                    nodes.add(new Text(TextBoundary.substring(text.content(), 0, keepBeforeEnd), text.marks()));
+                }
+                if (!inserted) {
+                    nodes.add(replacement);
+                    inserted = true;
+                }
+                if (keepAfterStart < TextBoundary.characterCount(text.content())) {
+                    nodes.add(new Text(TextBoundary.substring(text.content(), keepAfterStart, TextBoundary.characterCount(text.content())), text.marks()));
+                }
+            } else if (!inserted) {
+                nodes.add(replacement);
+                inserted = true;
+            }
+            logicalOffset = nodeEnd;
+        }
+
+        if (!inserted) {
+            nodes.add(insertionIndex(block, range.start().characterOffset()), replacement);
+        }
+        return nodes;
+    }
+
     private static int insertionIndex(BlockNode block, int characterOffset) {
         var logicalOffset = 0;
         var nodes = EditableInlineBlock.contentOf(block).nodes();
         for (var index = 0; index < nodes.size(); index++) {
             var node = nodes.get(index);
-            if (!(node instanceof Text text)) {
-                throw new IllegalArgumentException("Unsupported inline node: " + node.getClass().getName());
-            }
             if (logicalOffset >= characterOffset) {
                 return index;
             }
-            logicalOffset += TextBoundary.characterCount(text.content());
+            logicalOffset += InlineContentEditor.characterCount(node);
             if (logicalOffset >= characterOffset) {
                 return index + 1;
             }
@@ -646,7 +740,7 @@ public final class DocumentEditor {
             updatedBlocks.remove(index);
         }
 
-        var updatedDocument = new Document(updatedBlocks);
+        var updatedDocument = withBlocks(document, updatedBlocks);
         var updatedCaret = new DocumentPosition(
                 range.start().blockIndex(),
                 range.start().characterOffset() + TextBoundary.characterCount(replacement));
@@ -665,7 +759,7 @@ public final class DocumentEditor {
             var blocks = new ArrayList<BlockNode>(state.document().blocks());
             blocks.set(blockIndex, insertedBlock);
             appendAuthoringFallbackIfNeeded(blocks, blockIndex);
-            return new EditResult(new Document(blocks), new BlockSelection(blockIndex), Optional.empty(), true);
+            return new EditResult(withBlocks(state.document(), blocks), new BlockSelection(blockIndex), Optional.empty(), true);
         }
 
         if (caretOffset == 0) {
@@ -685,7 +779,7 @@ public final class DocumentEditor {
         blocks.set(blockIndex, leftBlock);
         blocks.add(blockIndex + 1, insertedBlock);
         blocks.add(blockIndex + 2, rightBlock);
-        return new EditResult(new Document(blocks), new BlockSelection(blockIndex + 1), Optional.empty(), true);
+        return new EditResult(withBlocks(state.document(), blocks), new BlockSelection(blockIndex + 1), Optional.empty(), true);
     }
 
     private static EditResult insertBlockAtPoint(Document document, DocumentInsertionPoint point, BlockNode insertedBlock) {
@@ -693,7 +787,7 @@ public final class DocumentEditor {
         var blocks = new ArrayList<BlockNode>(document.blocks());
         blocks.add(point.blockIndex(), insertedBlock);
         appendAuthoringFallbackIfNeeded(blocks, point.blockIndex());
-        return new EditResult(new Document(blocks), new BlockSelection(point.blockIndex()), Optional.empty(), true);
+        return new EditResult(withBlocks(document, blocks), new BlockSelection(point.blockIndex()), Optional.empty(), true);
     }
 
     private static boolean isBoundaryOnlyRange(Document document, DocumentRange range) {
@@ -906,7 +1000,7 @@ public final class DocumentEditor {
         var updatedBlocks = new ArrayList<BlockNode>(document.blocks());
         updatedBlocks.set(leftBlockIndex, EditableInlineBlock.withContent(leftBlock, joinedContent));
         updatedBlocks.remove(rightBlockIndex);
-        return new EditResult(new Document(updatedBlocks), new DocumentPosition(leftBlockIndex, oldLeftLength), true);
+        return new EditResult(withBlocks(document, updatedBlocks), new DocumentPosition(leftBlockIndex, oldLeftLength), true);
     }
 
     private static boolean isEditableInlineBlock(Document document, int blockIndex) {
@@ -953,7 +1047,7 @@ public final class DocumentEditor {
                     new InlineContent(transformInlineMark(block, localRange, mark, add))));
         }
 
-        var updatedDocument = new Document(updatedBlocks);
+        var updatedDocument = withBlocks(state.document(), updatedBlocks);
         return new EditResult(
                 updatedDocument,
                 state.anchor(),
@@ -966,19 +1060,20 @@ public final class DocumentEditor {
         var updatedNodes = new ArrayList<InlineNode>();
         var logicalOffset = 0;
         for (var node : EditableInlineBlock.contentOf(block).nodes()) {
-            var text = (Text) node;
-            var nodeLength = TextBoundary.characterCount(text.content());
+            var nodeLength = InlineContentEditor.characterCount(node);
             var nodeStart = logicalOffset;
             var nodeEnd = nodeStart + nodeLength;
             var selectedStart = Math.max(range.start().characterOffset(), nodeStart);
             var selectedEnd = Math.min(range.end().characterOffset(), nodeEnd);
 
             if (selectedStart >= selectedEnd) {
-                updatedNodes.add(text);
-            } else {
+                updatedNodes.add(node);
+            } else if (node instanceof Text text) {
                 addTextSegment(updatedNodes, text, 0, selectedStart - nodeStart, text.marks());
                 addTextSegment(updatedNodes, text, selectedStart - nodeStart, selectedEnd - nodeStart, transformedMarks(text.marks(), mark, add));
                 addTextSegment(updatedNodes, text, selectedEnd - nodeStart, nodeLength, text.marks());
+            } else {
+                updatedNodes.add(node);
             }
             logicalOffset = nodeEnd;
         }
@@ -1012,7 +1107,8 @@ public final class DocumentEditor {
         Text following = null;
         for (var node : EditableInlineBlock.contentOf(block).nodes()) {
             if (!(node instanceof Text text)) {
-                throw new IllegalArgumentException("Unsupported inline node: " + node.getClass().getName());
+                logicalOffset += InlineContentEditor.characterCount(node);
+                continue;
             }
             var nodeStart = logicalOffset;
             var nodeEnd = nodeStart + TextBoundary.characterCount(text.content());
@@ -1046,14 +1142,11 @@ public final class DocumentEditor {
         return block;
     }
 
+    private static Document withBlocks(Document document, List<BlockNode> blocks) {
+        return new Document(blocks, document.datasets());
+    }
+
     private static String blockText(BlockNode block) {
-        var text = new StringBuilder();
-        for (var node : EditableInlineBlock.contentOf(block).nodes()) {
-            if (!(node instanceof Text textNode)) {
-                throw new IllegalArgumentException("Only Text inline nodes are editable in Milestone 5B: " + node.getClass().getName());
-            }
-            text.append(textNode.content());
-        }
-        return text.toString();
+        return InlineContentEditor.logicalText(EditableInlineBlock.contentOf(block));
     }
 }

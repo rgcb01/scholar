@@ -18,6 +18,8 @@ import dev.rgcb.scholar.editor.TableCellTextSelection;
 import dev.rgcb.scholar.editor.PlotEditTarget;
 import dev.rgcb.scholar.editor.DiagramEditTarget;
 import dev.rgcb.scholar.document.Document;
+import dev.rgcb.scholar.document.CrossReferenceTarget;
+import dev.rgcb.scholar.document.CrossReferenceTargetKind;
 import dev.rgcb.scholar.diagram.DiagramCanvas;
 import dev.rgcb.scholar.plot.DataPoint;
 import dev.rgcb.scholar.electrical.ElectricalComponent;
@@ -36,6 +38,8 @@ public final class ScholarEditorController {
     private final Runnable relayout;
     private final Runnable keepCaretVisible;
     private final Consumer<SemanticMathTokenKind> semanticTokenPopup;
+    private final Runnable crossReferencePopup;
+    private final Runnable toggleOutline;
     private final Supplier<LaidOutDocument> laidOutDocument;
     private final Supplier<TextMeasurer> textMeasurer;
 
@@ -46,6 +50,8 @@ public final class ScholarEditorController {
             Runnable keepCaretVisible
     ) {
         this(session, clipboard, relayout, keepCaretVisible, () -> null, () -> null, kind -> {
+        }, () -> {
+        }, () -> {
         });
     }
 
@@ -56,7 +62,9 @@ public final class ScholarEditorController {
             Runnable keepCaretVisible,
             Consumer<SemanticMathTokenKind> semanticTokenPopup
     ) {
-        this(session, clipboard, relayout, keepCaretVisible, () -> null, () -> null, semanticTokenPopup);
+        this(session, clipboard, relayout, keepCaretVisible, () -> null, () -> null, semanticTokenPopup, () -> {
+        }, () -> {
+        });
     }
 
     public ScholarEditorController(
@@ -68,6 +76,8 @@ public final class ScholarEditorController {
             Supplier<TextMeasurer> textMeasurer
     ) {
         this(session, clipboard, relayout, keepCaretVisible, laidOutDocument, textMeasurer, kind -> {
+        }, () -> {
+        }, () -> {
         });
     }
 
@@ -80,6 +90,22 @@ public final class ScholarEditorController {
             Supplier<TextMeasurer> textMeasurer,
             Consumer<SemanticMathTokenKind> semanticTokenPopup
     ) {
+        this(session, clipboard, relayout, keepCaretVisible, laidOutDocument, textMeasurer, semanticTokenPopup, () -> {
+        }, () -> {
+        });
+    }
+
+    public ScholarEditorController(
+            EditorSession session,
+            ClipboardAdapter clipboard,
+            Runnable relayout,
+            Runnable keepCaretVisible,
+            Supplier<LaidOutDocument> laidOutDocument,
+            Supplier<TextMeasurer> textMeasurer,
+            Consumer<SemanticMathTokenKind> semanticTokenPopup,
+            Runnable crossReferencePopup,
+            Runnable toggleOutline
+    ) {
         this.session = Objects.requireNonNull(session, "session");
         this.clipboard = Objects.requireNonNull(clipboard, "clipboard");
         scholarClipboard = PROCESS_CLIPBOARD;
@@ -88,6 +114,8 @@ public final class ScholarEditorController {
         this.laidOutDocument = Objects.requireNonNull(laidOutDocument, "laidOutDocument");
         this.textMeasurer = Objects.requireNonNull(textMeasurer, "textMeasurer");
         this.semanticTokenPopup = Objects.requireNonNull(semanticTokenPopup, "semanticTokenPopup");
+        this.crossReferencePopup = Objects.requireNonNull(crossReferencePopup, "crossReferencePopup");
+        this.toggleOutline = Objects.requireNonNull(toggleOutline, "toggleOutline");
     }
 
     public EditorSession session() {
@@ -117,6 +145,12 @@ public final class ScholarEditorController {
     public void execute(EditorAction action) {
         var result = action.execute(context());
         result.semanticTokenPopup().ifPresent(semanticTokenPopup);
+        if (result.crossReferencePopup()) {
+            crossReferencePopup.run();
+        }
+        if (result.toggleOutline()) {
+            toggleOutline.run();
+        }
         if (result.documentChanged()) {
             relayout.run();
         }
@@ -218,6 +252,11 @@ public final class ScholarEditorController {
         if (layout != null) {
             session.extendEnd(layout);
         }
+        keepCaretVisible.run();
+    }
+
+    public void selectAll() {
+        session.selectAll();
         keepCaretVisible.run();
     }
 
@@ -410,6 +449,23 @@ public final class ScholarEditorController {
 
     public Optional<SemanticMathTokenDraft> semanticTokenDraft(SemanticMathTokenKind kind) {
         return session.semanticTokenDraft(kind);
+    }
+
+    public java.util.List<CrossReferenceTarget> availableCrossReferenceTargets() {
+        return session.availableCrossReferenceTargets();
+    }
+
+    public void insertCrossReference(CrossReferenceTargetKind kind, String targetId) {
+        if (session.insertCrossReference(kind, targetId)) {
+            relayout.run();
+        }
+        keepCaretVisible.run();
+    }
+
+    public void navigateToHeadingId(String targetId) {
+        if (session.navigateToHeadingId(targetId)) {
+            keepCaretVisible.run();
+        }
     }
 
     public boolean isValidSemanticTokenContent(SemanticMathTokenKind kind, String content) {

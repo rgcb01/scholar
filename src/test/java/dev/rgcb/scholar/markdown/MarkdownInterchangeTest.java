@@ -14,6 +14,7 @@ import dev.rgcb.scholar.document.Paragraph;
 import dev.rgcb.scholar.document.TableBlock;
 import dev.rgcb.scholar.document.TableCell;
 import dev.rgcb.scholar.document.TableCellContent;
+import dev.rgcb.scholar.document.TableOfContentsBlock;
 import dev.rgcb.scholar.document.TableRow;
 import dev.rgcb.scholar.document.Text;
 import dev.rgcb.scholar.document.TextMark;
@@ -173,6 +174,26 @@ class MarkdownInterchangeTest {
 
                 **Velocity** describes *motion* and ***change***.
                 """, serializer.serialize(document));
+    }
+
+    @Test
+    void serializesHeadingMarkdownWithoutDerivedSectionNumbers() {
+        var document = new Document(List.of(
+                new Heading("motion", 1, inline(new Text("Motion", Set.of()))),
+                new Heading("average", 2, inline(new Text("Average velocity", Set.of())))));
+
+        assertEquals("""
+                # Motion
+
+                ## Average velocity
+                """, serializer.serialize(document));
+    }
+
+    @Test
+    void serializesTableOfContentsAsMinimalReadablePlaceholder() {
+        var document = new Document(List.of(new TableOfContentsBlock()));
+
+        assertEquals("Contents\n", serializer.serialize(document));
     }
 
     @Test

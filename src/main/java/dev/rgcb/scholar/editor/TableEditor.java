@@ -46,7 +46,7 @@ public final class TableEditor {
         var rows = new ArrayList<TableRow>(table.rows());
         rows.add(rowIndex, emptyRow(table.columnCount()));
         var target = TableCellTextSelection.caret(new TableCellCoordinate(rowIndex, selection.cell().columnIndex()), 0);
-        return new TableEditResult(new TableBlock(rows, table.headerRowCount()), target, Optional.empty(), true);
+        return new TableEditResult(table.withRows(rows), target, Optional.empty(), true);
     }
 
     public TableEditResult insertRowBelow(TableBlock table, TableCellTextSelection selection) {
@@ -55,7 +55,7 @@ public final class TableEditor {
         var rows = new ArrayList<TableRow>(table.rows());
         rows.add(rowIndex, emptyRow(table.columnCount()));
         var target = TableCellTextSelection.caret(new TableCellCoordinate(rowIndex, selection.cell().columnIndex()), 0);
-        return new TableEditResult(new TableBlock(rows, table.headerRowCount()), target, Optional.empty(), true);
+        return new TableEditResult(table.withRows(rows), target, Optional.empty(), true);
     }
 
     public TableEditResult deleteRow(TableBlock table, TableCellTextSelection selection) {
@@ -69,7 +69,7 @@ public final class TableEditor {
         var targetRow = Math.min(oldRow, rows.size() - 1);
         var targetColumn = Math.min(selection.cell().columnIndex(), table.columnCount() - 1);
         var target = TableCellTextSelection.caret(new TableCellCoordinate(targetRow, targetColumn), 0);
-        return new TableEditResult(new TableBlock(rows, table.headerRowCount()), target, Optional.empty(), true);
+        return new TableEditResult(table.withRows(rows), target, Optional.empty(), true);
     }
 
     public TableEditResult insertColumnLeft(TableBlock table, TableCellTextSelection selection) {
@@ -96,7 +96,7 @@ public final class TableEditor {
         }
         var targetColumn = Math.min(oldColumn, table.columnCount() - 2);
         var target = TableCellTextSelection.caret(new TableCellCoordinate(selection.cell().rowIndex(), targetColumn), 0);
-        return new TableEditResult(new TableBlock(rows, table.headerRowCount()), target, Optional.empty(), true);
+        return new TableEditResult(table.withRows(rows), target, Optional.empty(), true);
     }
 
     public TableEditResult insertText(TableBlock table, TableCellTextSelection selection, String text, Set<TextMark> marks) {
@@ -415,7 +415,7 @@ public final class TableEditor {
         var cells = new ArrayList<TableCell>(sourceRow.cells());
         cells.set(coordinate.columnIndex(), new TableCell(new TableCellContent(content)));
         rows.set(coordinate.rowIndex(), new TableRow(cells));
-        return new TableBlock(rows, table.headerRowCount());
+        return table.withRows(rows);
     }
 
     private static TableEditResult insertColumn(TableBlock table, TableCellTextSelection selection, int columnIndex) {
@@ -426,7 +426,7 @@ public final class TableEditor {
             rows.add(new TableRow(cells));
         }
         var target = TableCellTextSelection.caret(new TableCellCoordinate(selection.cell().rowIndex(), columnIndex), 0);
-        return new TableEditResult(new TableBlock(rows, table.headerRowCount()), target, Optional.empty(), true);
+        return new TableEditResult(table.withRows(rows), target, Optional.empty(), true);
     }
 
     private static TableRow emptyRow(int columnCount) {
@@ -447,7 +447,7 @@ public final class TableEditor {
             var blocks = new ArrayList<dev.rgcb.scholar.document.BlockNode>(document.blocks());
             blocks.set(blockIndex, tableResult.table());
             return new EditResult(
-                    new dev.rgcb.scholar.document.Document(blocks),
+                    new dev.rgcb.scholar.document.Document(blocks, document.datasets()),
                     new TableEditingSelection(blockIndex, tableResult.selection()),
                     tableResult.explicitTypingMarks(),
                     tableResult.changed());

@@ -10,6 +10,7 @@ import dev.rgcb.scholar.document.Heading;
 import dev.rgcb.scholar.document.InlineContent;
 import dev.rgcb.scholar.document.InlineNode;
 import dev.rgcb.scholar.document.Paragraph;
+import dev.rgcb.scholar.document.TableOfContentsBlock;
 import dev.rgcb.scholar.document.Text;
 import dev.rgcb.scholar.document.TextMark;
 import dev.rgcb.scholar.math.MathFraction;
@@ -80,7 +81,11 @@ class DocumentLayoutEngineTest {
         assertEquals(12, block.height());
         assertEquals(1, block.lines().size());
         assertEquals(12, block.lines().get(0).height());
-        assertTrue(block.lines().get(0).textRuns().isEmpty());
+        assertEquals("0.1 ", block.lines().get(0).textRuns().get(0).text());
+        assertEquals(-1, block.lines().get(0).textRuns().get(0).sourceBlockIndex());
+        assertEquals(0, block.lines().get(0).textRuns().get(1).width());
+        assertEquals(0, block.lines().get(0).textRuns().get(1).sourceStart());
+        assertEquals(0, block.lines().get(0).textRuns().get(1).sourceEnd());
     }
 
     @Test
@@ -94,6 +99,51 @@ class DocumentLayoutEngineTest {
         assertEquals(1, layout.blocks().get(0).headingLevel());
         assertEquals(LaidOutBlockKind.PARAGRAPH, layout.blocks().get(1).kind());
         assertTrue(layout.blocks().get(1).y() > layout.blocks().get(0).y());
+    }
+
+    @Test
+    void headingLayoutPrefixesDerivedSectionNumberAsDisplayOnlyText() {
+        var layout = layoutEngine.layout(document(
+                heading("motion", 1, text("Motion")),
+                heading("average", 2, text("Average velocity"))), 120, textMeasurer);
+
+        var secondHeading = layout.blocks().get(1);
+        var runs = secondHeading.lines().get(0).textRuns();
+
+        assertEquals("1.1 ", runs.get(0).text());
+        assertEquals(-1, runs.get(0).sourceBlockIndex());
+        assertEquals("Average", runs.get(1).text());
+        assertEquals(1, runs.get(1).sourceBlockIndex());
+    }
+
+    @Test
+    void tableOfContentsBlockLaysOutDerivedEntries() {
+        var layout = layoutEngine.layout(document(
+                new TableOfContentsBlock(),
+                heading("motion", 1, text("Motion")),
+                heading("average", 2, text("Average velocity"))), 160, textMeasurer);
+
+        var toc = layout.blocks().get(0);
+
+        assertEquals(LaidOutBlockKind.TABLE_OF_CONTENTS, toc.kind());
+        assertEquals("Contents", lineText(toc.lines().get(0)));
+        assertEquals(2, toc.tableOfContents().orElseThrow().entries().size());
+        assertEquals("motion", toc.tableOfContents().orElseThrow().entries().get(0).targetId());
+        assertEquals(1, toc.tableOfContents().orElseThrow().entries().get(0).targetBlockIndex());
+        assertEquals("average", toc.tableOfContents().orElseThrow().entries().get(1).targetId());
+        assertTrue(lineText(toc.lines().get(2)).contains("1.1 Average velocity"));
+    }
+
+    @Test
+    void tableOfContentsEntryHitGeometryIsDeterministic() {
+        var layout = layoutEngine.layout(document(
+                new TableOfContentsBlock(),
+                heading("motion", 1, text("Motion"))), 160, textMeasurer);
+
+        var entry = layout.blocks().get(0).tableOfContents().orElseThrow().entries().get(0);
+
+        assertTrue(entry.contains(entry.x(), entry.y()));
+        assertTrue(entry.contains(entry.x() + entry.width() - 1, entry.y() + entry.height() - 1));
     }
 
     @Test
@@ -291,6 +341,10 @@ class DocumentLayoutEngineTest {
 
     private static Heading heading(int level, Text... text) {
         return new Heading(level, inline(text));
+    }
+
+    private static Heading heading(String id, int level, Text... text) {
+        return new Heading(id, level, inline(text));
     }
 
     private static Paragraph paragraph(Text... text) {

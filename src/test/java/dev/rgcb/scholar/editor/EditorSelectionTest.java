@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.rgcb.scholar.document.Document;
 import dev.rgcb.scholar.document.EquationBlock;
+import dev.rgcb.scholar.document.Heading;
 import dev.rgcb.scholar.document.InlineContent;
 import dev.rgcb.scholar.document.Paragraph;
 import dev.rgcb.scholar.document.Text;
@@ -42,11 +43,12 @@ class EditorSelectionTest {
 
     @Test
     void blockSelectionRejectsInvalidOrEditableBlocks() {
-        var document = document(paragraph("text"), new EquationBlock(new MathSequence(List.of())));
+        var document = document(paragraph("text"), heading("Title"), new EquationBlock(new MathSequence(List.of())));
 
         assertThrows(IllegalArgumentException.class, () -> new BlockSelection(-1));
-        assertThrows(IllegalArgumentException.class, () -> new EditorState(document, new BlockSelection(2), Optional.empty()));
+        assertThrows(IllegalArgumentException.class, () -> new EditorState(document, new BlockSelection(3), Optional.empty()));
         assertThrows(IllegalArgumentException.class, () -> new EditorState(document, new BlockSelection(0), Optional.empty()));
+        assertTrue(new EditorState(document, new BlockSelection(1), Optional.empty()).isBlockSelection());
     }
 
     @Test
@@ -82,5 +84,9 @@ class EditorSelectionTest {
 
     private static Paragraph paragraph(String text) {
         return new Paragraph(new InlineContent(List.of(new Text(text, Set.of()))));
+    }
+
+    private static Heading heading(String text) {
+        return new Heading("heading", 1, new InlineContent(List.of(new Text(text, Set.of()))));
     }
 }

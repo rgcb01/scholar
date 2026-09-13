@@ -15,6 +15,7 @@ class MenuDefinitionTest {
     void editAndFormatMenusUseSharedActionIdsInOrder() {
         var editActions = BuiltInEditorActions.editMenuActions();
         var insertActions = BuiltInEditorActions.insertMenuActions();
+        var viewActions = BuiltInEditorActions.viewMenuActions();
         var formatActions = BuiltInEditorActions.formatMenuActions();
         var menus = List.of(
                 new MenuDefinition("Edit", List.of(
@@ -26,6 +27,12 @@ class MenuDefinitionTest {
                         MenuEntry.action(action(editActions, EditorActionId.PASTE)))),
                 new MenuDefinition("Insert", List.of(
                         MenuEntry.action(action(insertActions, EditorActionId.INSERT_EQUATION)),
+                        MenuEntry.action(action(insertActions, EditorActionId.INSERT_TABLE)),
+                        MenuEntry.action(action(insertActions, EditorActionId.INSERT_PLOT)),
+                        MenuEntry.action(action(insertActions, EditorActionId.INSERT_DIAGRAM)),
+                        MenuEntry.action(action(insertActions, EditorActionId.INSERT_CROSS_REFERENCE)),
+                        MenuEntry.action(action(insertActions, EditorActionId.INSERT_TABLE_OF_CONTENTS)),
+                        MenuEntry.separator(),
                         MenuEntry.action(action(insertActions, EditorActionId.MATH_INSERT_FRACTION)),
                         MenuEntry.action(action(insertActions, EditorActionId.MATH_INSERT_ROOT)),
                         MenuEntry.action(action(insertActions, EditorActionId.MATH_INSERT_PARENTHESES_GROUP)),
@@ -33,6 +40,8 @@ class MenuDefinitionTest {
                         MenuEntry.action(action(insertActions, EditorActionId.MATH_INSERT_BRACES_GROUP)),
                         MenuEntry.action(action(insertActions, EditorActionId.MATH_INSERT_SUPERSCRIPT)),
                         MenuEntry.action(action(insertActions, EditorActionId.MATH_INSERT_SUBSCRIPT)))),
+                new MenuDefinition("View", List.of(
+                        MenuEntry.action(action(viewActions, EditorActionId.TOGGLE_OUTLINE)))),
                 new MenuDefinition("Format", List.of(
                         MenuEntry.action(action(formatActions, EditorActionId.PARAGRAPH)),
                         MenuEntry.action(action(formatActions, EditorActionId.HEADING_1)),
@@ -45,22 +54,26 @@ class MenuDefinitionTest {
                         MenuEntry.action(action(formatActions, EditorActionId.BOLD)),
                         MenuEntry.action(action(formatActions, EditorActionId.ITALIC)))));
 
-        assertEquals(List.of("Edit", "Insert", "Format"), menus.stream().map(MenuDefinition::title).toList());
+        assertEquals(List.of("Edit", "Insert", "View", "Format"), menus.stream().map(MenuDefinition::title).toList());
         assertEquals(EditorActionId.UNDO, menus.get(0).entries().get(0).action().orElseThrow().id());
         assertEquals(MenuEntryKind.SEPARATOR, menus.get(0).entries().get(2).kind());
         assertEquals(EditorActionId.INSERT_EQUATION, menus.get(1).entries().get(0).action().orElseThrow().id());
-        assertEquals(EditorActionId.MATH_INSERT_FRACTION, menus.get(1).entries().get(1).action().orElseThrow().id());
-        assertEquals(EditorActionId.MATH_INSERT_ROOT, menus.get(1).entries().get(2).action().orElseThrow().id());
-        assertEquals(EditorActionId.MATH_INSERT_PARENTHESES_GROUP, menus.get(1).entries().get(3).action().orElseThrow().id());
-        assertEquals(EditorActionId.MATH_INSERT_BRACKETS_GROUP, menus.get(1).entries().get(4).action().orElseThrow().id());
-        assertEquals(EditorActionId.MATH_INSERT_BRACES_GROUP, menus.get(1).entries().get(5).action().orElseThrow().id());
-        assertEquals(EditorActionId.MATH_INSERT_SUPERSCRIPT, menus.get(1).entries().get(6).action().orElseThrow().id());
-        assertEquals(EditorActionId.MATH_INSERT_SUBSCRIPT, menus.get(1).entries().get(7).action().orElseThrow().id());
-        assertEquals(EditorActionId.PARAGRAPH, menus.get(2).entries().get(0).action().orElseThrow().id());
-        assertEquals(EditorActionId.HEADING_6, menus.get(2).entries().get(6).action().orElseThrow().id());
-        assertEquals(MenuEntryKind.SEPARATOR, menus.get(2).entries().get(7).kind());
-        assertEquals(EditorActionId.BOLD, menus.get(2).entries().get(8).action().orElseThrow().id());
-        assertEquals(EditorActionId.ITALIC, menus.get(2).entries().get(9).action().orElseThrow().id());
+        assertEquals(EditorActionId.INSERT_CROSS_REFERENCE, menus.get(1).entries().get(4).action().orElseThrow().id());
+        assertEquals(EditorActionId.INSERT_TABLE_OF_CONTENTS, menus.get(1).entries().get(5).action().orElseThrow().id());
+        assertEquals(MenuEntryKind.SEPARATOR, menus.get(1).entries().get(6).kind());
+        assertEquals(EditorActionId.MATH_INSERT_FRACTION, menus.get(1).entries().get(7).action().orElseThrow().id());
+        assertEquals(EditorActionId.MATH_INSERT_ROOT, menus.get(1).entries().get(8).action().orElseThrow().id());
+        assertEquals(EditorActionId.MATH_INSERT_PARENTHESES_GROUP, menus.get(1).entries().get(9).action().orElseThrow().id());
+        assertEquals(EditorActionId.MATH_INSERT_BRACKETS_GROUP, menus.get(1).entries().get(10).action().orElseThrow().id());
+        assertEquals(EditorActionId.MATH_INSERT_BRACES_GROUP, menus.get(1).entries().get(11).action().orElseThrow().id());
+        assertEquals(EditorActionId.MATH_INSERT_SUPERSCRIPT, menus.get(1).entries().get(12).action().orElseThrow().id());
+        assertEquals(EditorActionId.MATH_INSERT_SUBSCRIPT, menus.get(1).entries().get(13).action().orElseThrow().id());
+        assertEquals(EditorActionId.TOGGLE_OUTLINE, menus.get(2).entries().get(0).action().orElseThrow().id());
+        assertEquals(EditorActionId.PARAGRAPH, menus.get(3).entries().get(0).action().orElseThrow().id());
+        assertEquals(EditorActionId.HEADING_6, menus.get(3).entries().get(6).action().orElseThrow().id());
+        assertEquals(MenuEntryKind.SEPARATOR, menus.get(3).entries().get(7).kind());
+        assertEquals(EditorActionId.BOLD, menus.get(3).entries().get(8).action().orElseThrow().id());
+        assertEquals(EditorActionId.ITALIC, menus.get(3).entries().get(9).action().orElseThrow().id());
     }
 
     @Test

@@ -25,6 +25,15 @@ public final class MathExpressionEditor {
         return new MathCaretSelection(new MathSequencePosition(MathPath.ROOT, 0));
     }
 
+    public MathSelection selectAll(MathExpression expression) {
+        Objects.requireNonNull(expression, "expression");
+        var positions = positions(expression);
+        if (positions.size() <= 1) {
+            return rootStart();
+        }
+        return new MathRangeSelection(positions.get(0), positions.get(positions.size() - 1));
+    }
+
     public MathEditResult insertText(MathExpression expression, MathSelection selection, String text) {
         Objects.requireNonNull(expression, "expression");
         Objects.requireNonNull(text, "text");

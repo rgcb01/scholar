@@ -102,7 +102,7 @@ class CaretGeometryResolverTest {
 
         var caret = resolver.resolve(new DocumentPosition(0, 0), layout, textMeasurer);
 
-        assertEquals(0, caret.x());
+        assertEquals(20, caret.x());
         assertEquals(layout.blocks().get(0).y(), caret.y());
         assertEquals(10, caret.height());
     }
@@ -115,9 +115,9 @@ class CaretGeometryResolverTest {
         var middle = resolver.resolve(new DocumentPosition(0, 5), layout, textMeasurer);
         var end = resolver.resolve(new DocumentPosition(0, 10), layout, textMeasurer);
 
-        assertEquals(0, start.x());
-        assertEquals(25, middle.x());
-        assertEquals(50, end.x());
+        assertEquals(20, start.x());
+        assertEquals(45, middle.x());
+        assertEquals(70, end.x());
     }
 
     private static Document document(String text) {

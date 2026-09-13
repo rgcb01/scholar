@@ -4,7 +4,9 @@ public enum LaidOutBlockKind {
     HEADING,
     PARAGRAPH,
     EQUATION,
+    TABLE_OF_CONTENTS,
     TABLE,
     PLOT,
-    DIAGRAM
+    DIAGRAM,
+    FIGURE
 }

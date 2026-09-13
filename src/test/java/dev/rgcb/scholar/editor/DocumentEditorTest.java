@@ -767,10 +767,8 @@ class DocumentEditorTest {
     @Test
     void multiBlockInlineFormattingRejectsEquationBarrier() {
         var document = document(paragraph(text("abc")), new EquationBlock(new MathIdentifier("x")), paragraph(text("def")));
-        var state = new EditorState(document, new DocumentPosition(0, 1), new DocumentPosition(2, 1));
 
-        assertThrows(IllegalArgumentException.class, () -> editor.formattingState(state, TextMark.BOLD));
-        assertThrows(IllegalArgumentException.class, () -> editor.toggleMark(state, TextMark.BOLD));
+        assertThrows(IllegalArgumentException.class, () -> new EditorState(document, new DocumentPosition(0, 1), new DocumentPosition(2, 1)));
     }
 
     @Test
@@ -881,14 +879,10 @@ class DocumentEditorTest {
                 document(heading(2, text("A")), heading(2, text("B"))),
                 new DocumentPosition(0, 0),
                 new DocumentPosition(1, 1));
-        var blocked = new EditorState(
-                document(paragraph(text("A")), new EquationBlock(new MathIdentifier("x")), paragraph(text("B"))),
-                new DocumentPosition(0, 0),
-                new DocumentPosition(2, 1));
+        var blockedDocument = document(paragraph(text("A")), new EquationBlock(new MathIdentifier("x")), paragraph(text("B")));
 
         assertFalse(editor.setBlockStyle(noOp, BlockStyle.heading(2)).changed());
-        assertThrows(IllegalArgumentException.class, () -> editor.blockStyleSelectionState(blocked));
-        assertThrows(IllegalArgumentException.class, () -> editor.setBlockStyle(blocked, BlockStyle.paragraph()));
+        assertThrows(IllegalArgumentException.class, () -> new EditorState(blockedDocument, new DocumentPosition(0, 0), new DocumentPosition(2, 1)));
     }
 
     @Test
@@ -1163,17 +1157,12 @@ class DocumentEditorTest {
         var single = new EditorState(document(paragraph(text("abc"))), new DocumentPosition(0, 0), new DocumentPosition(0, 1));
         var collapsed = new EditorState(document(paragraph(text("abc"))), new DocumentPosition(0, 1));
         var blockSelection = new EditorState(document(new EquationBlock(new MathIdentifier("x"))), new BlockSelection(0), java.util.Optional.empty());
-        var barrier = new EditorState(
-                document(paragraph(text("A")), new EquationBlock(new MathIdentifier("x")), paragraph(text("B"))),
-                new DocumentPosition(0, 0),
-                new DocumentPosition(2, 1));
+        var barrierDocument = document(paragraph(text("A")), new EquationBlock(new MathIdentifier("x")), paragraph(text("B")));
 
         assertTrue(editor.supportsInsertBlock(single));
         assertFalse(editor.replaceSelectionWithBlock(collapsed, new EquationBlock(new MathSequence(List.of()))).changed());
         assertFalse(editor.replaceSelectionWithBlock(blockSelection, new EquationBlock(new MathSequence(List.of()))).changed());
-        assertFalse(editor.supportsInsertBlock(barrier));
-        assertFalse(editor.insertEmptyEquation(barrier).changed());
-        assertThrows(IllegalArgumentException.class, () -> editor.replaceSelectionWithBlock(barrier, new EquationBlock(new MathSequence(List.of()))));
+        assertThrows(IllegalArgumentException.class, () -> new EditorState(barrierDocument, new DocumentPosition(0, 0), new DocumentPosition(2, 1)));
     }
 
     @Test

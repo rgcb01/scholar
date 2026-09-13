@@ -1,6 +1,8 @@
 package dev.rgcb.scholar.editor;
 
 import dev.rgcb.scholar.document.Document;
+import dev.rgcb.scholar.document.CrossReference;
+import dev.rgcb.scholar.document.CrossReferenceResolver;
 import dev.rgcb.scholar.document.Text;
 import java.util.Objects;
 import java.util.Optional;
@@ -67,32 +69,26 @@ public final class PlainTextClipboard {
             throw new IllegalArgumentException("Only Paragraph and Heading text blocks are supported by plain-text clipboard operations.");
         }
 
-        var text = new StringBuilder();
-        for (var node : EditableInlineBlock.contentOf(block).nodes()) {
-            if (!(node instanceof Text textNode)) {
-                throw new IllegalArgumentException("Only Text inline nodes are supported by plain-text clipboard operations.");
-            }
-            text.append(textNode.content());
-        }
-        TextBoundary.validateRange(text.toString(), range.start().characterOffset(), range.end().characterOffset());
-        return TextBoundary.substring(text.toString(), range.start().characterOffset(), range.end().characterOffset());
+        validateInlineRange(EditableInlineBlock.contentOf(block), range.start().characterOffset(), range.end().characterOffset());
+        return inlineText(document, EditableInlineBlock.contentOf(block), range.start().characterOffset(), range.end().characterOffset());
     }
 
     private static String selectedMultiBlockText(Document document, DocumentRange range) {
         validateContiguousEditableRange(document, range);
         var text = new StringBuilder();
-        text.append(TextBoundary.substring(
-                blockText(document, range.start().blockIndex()),
+        text.append(inlineText(
+                document,
+                EditableInlineBlock.contentOf(document.blocks().get(range.start().blockIndex())),
                 range.start().characterOffset(),
-                TextBoundary.characterCount(blockText(document, range.start().blockIndex()))));
+                InlineContentEditor.characterCount(EditableInlineBlock.contentOf(document.blocks().get(range.start().blockIndex())))));
 
         for (var blockIndex = range.start().blockIndex() + 1; blockIndex < range.end().blockIndex(); blockIndex++) {
             text.append('\n');
-            text.append(blockText(document, blockIndex));
+            text.append(inlineText(document, EditableInlineBlock.contentOf(document.blocks().get(blockIndex)), 0, InlineContentEditor.characterCount(EditableInlineBlock.contentOf(document.blocks().get(blockIndex)))));
         }
 
         text.append('\n');
-        text.append(TextBoundary.substring(blockText(document, range.end().blockIndex()), 0, range.end().characterOffset()));
+        text.append(inlineText(document, EditableInlineBlock.contentOf(document.blocks().get(range.end().blockIndex())), 0, range.end().characterOffset()));
         return text.toString();
     }
 
@@ -106,24 +102,44 @@ public final class PlainTextClipboard {
                 throw new IllegalArgumentException("Plain-text copy cannot cross unsupported blocks.");
             }
             TextBoundary.validateRange(
-                    blockText(document, blockIndex),
+                    logicalBlockText(document, blockIndex),
                     blockIndex == range.start().blockIndex() ? range.start().characterOffset() : 0,
-                    blockIndex == range.end().blockIndex() ? range.end().characterOffset() : TextBoundary.characterCount(blockText(document, blockIndex)));
+                    blockIndex == range.end().blockIndex() ? range.end().characterOffset() : TextBoundary.characterCount(logicalBlockText(document, blockIndex)));
         }
     }
 
-    private static String blockText(Document document, int blockIndex) {
+    private static String logicalBlockText(Document document, int blockIndex) {
         var block = document.blocks().get(blockIndex);
         if (!EditableInlineBlock.supports(block)) {
             throw new IllegalArgumentException("Only Paragraph and Heading text blocks are supported by plain-text clipboard operations.");
         }
+        return InlineContentEditor.logicalText(EditableInlineBlock.contentOf(block));
+    }
 
+    private static void validateInlineRange(dev.rgcb.scholar.document.InlineContent content, int startOffset, int endOffset) {
+        TextBoundary.validateRange(InlineContentEditor.logicalText(content), startOffset, endOffset);
+    }
+
+    private static String inlineText(Document document, dev.rgcb.scholar.document.InlineContent content, int startOffset, int endOffset) {
         var text = new StringBuilder();
-        for (var node : EditableInlineBlock.contentOf(block).nodes()) {
-            if (!(node instanceof Text textNode)) {
-                throw new IllegalArgumentException("Only Text inline nodes are supported by plain-text clipboard operations.");
+        var logicalOffset = 0;
+        var resolver = new CrossReferenceResolver();
+        for (var node : content.nodes()) {
+            var nodeLength = InlineContentEditor.characterCount(node);
+            var nodeStart = logicalOffset;
+            var nodeEnd = nodeStart + nodeLength;
+            var selectedStart = Math.max(startOffset, nodeStart);
+            var selectedEnd = Math.min(endOffset, nodeEnd);
+            if (selectedStart < selectedEnd) {
+                if (node instanceof Text run) {
+                    text.append(TextBoundary.substring(run.content(), selectedStart - nodeStart, selectedEnd - nodeStart));
+                } else if (node instanceof CrossReference reference) {
+                    text.append(resolver.resolve(document, reference).displayText());
+                } else {
+                    throw new IllegalArgumentException("Unsupported inline node: " + node.getClass().getName());
+                }
             }
-            text.append(textNode.content());
+            logicalOffset = nodeEnd;
         }
         return text.toString();
     }

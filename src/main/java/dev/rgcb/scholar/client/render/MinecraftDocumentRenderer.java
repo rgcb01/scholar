@@ -13,6 +13,7 @@ import dev.rgcb.scholar.mechanical.layout.LaidOutMechanicalSymbol;
 import dev.rgcb.scholar.mechanical.layout.LaidOutMechanicalAnnotation;
 import dev.rgcb.scholar.mechanical.layout.LaidOutMechanicalPartReference;
 import dev.rgcb.scholar.layout.LaidOutDocument;
+import dev.rgcb.scholar.layout.LaidOutFigure;
 import dev.rgcb.scholar.layout.LaidOutTable;
 import dev.rgcb.scholar.layout.LaidOutText;
 import dev.rgcb.scholar.plot.layout.LaidOutPlot;
@@ -84,6 +85,8 @@ public final class MinecraftDocumentRenderer {
                     if (baselineY + math.root().descent() >= viewportY && baselineY - math.root().ascent() <= viewportY + viewportHeight) {
                         mathRenderer.render(graphics, math, viewportX + block.x() + Math.max(0, (block.width() - math.width()) / 2), baselineY);
                     }
+                } else if (block.figure().isPresent()) {
+                    renderFigure(graphics, block.figure().orElseThrow(), viewportX, viewportY, viewportHeight, scrollOffset);
                 } else if (block.table().isPresent()) {
                     renderTable(graphics, block.table().orElseThrow(), viewportX, viewportY, viewportHeight, scrollOffset);
                 } else if (block.plot().isPresent()) {
@@ -112,6 +115,43 @@ public final class MinecraftDocumentRenderer {
         } finally {
             graphics.disableScissor();
             graphics.pose().popPose();
+        }
+    }
+
+    private void renderFigure(
+            GuiGraphics graphics,
+            LaidOutFigure figure,
+            int viewportX,
+            int viewportY,
+            int viewportHeight,
+            int scrollOffset
+    ) {
+        var top = viewportY + figure.y() - scrollOffset;
+        var bottom = top + figure.height();
+        if (bottom < viewportY || top > viewportY + viewportHeight) {
+            return;
+        }
+        var content = figure.content();
+        if (content.plot().isPresent()) {
+            renderPlot(graphics, content.plot().orElseThrow(), viewportX, viewportY, viewportHeight, scrollOffset);
+        } else if (content.diagram().isPresent()) {
+            renderDiagram(graphics, content.diagram().orElseThrow(), viewportX, viewportY, viewportHeight, scrollOffset);
+        }
+        for (var line : figure.captionLines()) {
+            for (var run : line.textRuns()) {
+                var drawX = viewportX + run.x();
+                var drawY = viewportY + run.y() - scrollOffset;
+                if (drawY + line.height() >= viewportY && drawY <= viewportY + viewportHeight) {
+                    var resolved = typographyResolver.resolve(run.style());
+                    graphics.drawString(
+                            typographyResolver.fontFor(resolved.role()),
+                            typographyResolver.component(run.text(), resolved),
+                            drawX,
+                            drawY,
+                            resolved.color(),
+                            false);
+                }
+            }
         }
     }
 

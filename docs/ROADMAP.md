@@ -14,6 +14,17 @@ The repository has advanced substantially beyond the original early-milestone ou
 - M18A-M18G are complete/manual QA accepted: electrical architecture, static symbols, orientation/hit testing, full authoring, explicit junctions + derived nets, workspace scaling, clipboard/interchange regression, and final hardening.
 - M18 is complete/manual QA accepted through M18H.1 final terminal-length polish.
 - M19A through M19E.1 are complete/manual QA accepted: primitives, dimensions/callouts, scrollable menus, constraints, symbols, and annotation visual polish. M19F Mechanical Assembly & Part References is implemented and pending manual QA.
+- M20 Figures & Scientific Media is complete/manual QA accepted: semantic figures wrap existing plots/diagrams, derive display numbering from document order, store editable captions, render content plus generated captions, and support native whole-figure clipboard with stable-ID remapping.
+- M21 Cross-References is complete/manual QA accepted: semantic references resolve Figure, Table, Equation, and Section targets from stable IDs.
+- M22 Document Structure & Navigation is complete/manual QA accepted: headings derive hierarchical section numbers, section references share that numbering, TOC blocks derive entries automatically, and the editor includes an outline panel.
+- M23 Scientific Data & Datasets is implemented with automated validation complete and manual Minecraft QA pending: documents own reusable datasets, tables and plots can resolve dataset-backed views, dataset edits propagate through views, and native dataset clipboard uses TSV fallback.
+- M24A Document Model Invariants & Validation Foundation is implemented with automated validation complete: a pure Java validator reports structural errors and degraded-state warnings without mutating documents.
+- M24B Selection & Caret Foundation is implemented with automated validation complete: transient editor selections are centrally validated, text selections cannot cross atomic blocks, `Ctrl+A` targets the active editing scope, and mixed-document navigation has deterministic regression coverage.
+- M24C Right-Click / Context Menu Foundation is implemented with automated validation complete: context menus reuse `EditorAction`, preserve valid selections, and stay transient Minecraft shell UI.
+- M24D Structural Editing Hardening is implemented with automated validation complete: structural edits are documented, ID-sensitive paste/split paths are hardened, and validator-backed sequence/golden/randomized regressions cover current structural operations.
+- M24E Undo/Redo & Transaction Hardening is implemented with automated validation complete: history depth is testable, one semantic edit maps to one transaction, transient UI/navigation state does not create undo entries, redo restores stable-ID snapshots deterministically, and validator-backed history regressions cover current editor systems.
+- M24F Input, Focus & Interaction Consistency is implemented with automated validation complete: focus ownership, input priority, popup isolation, scoped text input, and transient nested-editor transitions are documented and regression-tested.
+- M24G Final Editor Foundation Regression & Documentation is implemented with automated validation complete: the current foundation is covered by canonical mixed-document integration tests, seeded cross-subsystem replay, manual QA fixtures, and foundation v1 documentation.
 
 
 ## Current Forward Milestone Plan
@@ -57,6 +68,11 @@ M18 models schematic diagrams only. Physical Minecraft components on breadboards
 - M19H Visual polish — planned.
 
 M19 remains schematic/technical-drawing authoring rather than physical simulation. M19C uses a bounded deterministic relationship reconciler, not a general CAD solver.
+
+### M20 - Figures & Scientific Media
+
+- M20A FigureBlock foundation: stable figure IDs, derived display numbering, plot/diagram content, semantic captions, layout/rendering, selection/editing hooks, native clipboard, fixtures, docs, and ADRs — complete/manual QA accepted.
+- Image-backed figures, rich media import/export, figure cross-references, figure Markdown syntax, and document-wide media asset management remain deferred.
 
 ## Milestone 0 - Repository Foundation
 
@@ -179,3 +195,7 @@ Exit criteria:
 
 - A user can create or modify a small document without editing raw Markdown.
 - Editing operations preserve model invariants.
+
+## Current Status Through M24G
+
+Scholar now includes semantic document editing, structured math authoring, tables, plots, diagrams, electrical/mechanical diagram vocabularies, figures, first-class cross-references, derived document structure/navigation, first-class reusable datasets, a pure Java document validation foundation, a central selection/caret validity foundation, the first editor-wide right-click context menu foundation, structural editing hardening for current block/nested/resource operations, an explicit undo/redo transaction contract, an accepted input/focus contract for one authoritative consumer per input event, and final foundation-level regression coverage across the current mixed editor surface. Validation UI, repair workflows, persistence migration, and richer document-wide multi-object selection remain future work.

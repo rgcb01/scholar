@@ -3,6 +3,7 @@ package dev.rgcb.scholar.editor;
 import dev.rgcb.scholar.document.InlineContent;
 import dev.rgcb.scholar.document.InlineNode;
 import dev.rgcb.scholar.document.Text;
+import dev.rgcb.scholar.document.CrossReference;
 import java.util.ArrayList;
 import java.util.Objects;
 
@@ -21,18 +22,14 @@ final class InlineContentEditor {
         var right = new ArrayList<InlineNode>();
         var offset = 0;
         for (var node : content.nodes()) {
-            if (!(node instanceof Text text)) {
-                throw new IllegalArgumentException("Unsupported inline node: " + node.getClass().getName());
-            }
-
-            var nodeLength = TextBoundary.characterCount(text.content());
+            var nodeLength = characterCount(node);
             var nodeStart = offset;
             var nodeEnd = nodeStart + nodeLength;
             if (nodeEnd <= logicalOffset) {
-                left.add(text);
+                left.add(node);
             } else if (nodeStart >= logicalOffset) {
-                right.add(text);
-            } else {
+                right.add(node);
+            } else if (node instanceof Text text) {
                 var splitOffset = logicalOffset - nodeStart;
                 if (splitOffset > 0) {
                     left.add(new Text(TextBoundary.substring(text.content(), 0, splitOffset), text.marks()));
@@ -40,6 +37,8 @@ final class InlineContentEditor {
                 if (splitOffset < nodeLength) {
                     right.add(new Text(TextBoundary.substring(text.content(), splitOffset, nodeLength), text.marks()));
                 }
+            } else {
+                throw new IllegalArgumentException("Cannot split through atomic inline node: " + node.getClass().getName());
             }
             offset = nodeEnd;
         }
@@ -55,15 +54,45 @@ final class InlineContentEditor {
         return new InlineContent(nodes);
     }
 
+    static InlineContent slice(InlineContent content, int startOffset, int endOffset) {
+        Objects.requireNonNull(content, "content");
+        TextBoundary.validateRange(logicalText(content), startOffset, endOffset);
+        var leftSplit = split(content, startOffset);
+        return split(leftSplit.right(), endOffset - startOffset).left();
+    }
+
     static int characterCount(InlineContent content) {
         Objects.requireNonNull(content, "content");
         var count = 0;
         for (var node : content.nodes()) {
-            if (!(node instanceof Text text)) {
-                throw new IllegalArgumentException("Unsupported inline node: " + node.getClass().getName());
-            }
-            count += TextBoundary.characterCount(text.content());
+            count += characterCount(node);
         }
         return count;
+    }
+
+    static String logicalText(InlineContent content) {
+        Objects.requireNonNull(content, "content");
+        var text = new StringBuilder();
+        for (var node : content.nodes()) {
+            if (node instanceof Text run) {
+                text.append(run.content());
+            } else if (node instanceof CrossReference) {
+                text.append('\uFFFC');
+            } else {
+                throw new IllegalArgumentException("Unsupported inline node: " + node.getClass().getName());
+            }
+        }
+        return text.toString();
+    }
+
+    static int characterCount(InlineNode node) {
+        Objects.requireNonNull(node, "node");
+        if (node instanceof Text text) {
+            return TextBoundary.characterCount(text.content());
+        }
+        if (node instanceof CrossReference) {
+            return 1;
+        }
+        throw new IllegalArgumentException("Unsupported inline node: " + node.getClass().getName());
     }
 }

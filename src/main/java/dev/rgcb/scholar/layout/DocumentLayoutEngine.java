@@ -2,16 +2,25 @@ package dev.rgcb.scholar.layout;
 
 import dev.rgcb.scholar.diagram.layout.DiagramLayoutEngine;
 import dev.rgcb.scholar.diagram.layout.DiagramViewport;
+import dev.rgcb.scholar.data.DatasetPlotResolver;
+import dev.rgcb.scholar.data.DatasetTableResolver;
 import dev.rgcb.scholar.document.DiagramBlock;
+import dev.rgcb.scholar.document.CrossReference;
+import dev.rgcb.scholar.document.CrossReferenceResolver;
 import dev.rgcb.scholar.document.Document;
+import dev.rgcb.scholar.document.DocumentStructure;
+import dev.rgcb.scholar.document.DocumentStructureResolver;
 import dev.rgcb.scholar.document.EquationBlock;
+import dev.rgcb.scholar.document.FigureBlock;
 import dev.rgcb.scholar.document.Heading;
 import dev.rgcb.scholar.document.InlineContent;
 import dev.rgcb.scholar.document.InlineNode;
 import dev.rgcb.scholar.document.Paragraph;
 import dev.rgcb.scholar.document.PlotBlock;
 import dev.rgcb.scholar.document.TableBlock;
+import dev.rgcb.scholar.document.TableOfContentsBlock;
 import dev.rgcb.scholar.document.Text;
+import dev.rgcb.scholar.document.TextMark;
 import dev.rgcb.scholar.editor.TextBoundary;
 import dev.rgcb.scholar.math.layout.MathLayoutEngine;
 import dev.rgcb.scholar.math.layout.MathTextMeasurer;
@@ -30,11 +39,16 @@ public final class DocumentLayoutEngine {
     private static final int BLOCK_X = 0;
     private static final int MIN_EQUATION_BLOCK_WIDTH = 48;
     private static final int MIN_EQUATION_BLOCK_HEIGHT = 18;
+    private static final int FIGURE_CAPTION_GAP = 6;
+    private static final int TOC_INDENT = 12;
 
     private final MathLayoutEngine mathLayoutEngine = new MathLayoutEngine();
     private final TableLayoutEngine tableLayoutEngine = new TableLayoutEngine();
     private final PlotLayoutEngine plotLayoutEngine = new PlotLayoutEngine();
     private final DiagramLayoutEngine diagramLayoutEngine = new DiagramLayoutEngine();
+    private final DocumentStructureResolver structureResolver = new DocumentStructureResolver();
+    private final DatasetTableResolver datasetTableResolver = new DatasetTableResolver();
+    private final DatasetPlotResolver datasetPlotResolver = new DatasetPlotResolver();
     private final ScholarTypography typography;
 
     public DocumentLayoutEngine() {
@@ -79,33 +93,48 @@ public final class DocumentLayoutEngine {
 
         var blocks = new ArrayList<LaidOutBlock>();
         var y = 0;
+        var figureNumber = 1;
+        var referenceResolver = new CrossReferenceResolver();
+        var structure = structureResolver.resolve(document);
 
         for (var blockIndex = 0; blockIndex < document.blocks().size(); blockIndex++) {
             var block = document.blocks().get(blockIndex);
             if (block instanceof Heading heading) {
                 y += typography.headingSpacingBefore(heading.level(), blocks.isEmpty());
                 var style = TextStyle.heading(heading.level());
+                var section = structure.sectionAtBlock(blockIndex).orElseThrow();
                 var laidOut = layoutTextBlock(
                         LaidOutBlockKind.HEADING,
                         heading.level(),
                         heading.content(),
                         style,
+                        section.number().displayText() + " ",
                         contentWidth,
                         y,
                         textMeasurer,
-                        blockIndex);
+                        blockIndex,
+                        document,
+                        referenceResolver);
                 blocks.add(laidOut);
                 y = laidOut.y() + laidOut.height() + typography.headingSpacingAfter(heading.level());
+            } else if (block instanceof TableOfContentsBlock) {
+                y += blocks.isEmpty() ? 0 : typography.paragraphSpacingAfter();
+                var laidOut = layoutTableOfContentsBlock(structure, contentWidth, y, textMeasurer);
+                blocks.add(laidOut);
+                y = laidOut.y() + laidOut.height() + typography.paragraphSpacingAfter();
             } else if (block instanceof Paragraph paragraph) {
                 var laidOut = layoutTextBlock(
                         LaidOutBlockKind.PARAGRAPH,
                         0,
                         paragraph.content(),
                         null,
+                        "",
                         contentWidth,
                         y,
                         textMeasurer,
-                        blockIndex);
+                        blockIndex,
+                        document,
+                        referenceResolver);
                 blocks.add(laidOut);
                 y = laidOut.y() + laidOut.height() + typography.paragraphSpacingAfter();
             } else if (block instanceof EquationBlock equationBlock) {
@@ -118,7 +147,7 @@ public final class DocumentLayoutEngine {
                 y = laidOut.y() + laidOut.height() + typography.equationSpacingAfter();
             } else if (block instanceof TableBlock tableBlock) {
                 y += blocks.isEmpty() ? 0 : typography.paragraphSpacingAfter();
-                var table = tableLayoutEngine.layout(tableBlock, blockIndex, BLOCK_X, y, contentWidth, textMeasurer);
+                var table = tableLayoutEngine.layout(datasetTableResolver.resolve(document, tableBlock), blockIndex, BLOCK_X, y, contentWidth, textMeasurer);
                 var laidOut = new LaidOutBlock(
                         LaidOutBlockKind.TABLE,
                         0,
@@ -133,7 +162,7 @@ public final class DocumentLayoutEngine {
                 y = laidOut.y() + laidOut.height() + typography.paragraphSpacingAfter();
             } else if (block instanceof PlotBlock plotBlock) {
                 y += blocks.isEmpty() ? 0 : typography.paragraphSpacingAfter();
-                var plot = plotLayoutEngine.layout(plotBlock, blockIndex, BLOCK_X, y, contentWidth, textMeasurer);
+                var plot = plotLayoutEngine.layout(datasetPlotResolver.resolve(document, plotBlock), blockIndex, BLOCK_X, y, contentWidth, textMeasurer);
                 var laidOut = new LaidOutBlock(
                         LaidOutBlockKind.PLOT,
                         0,
@@ -173,6 +202,20 @@ public final class DocumentLayoutEngine {
                         Optional.of(diagram));
                 blocks.add(laidOut);
                 y = laidOut.y() + laidOut.height() + typography.paragraphSpacingAfter();
+            } else if (block instanceof FigureBlock figureBlock) {
+                y += blocks.isEmpty() ? 0 : typography.paragraphSpacingAfter();
+                var laidOut = layoutFigureBlock(
+                        figureBlock,
+                        figureNumber++,
+                        blockIndex,
+                        contentWidth,
+                        y,
+                        textMeasurer,
+                        diagramViewportProvider,
+                        document,
+                        referenceResolver);
+                blocks.add(laidOut);
+                y = laidOut.y() + laidOut.height() + typography.paragraphSpacingAfter();
             } else {
                 throw new IllegalArgumentException("Unsupported block node: " + block.getClass().getName());
             }
@@ -182,26 +225,139 @@ public final class DocumentLayoutEngine {
         return new LaidOutDocument(contentWidth, height, blocks);
     }
 
+    private LaidOutBlock layoutFigureBlock(
+            FigureBlock figureBlock,
+            int number,
+            int sourceBlockIndex,
+            int contentWidth,
+            int y,
+            TextMeasurer textMeasurer,
+            BiFunction<Integer, DiagramBlock, DiagramViewport> diagramViewportProvider
+            ,
+            Document document,
+            CrossReferenceResolver referenceResolver
+    ) {
+        LaidOutBlock contentBlock;
+        if (figureBlock.content() instanceof PlotBlock plotBlock) {
+            var plot = plotLayoutEngine.layout(plotBlock, sourceBlockIndex, BLOCK_X, y, contentWidth, textMeasurer);
+            contentBlock = new LaidOutBlock(
+                    LaidOutBlockKind.PLOT,
+                    0,
+                    plot.x(),
+                    plot.y(),
+                    plot.width(),
+                    plot.height(),
+                    List.of(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.of(plot));
+        } else if (figureBlock.content() instanceof DiagramBlock diagramBlock) {
+            var diagram = diagramLayoutEngine.layout(
+                    diagramBlock,
+                    sourceBlockIndex,
+                    BLOCK_X,
+                    y,
+                    contentWidth,
+                    textMeasurer,
+                    Objects.requireNonNull(
+                            diagramViewportProvider.apply(sourceBlockIndex, diagramBlock),
+                            "diagram viewport provider returned null"));
+            contentBlock = new LaidOutBlock(
+                    LaidOutBlockKind.DIAGRAM,
+                    0,
+                    diagram.x(),
+                    diagram.y(),
+                    diagram.width(),
+                    diagram.height(),
+                    List.of(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.of(diagram));
+        } else {
+            throw new IllegalArgumentException("Unsupported figure content: " + figureBlock.content().getClass().getName());
+        }
+
+        var captionY = contentBlock.y() + contentBlock.height() + FIGURE_CAPTION_GAP;
+                var caption = layoutTextBlock(
+                LaidOutBlockKind.PARAGRAPH,
+                0,
+                numberedCaption(number, figureBlock.caption()),
+                null,
+                "",
+                contentWidth,
+                captionY,
+                textMeasurer,
+                sourceBlockIndex,
+                document,
+                referenceResolver);
+        var height = caption.y() + caption.height() - y;
+        var figure = new LaidOutFigure(
+                figureBlock.id(),
+                number,
+                BLOCK_X,
+                y,
+                contentWidth,
+                height,
+                contentBlock,
+                captionY,
+                caption.lines());
+        return new LaidOutBlock(
+                LaidOutBlockKind.FIGURE,
+                0,
+                BLOCK_X,
+                y,
+                contentWidth,
+                height,
+                caption.lines(),
+                Optional.empty(),
+                Optional.empty(),
+                contentBlock.plot(),
+                contentBlock.diagram(),
+                Optional.of(figure),
+                Optional.empty());
+    }
+
+    private static InlineContent numberedCaption(int number, InlineContent caption) {
+        var nodes = new ArrayList<InlineNode>();
+        nodes.add(new Text("Figure " + number + ". ", java.util.Set.of(TextMark.BOLD)));
+        nodes.addAll(caption.nodes());
+        return new InlineContent(nodes);
+    }
+
     private static LaidOutBlock layoutTextBlock(
             LaidOutBlockKind kind,
             int headingLevel,
             InlineContent content,
             TextStyle forcedStyle,
+            String displayPrefix,
             int contentWidth,
             int y,
             TextMeasurer textMeasurer,
-            int sourceBlockIndex
+            int sourceBlockIndex,
+            Document document,
+            CrossReferenceResolver referenceResolver
     ) {
         var builder = new LineBuilder(contentWidth, y, textMeasurer);
+        if (!displayPrefix.isEmpty()) {
+            builder.appendDisplayOnly(displayPrefix, forcedStyle == null ? TextStyle.paragraph() : forcedStyle);
+        }
         var sourceOffset = 0;
         for (InlineNode node : content.nodes()) {
             if (node instanceof Text text) {
                 var style = forcedStyle == null ? TextStyle.paragraph(text.marks()) : forcedStyle.withMarks(text.marks());
                 builder.append(text.content(), style, sourceBlockIndex, sourceOffset);
                 sourceOffset += TextBoundary.characterCount(text.content());
+            } else if (node instanceof CrossReference reference) {
+                var style = forcedStyle == null ? TextStyle.paragraph() : forcedStyle;
+                builder.appendAtomic(referenceResolver.resolve(document, reference).displayText(), style, sourceBlockIndex, sourceOffset, 1);
+                sourceOffset += 1;
             } else {
                 throw new IllegalArgumentException("Unsupported inline node: " + node.getClass().getName());
             }
+        }
+        if (sourceOffset == 0 && !displayPrefix.isEmpty()) {
+            builder.appendSourceAnchor(forcedStyle == null ? TextStyle.paragraph() : forcedStyle, sourceBlockIndex);
         }
 
         var lines = builder.finish();
@@ -211,6 +367,51 @@ public final class DocumentLayoutEngine {
         }
         var height = blockHeight(lines, y);
         return new LaidOutBlock(kind, headingLevel, BLOCK_X, y, contentWidth, height, lines);
+    }
+
+    private static LaidOutBlock layoutTableOfContentsBlock(
+            DocumentStructure structure,
+            int contentWidth,
+            int y,
+            TextMeasurer textMeasurer
+    ) {
+        var builder = new LineBuilder(contentWidth, y, textMeasurer);
+        builder.appendDisplayOnly("Contents", TextStyle.heading(2));
+        builder.finishLine();
+        var entries = new ArrayList<LaidOutTableOfContentsEntry>();
+        for (var section : structure.sections()) {
+            if (section.id().isEmpty()) {
+                continue;
+            }
+            var entryY = builder.currentY();
+            var indent = Math.max(0, section.level() - 1) * TOC_INDENT;
+            builder.appendDisplayOnly(" ".repeat(indent) + section.displayText(), TextStyle.paragraph());
+            builder.finishLine();
+            var entryHeight = Math.max(1, builder.currentY() - entryY);
+            entries.add(new LaidOutTableOfContentsEntry(
+                    section.id().orElseThrow(),
+                    section.blockIndex(),
+                    BLOCK_X + indent,
+                    entryY,
+                    contentWidth - indent,
+                    entryHeight));
+        }
+        var lines = builder.finish();
+        var height = blockHeight(lines, y);
+        return new LaidOutBlock(
+                LaidOutBlockKind.TABLE_OF_CONTENTS,
+                0,
+                BLOCK_X,
+                y,
+                contentWidth,
+                height,
+                lines,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.of(new LaidOutTableOfContents(entries)));
     }
 
     private LaidOutBlock layoutEquationBlock(
@@ -246,7 +447,7 @@ public final class DocumentLayoutEngine {
         if (lastBlock.kind() == LaidOutBlockKind.EQUATION) {
             return typography.equationSpacingAfter();
         }
-        if (lastBlock.kind() == LaidOutBlockKind.TABLE || lastBlock.kind() == LaidOutBlockKind.PLOT || lastBlock.kind() == LaidOutBlockKind.DIAGRAM) {
+        if (lastBlock.kind() == LaidOutBlockKind.TABLE || lastBlock.kind() == LaidOutBlockKind.PLOT || lastBlock.kind() == LaidOutBlockKind.DIAGRAM || lastBlock.kind() == LaidOutBlockKind.FIGURE) {
             return typography.paragraphSpacingAfter();
         }
         return typography.paragraphSpacingAfter();
@@ -289,6 +490,34 @@ public final class DocumentLayoutEngine {
             }
         }
 
+        private void appendDisplayOnly(String text, TextStyle style) {
+            appendPendingSpace();
+            appendFittingOrSplitAtomic(text, style, -1, 0, 0);
+        }
+
+        private void appendSourceAnchor(TextStyle style, int sourceBlockIndex) {
+            appendPiece("", style, sourceBlockIndex, 0, 0);
+        }
+
+        private void appendAtomic(String text, TextStyle style, int sourceBlockIndex, int sourceStart, int sourceLength) {
+            for (var token : tokenize(text)) {
+                if (token.text().isBlank()) {
+                    pendingSpace = true;
+                    pendingSpaceBlockIndex = sourceBlockIndex;
+                    pendingSpaceSourceStart = sourceStart;
+                    pendingSpaceStyle = style;
+                    continue;
+                }
+                appendAtomicWord(
+                        token.text(),
+                        style,
+                        sourceBlockIndex,
+                        sourceStart,
+                        sourceStart + sourceLength,
+                        pendingSpace ? pendingSpaceSourceStart : sourceStart);
+            }
+        }
+
         private void appendWord(String word, TextStyle style, int sourceBlockIndex, int wordSourceStart, int sourceStartWithPendingSpace) {
             var prefix = pendingSpace && !currentRuns.isEmpty() ? " " : "";
             pendingSpace = false;
@@ -316,6 +545,36 @@ public final class DocumentLayoutEngine {
                 appendPiece(piece, style, sourceBlockIndex, remainingSourceStart, remainingSourceStart + pieceCharacters);
                 remaining = remaining.substring(fittingLength);
                 remainingSourceStart += pieceCharacters;
+                if (!remaining.isEmpty()) {
+                    finishLine();
+                }
+            }
+        }
+
+        private void appendAtomicWord(String word, TextStyle style, int sourceBlockIndex, int sourceStart, int sourceEnd, int sourceStartWithPendingSpace) {
+            var prefix = pendingSpace && !currentRuns.isEmpty() ? " " : "";
+            pendingSpace = false;
+            var token = prefix + word;
+            if (fits(token, style) || currentRuns.isEmpty()) {
+                appendFittingOrSplitAtomic(token, style, sourceBlockIndex, prefix.isEmpty() ? sourceStart : sourceStartWithPendingSpace, sourceEnd);
+                return;
+            }
+
+            finishLine();
+            appendFittingOrSplitAtomic(word, style, sourceBlockIndex, sourceStart, sourceEnd);
+        }
+
+        private void appendFittingOrSplitAtomic(String text, TextStyle style, int sourceBlockIndex, int sourceStart, int sourceEnd) {
+            var remaining = text;
+            while (!remaining.isEmpty()) {
+                if (!currentRuns.isEmpty() && !fits(remaining, style)) {
+                    finishLine();
+                }
+
+                var fittingLength = fittingLength(remaining, style);
+                var piece = remaining.substring(0, fittingLength);
+                appendPiece(piece, style, sourceBlockIndex, sourceStart, sourceEnd);
+                remaining = remaining.substring(fittingLength);
                 if (!remaining.isEmpty()) {
                     finishLine();
                 }
@@ -360,6 +619,10 @@ public final class DocumentLayoutEngine {
             x = 0;
             lineHeight = 0;
             pendingSpace = false;
+        }
+
+        private int currentY() {
+            return y;
         }
 
         private List<LaidOutLine> finish() {
