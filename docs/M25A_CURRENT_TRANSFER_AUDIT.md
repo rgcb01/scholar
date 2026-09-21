@@ -2,6 +2,8 @@
 
 Status: ROM-6 audit document. Architecture planning only.
 
+Authority notice: this audit records the pre-M25B implementation. Future transfer behavior is governed by [M25A Transfer Architecture Contract](M25A_TRANSFER_ARCHITECTURE_CONTRACT.md); this file remains supporting evidence, including explicitly noted audit discrepancies.
+
 This document maps the current Scholar transfer and clipboard architecture as implemented after accepted M24 Editor Core Foundation V1. It does not define the future `DocumentFragment` or `DocumentTransfer` design.
 
 ## 1. Executive Summary
@@ -615,4 +617,3 @@ No P0 production correctness defect was found that blocks closing ROM-6.
 ROM-6 can be closed after review.
 
 The current implementation is sufficiently mapped for ROM-7 through ROM-11 to begin design work. The audit found no need to fix production behavior during ROM-6. The main output needed by the next issues is clear: M25A must design a transfer closure boundary that replaces scattered payload/remap/resource assumptions without turning into a speculative universal graph framework.
-

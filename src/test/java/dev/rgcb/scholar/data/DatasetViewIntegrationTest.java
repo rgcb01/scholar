@@ -138,7 +138,7 @@ class DatasetViewIntegrationTest {
         var sidecar = new ScholarClipboardService();
         sidecar.install(copy.plainText(), copy.payload().orElseThrow());
 
-        assertInstanceOf(DatasetClipboardPayload.class, copy.payload().orElseThrow());
+        dev.rgcb.scholar.editor.TransferClipboardAssertions.dataset(copy.payload().orElseThrow());
         assertTrue(BuiltInEditorActions.paste().execute(new EditorActionContext(session, clipboard, sidecar)).documentChanged());
         assertEquals(List.of("projectile-test", "projectile-test-2"), session.current().document().datasets().stream().map(ScientificDataset::id).toList());
     }
@@ -149,8 +149,8 @@ class DatasetViewIntegrationTest {
         session.setCurrent(new EditorState(session.current().document(), new BlockSelection(1), Optional.empty()));
         var copy = session.copyForClipboard().orElseThrow();
 
-        var payload = assertInstanceOf(dev.rgcb.scholar.table.clipboard.TableClipboardPayload.class, copy.payload().orElseThrow());
-        assertTrue(payload.table().datasetBinding().isPresent());
+        var payload = dev.rgcb.scholar.editor.TransferClipboardAssertions.root(dev.rgcb.scholar.document.TableBlock.class, copy.payload().orElseThrow());
+        assertTrue(payload.datasetBinding().isPresent());
     }
 
     @Test
@@ -172,7 +172,8 @@ class DatasetViewIntegrationTest {
         var session = new EditorSession(document(List.of(paragraph("x")), projectile()), 0);
 
         assertEquals(List.of(EditorActionId.DATA_NEW_DATASET, EditorActionId.DATA_INSERT_DATASET_TABLE, EditorActionId.DATA_BIND_PLOT_TO_DATASET),
-                actions.stream().map(action -> action.id()).toList());
+                actions.stream().limit(3).map(action -> action.id()).toList());
+        assertTrue(actions.stream().map(action -> action.id()).toList().contains(EditorActionId.DATA_COLUMN_UNIT_CELSIUS));
         assertTrue(actions.get(0).isEnabled(new EditorActionContext(session, new FakeClipboard())));
         assertTrue(actions.get(1).isEnabled(new EditorActionContext(session, new FakeClipboard())));
     }

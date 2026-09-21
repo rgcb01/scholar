@@ -22,6 +22,10 @@ public record LaidOutBlock(
         Optional<LaidOutFigure> figure,
         Optional<LaidOutTableOfContents> tableOfContents
 ) {
+    public boolean intersectsVerticalViewport(int top, int viewportHeight) {
+        return viewportHeight > 0 && (long) y + height >= top && y <= (long) top + viewportHeight;
+    }
+
     public LaidOutBlock(
             LaidOutBlockKind kind,
             int headingLevel,

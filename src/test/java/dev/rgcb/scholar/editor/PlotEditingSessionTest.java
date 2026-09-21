@@ -119,7 +119,14 @@ class PlotEditingSessionTest {
                 EditorActionId.PLOT_SET_SERIES_SCATTER,
                 EditorActionId.PLOT_ADD_POINT,
                 EditorActionId.PLOT_DELETE_POINT,
-                EditorActionId.PLOT_DELETE_SERIES), actions.stream().map(EditorAction::id).toList());
+                EditorActionId.PLOT_DELETE_SERIES,
+                EditorActionId.PLOT_X_UNIT_AUTO,
+                EditorActionId.PLOT_X_UNIT_SECOND,
+                EditorActionId.PLOT_X_UNIT_METRE,
+                EditorActionId.PLOT_Y_UNIT_AUTO,
+                EditorActionId.PLOT_Y_UNIT_CELSIUS,
+                EditorActionId.PLOT_Y_UNIT_KELVIN,
+                EditorActionId.PLOT_Y_UNIT_VOLT), actions.stream().map(EditorAction::id).toList());
         assertEquals(ActionSelectionState.ON, actions.get(0).selectionState(context));
         assertEquals(ActionSelectionState.ON, actions.get(1).selectionState(context));
         assertTrue(actions.get(2).isEnabled(context));

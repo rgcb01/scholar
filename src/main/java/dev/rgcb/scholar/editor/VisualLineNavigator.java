@@ -159,6 +159,7 @@ public final class VisualLineNavigator {
         if (!isEditableTextBlock(block)) {
             return Optional.empty();
         }
+        VisualLine atomicEnd = null;
         for (var lineIndex = 0; lineIndex < block.lines().size(); lineIndex++) {
             var line = block.lines().get(lineIndex);
             if (line.textRuns().isEmpty() && position.characterOffset() == 0) {
@@ -168,11 +169,15 @@ public final class VisualLineNavigator {
                 if (run.sourceBlockIndex() == position.blockIndex()
                         && position.characterOffset() >= run.sourceStart()
                         && position.characterOffset() <= run.sourceEnd()) {
+                    if (run.atomic() && position.characterOffset() == run.sourceEnd()) {
+                        atomicEnd = new VisualLine(position.blockIndex(), lineIndex, line);
+                        continue;
+                    }
                     return Optional.of(new VisualLine(position.blockIndex(), lineIndex, line));
                 }
             }
         }
-        return Optional.empty();
+        return Optional.ofNullable(atomicEnd);
     }
 
     private static TextSelection caretSelection(DocumentPosition position) {
@@ -236,6 +241,11 @@ public final class VisualLineNavigator {
         }
         for (var run : line.textRuns()) {
             if (run.sourceBlockIndex() != blockIndex) {
+                continue;
+            }
+            if (run.atomic()) {
+                candidates.add(new CaretCandidate(run.sourceStart(), run.x()));
+                candidates.add(new CaretCandidate(run.sourceEnd(), run.x() + run.width()));
                 continue;
             }
             var characterCount = TextBoundary.characterCount(run.text());

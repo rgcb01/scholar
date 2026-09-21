@@ -1,7 +1,6 @@
 package dev.rgcb.scholar.editor;
 
 import dev.rgcb.scholar.document.Document;
-import dev.rgcb.scholar.document.DocumentPlainTextSerializer;
 import dev.rgcb.scholar.document.EquationBlock;
 import dev.rgcb.scholar.document.DiagramBlock;
 import dev.rgcb.scholar.document.FigureBlock;
@@ -16,6 +15,7 @@ import dev.rgcb.scholar.document.TableBlock;
 import dev.rgcb.scholar.document.TableOfContentsBlock;
 import dev.rgcb.scholar.document.Heading;
 import dev.rgcb.scholar.document.PlotBlock;
+import dev.rgcb.scholar.document.Paragraph;
 import dev.rgcb.scholar.document.TextMark;
 import dev.rgcb.scholar.document.TableRow;
 import dev.rgcb.scholar.document.TableCell;
@@ -23,19 +23,20 @@ import dev.rgcb.scholar.document.TableCellContent;
 import dev.rgcb.scholar.document.InlineContent;
 import dev.rgcb.scholar.document.InlineNode;
 import dev.rgcb.scholar.document.Text;
-import dev.rgcb.scholar.clipboard.DocumentBlockClipboardPayload;
-import dev.rgcb.scholar.clipboard.InlineContentClipboardPayload;
+import dev.rgcb.scholar.document.QuantityInline;
 import dev.rgcb.scholar.clipboard.ScholarClipboardPayload;
+import dev.rgcb.scholar.clipboard.DocumentFragmentClipboardPayload;
+import dev.rgcb.scholar.clipboard.LegacyFragmentClipboardAdapter;
+import dev.rgcb.scholar.clipboard.FragmentPlainTextExporter;
+import dev.rgcb.scholar.transfer.*;
 import dev.rgcb.scholar.data.DatasetColumn;
 import dev.rgcb.scholar.data.DatasetColumnType;
 import dev.rgcb.scholar.data.DatasetPlotBinding;
 import dev.rgcb.scholar.data.DatasetRow;
 import dev.rgcb.scholar.data.DatasetTableBinding;
 import dev.rgcb.scholar.data.DatasetTableResolver;
-import dev.rgcb.scholar.data.DatasetTsvSerializer;
 import dev.rgcb.scholar.data.DatasetValue;
 import dev.rgcb.scholar.data.ScientificDataset;
-import dev.rgcb.scholar.data.clipboard.DatasetClipboardPayload;
 import dev.rgcb.scholar.layout.LaidOutBlock;
 import dev.rgcb.scholar.math.MathDelimiter;
 import dev.rgcb.scholar.math.clipboard.MathClipboardPayload;
@@ -47,19 +48,17 @@ import dev.rgcb.scholar.math.editor.MathRangeSelection;
 import dev.rgcb.scholar.math.editor.ScriptSlot;
 import dev.rgcb.scholar.math.editor.SemanticMathTokenDraft;
 import dev.rgcb.scholar.math.editor.SemanticMathTokenKind;
-import dev.rgcb.scholar.table.clipboard.TableClipboardPayload;
-import dev.rgcb.scholar.table.clipboard.TableTsvSerializer;
 import dev.rgcb.scholar.plot.DataPoint;
 import dev.rgcb.scholar.plot.PlotDefinition;
 import dev.rgcb.scholar.plot.PlotSeries;
 import dev.rgcb.scholar.plot.PlotSeriesKind;
-import dev.rgcb.scholar.plot.clipboard.PlotClipboardPayload;
-import dev.rgcb.scholar.plot.clipboard.PlotPlainTextSerializer;
+import dev.rgcb.scholar.plot.AxisDefinition;
+import dev.rgcb.scholar.quantity.QuantityValue;
+import dev.rgcb.scholar.quantity.Quantity;
+import dev.rgcb.scholar.quantity.MeasuredQuantity;
+import dev.rgcb.scholar.quantity.NumberNotation;
+import dev.rgcb.scholar.quantity.UnitExpression;
 import dev.rgcb.scholar.diagram.DiagramCanvas;
-import dev.rgcb.scholar.diagram.clipboard.DiagramClipboardPayload;
-import dev.rgcb.scholar.diagram.clipboard.DiagramPlainTextSerializer;
-import dev.rgcb.scholar.figure.clipboard.FigureClipboardPayload;
-import dev.rgcb.scholar.figure.clipboard.FigurePlainTextSerializer;
 import dev.rgcb.scholar.electrical.ElectricalComponent;
 import dev.rgcb.scholar.electrical.ElectricalComponentKind;
 import dev.rgcb.scholar.electrical.ElectricalJunction;
@@ -91,17 +90,13 @@ public final class EditorSession {
     private final MechanicalDiagramEditor mechanicalDiagramEditor;
     private final MathPlainTextImporter mathPlainTextImporter;
     private final MathPlainTextSerializer mathPlainTextSerializer;
-    private final TableTsvSerializer tableTsvSerializer;
-    private final PlotPlainTextSerializer plotPlainTextSerializer;
-    private final DiagramPlainTextSerializer diagramPlainTextSerializer;
-    private final FigurePlainTextSerializer figurePlainTextSerializer;
     private final CrossReferenceResolver crossReferenceResolver;
     private final DocumentStructureResolver structureResolver;
-    private final DocumentPlainTextSerializer documentPlainTextSerializer;
     private final DatasetTableResolver datasetTableResolver;
-    private final DatasetTsvSerializer datasetTsvSerializer;
     private final PlainTextClipboard clipboard;
     private final EditorHistory history;
+    private final RuntimeDocumentToken documentToken = RuntimeDocumentToken.create();
+    private List<TransferDiagnostic> transferDiagnostics = List.of();
     private final CaretGeometryResolver caretGeometryResolver = new CaretGeometryResolver();
     private final VisualLineNavigator visualLineNavigator = new VisualLineNavigator();
     private final TableCaretGeometryResolver tableCaretGeometryResolver = new TableCaretGeometryResolver();
@@ -117,6 +112,14 @@ public final class EditorSession {
     }
 
     public EditorSession(DocumentEditor editor, Document initialDocument, int initialBlockIndex) {
+        this(editor, editor.initialState(initialDocument, initialBlockIndex));
+    }
+
+    public EditorSession(EditorState initialState) {
+        this(new DocumentEditor(), initialState);
+    }
+
+    private EditorSession(DocumentEditor editor, EditorState initialState) {
         this.editor = Objects.requireNonNull(editor, "editor");
         mathEditor = new MathExpressionEditor();
         tableEditor = new TableEditor();
@@ -126,17 +129,11 @@ public final class EditorSession {
         mechanicalDiagramEditor = new MechanicalDiagramEditor();
         mathPlainTextImporter = new MathPlainTextImporter();
         mathPlainTextSerializer = new MathPlainTextSerializer();
-        tableTsvSerializer = new TableTsvSerializer();
-        plotPlainTextSerializer = new PlotPlainTextSerializer();
-        diagramPlainTextSerializer = new DiagramPlainTextSerializer();
-        figurePlainTextSerializer = new FigurePlainTextSerializer();
         crossReferenceResolver = new CrossReferenceResolver();
         structureResolver = new DocumentStructureResolver();
-        documentPlainTextSerializer = new DocumentPlainTextSerializer();
         datasetTableResolver = new DatasetTableResolver();
-        datasetTsvSerializer = new DatasetTsvSerializer();
         clipboard = new PlainTextClipboard(editor);
-        history = new EditorHistory(editor.initialState(initialDocument, initialBlockIndex));
+        history = new EditorHistory(Objects.requireNonNull(initialState, "initialState"));
     }
 
     public EditorState current() {
@@ -1492,6 +1489,62 @@ public final class EditorSession {
         return true;
     }
 
+    public boolean setTextFormat(dev.rgcb.scholar.document.TextFormat format) {
+        clearPreferredCaretX();
+        return supportsInlineFormatting() && current().hasSelection()
+                && history.applyEdit(editor.setTextFormat(current(), format));
+    }
+
+    public boolean setParagraphStyle(dev.rgcb.scholar.document.SemanticStyle style) {
+        if (!current().isTextSelection()) return false;
+        var index = current().active().blockIndex();
+        var block = current().document().blocks().get(index);
+        if (!(block instanceof Paragraph paragraph)) return false;
+        var blocks = new java.util.ArrayList<>(current().document().blocks());
+        blocks.set(index, new Paragraph(paragraph.content(), style, paragraph.format()));
+        return history.applyEdit(new EditResult(withCurrentDatasets(blocks), current().selection(), current().explicitTypingMarks(), true));
+    }
+
+    public boolean setParagraphAlignment(dev.rgcb.scholar.document.ParagraphAlignment alignment) {
+        return updateParagraphFormat(value -> new dev.rgcb.scholar.document.ParagraphFormat(java.util.Optional.of(alignment), value.lineSpacingPermille(),
+                value.spaceBefore(), value.spaceAfter(), value.leftIndent(), value.rightIndent(), value.firstLineIndent()));
+    }
+
+    public boolean setParagraphLineSpacing(int permille) {
+        return updateParagraphFormat(value -> new dev.rgcb.scholar.document.ParagraphFormat(value.alignment(), java.util.Optional.of(permille),
+                value.spaceBefore(), value.spaceAfter(), value.leftIndent(), value.rightIndent(), value.firstLineIndent()));
+    }
+
+    public boolean adjustParagraphLeftIndent(int delta) {
+        return updateParagraphFormat(value -> new dev.rgcb.scholar.document.ParagraphFormat(value.alignment(), value.lineSpacingPermille(),
+                value.spaceBefore(), value.spaceAfter(), java.util.Optional.of(Math.max(0, value.leftIndent().orElse(0) + delta)),
+                value.rightIndent(), value.firstLineIndent()));
+    }
+
+    private boolean updateParagraphFormat(java.util.function.UnaryOperator<dev.rgcb.scholar.document.ParagraphFormat> update) {
+        if (!current().isTextSelection()) return false;
+        var index = current().active().blockIndex();
+        var block = current().document().blocks().get(index);
+        if (!(block instanceof Paragraph paragraph)) return false;
+        var format = update.apply(paragraph.format());
+        if (format.equals(paragraph.format())) return false;
+        var blocks = new java.util.ArrayList<>(current().document().blocks());
+        blocks.set(index, new Paragraph(paragraph.content(), paragraph.style(), format));
+        return history.applyEdit(new EditResult(withCurrentDatasets(blocks), current().selection(), current().explicitTypingMarks(), true));
+    }
+
+    public boolean insertPageBreak() {
+        return editor.supportsInsertBlock(current())
+                && history.applyEdit(editor.insertBlock(current(), new dev.rgcb.scholar.document.PageBreak()));
+    }
+
+    public boolean updateDocumentSettings(java.util.function.UnaryOperator<dev.rgcb.scholar.document.DocumentSettings> update) {
+        var replacement = java.util.Objects.requireNonNull(update.apply(current().document().settings()));
+        if (replacement.equals(current().document().settings())) return false;
+        var document = new Document(current().document().blocks(), current().document().datasets(), replacement);
+        return history.applyEdit(new EditResult(document, current().selection(), current().explicitTypingMarks(), true));
+    }
+
     public Optional<String> copySelection() {
         if (current().isTableEditingSelection()) {
             return tableEditor.copy(currentTable(), current().tableEditingSelection().selection());
@@ -1534,20 +1587,20 @@ public final class EditorSession {
     }
 
     public Optional<ClipboardCopyResult> copyForClipboard() {
-        if (current().isBlockSelection()) {
-            return copySelectedBlockForClipboard();
-        }
-        if (current().isEquationEditingSelection()) {
-            return copyMathForClipboard();
-        }
+        if (current().isEquationEditingSelection()) { return copyMathForClipboard(); }
         if (current().isTableEditingSelection()) {
-            return tableEditor.copy(currentTable(), current().tableEditingSelection().selection())
-                    .map(ClipboardCopyResult::plainText);
+            return tableEditor.copy(currentTable(), current().tableEditingSelection().selection()).map(ClipboardCopyResult::plainText);
         }
-        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
-            return Optional.empty();
-        }
-        return copyInlineContentForClipboard().or(() -> clipboard.copy(current()).map(ClipboardCopyResult::plainText));
+        return clipboardCopy(new EditorFragmentExtractionAdapter().extract(current().document(), current().selection(), Optional.of(documentToken)));
+    }
+
+    private Optional<ClipboardCopyResult> clipboardCopy(ExtractionResult extracted) {
+        if (!(extracted instanceof ExtractionResult.Success success)) { return Optional.empty(); }
+        try {
+            var text = new FragmentPlainTextExporter().export(current().document(), success.fragment());
+            return Optional.of(ClipboardCopyResult.structured(text,
+                    new DocumentFragmentClipboardPayload(success.fragment(), success.sourceMetadata())));
+        } catch (IllegalArgumentException exception) { return Optional.empty(); }
     }
 
     public Optional<ClipboardEditResult> cutSelection() {
@@ -1564,21 +1617,19 @@ public final class EditorSession {
     }
 
     public Optional<ClipboardCutResult> cutForClipboard() {
-        if (current().isBlockSelection()) {
-            return cutSelectedBlockForClipboard();
+        Optional<ClipboardCutResult> prepared;
+        if (current().isEquationEditingSelection()) { prepared = cutMathForClipboard(); }
+        else if (current().isTableEditingSelection()) { prepared = cutTableForClipboard(); }
+        else {
+            var copy = copyForClipboard();
+            if (copy.isEmpty()) { return Optional.empty(); }
+            var edit = current().isBlockSelection() ? editor.deleteSelectedBlock(current())
+                    : editor.replaceRange(current().document(), current().selectionRange(), "");
+            if (!edit.changed()) { return Optional.empty(); }
+            prepared = Optional.of(new ClipboardCutResult(copy.get().plainText(), copy.get().payload(), edit));
         }
-        if (current().isEquationEditingSelection()) {
-            return cutMathForClipboard();
-        }
-        if (current().isTableEditingSelection()) {
-            return cutTableForClipboard();
-        }
-        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
-            return Optional.empty();
-        }
-        return cutInlineContentForClipboard()
-                .or(() -> clipboard.cut(current())
-                        .map(cut -> ClipboardCutResult.plainText(cut.clipboardText(), cut.editResult())));
+        return prepared.filter(cut -> validCandidate(cut.editResult()))
+                .map(cut -> new ClipboardCutResult(cut.plainText(), cut.payload(), cut.editResult(), Optional.of(current())));
     }
 
     public boolean applyCut(ClipboardEditResult cut) {
@@ -1589,6 +1640,7 @@ public final class EditorSession {
 
     public boolean applyCut(ClipboardCutResult cut) {
         Objects.requireNonNull(cut, "cut");
+        if (cut.sourceState().isPresent() && cut.sourceState().get() != current() || !validCandidate(cut.editResult())) { return false; }
         clearPreferredCaretX();
         return history.applyEdit(clearTypingMarks(cut.editResult()));
     }
@@ -1621,98 +1673,71 @@ public final class EditorSession {
     public boolean canPasteFromClipboard(Optional<ScholarClipboardPayload> payload, String text) {
         Objects.requireNonNull(payload, "payload");
         Objects.requireNonNull(text, "text");
+        if (current().isTableEditingSelection()) { return pasteIntoTableCell(text).filter(TableEditResult::changed).isPresent(); }
         if (current().isEquationEditingSelection()) {
-            return mathFragmentFromClipboard(payload, text)
-                    .filter(mathPayload -> mathEditor.pasteFragment(
-                            currentEquation().expression(),
-                            current().equationEditingSelection().selection(),
-                            mathPayload.fragment()).changed())
-                    .isPresent();
+            return mathFragmentFromClipboard(payload, text).filter(math -> mathEditor.pasteFragment(
+                    currentEquation().expression(), current().equationEditingSelection().selection(), math.fragment()).changed()).isPresent();
         }
-        if (current().isTableEditingSelection()) {
-            return pasteIntoTableCell(text)
-                    .filter(TableEditResult::changed)
-                    .isPresent();
+        if (payload.isPresent()) {
+            var staged = prepareSemanticPaste(current(), payload.get());
+            return staged instanceof TransferInsertionResult.Success success && success.edit().changed();
         }
-        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
-            return false;
-        }
-        if (inlineContentFromClipboard(payload).isPresent()) {
-            return supportsPasteInlineContentFromClipboard();
-        }
-        if (documentBlockFromClipboard(payload).isPresent()) {
-            return supportsPasteDocumentBlockFromClipboard(documentBlockFromClipboard(payload).orElseThrow().block());
-        }
-        if (datasetFromClipboard(payload).isPresent()) {
-            return supportsDatasetDocumentAction();
-        }
-        if (tableFromClipboard(payload).isPresent()) {
-            return supportsPasteTableFromClipboard();
-        }
-        if (plotFromClipboard(payload).isPresent()) {
-            return supportsPastePlotFromClipboard();
-        }
-        if (diagramFromClipboard(payload).isPresent()) {
-            return supportsPasteDiagramFromClipboard();
-        }
-        if (figureFromClipboard(payload).isPresent()) {
-            return supportsPasteFigureFromClipboard();
-        }
-        return !current().isBlockSelection();
+        return current().isTextSelection();
     }
 
     public boolean pasteFromClipboard(Optional<ScholarClipboardPayload> payload, String text) {
         Objects.requireNonNull(payload, "payload");
         Objects.requireNonNull(text, "text");
-        clearPreferredCaretX();
-        if (current().isEquationEditingSelection()) {
-            return mathFragmentFromClipboard(payload, text)
-                    .map(mathPayload -> mathEditor.pasteFragment(
-                            currentEquation().expression(),
-                            current().equationEditingSelection().selection(),
-                            mathPayload.fragment()))
-                    .filter(result -> applyStructuralMathEdit(result))
-                    .isPresent();
-        }
         if (current().isTableEditingSelection()) {
-            return pasteIntoTableCell(text)
-                    .filter(result -> history.applyEdit(clearTypingMarks(isEditingDatasetBackedTable()
-                            ? applyDatasetBackedTableEdit(result)
-                            : applyTableEditResult(result))))
-                    .isPresent();
+            return pasteIntoTableCell(text).filter(result -> history.applyEdit(clearTypingMarks(isEditingDatasetBackedTable()
+                    ? applyDatasetBackedTableEdit(result) : applyTableEditResult(result)))).isPresent();
         }
-        if (current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
-            return false;
+        if (current().isEquationEditingSelection()) {
+            return mathFragmentFromClipboard(payload, text).map(math -> mathEditor.pasteFragment(
+                    currentEquation().expression(), current().equationEditingSelection().selection(), math.fragment()))
+                    .filter(this::applyStructuralMathEdit).isPresent();
         }
-        var inlinePayload = inlineContentFromClipboard(payload);
-        if (inlinePayload.isPresent()) {
-            return pasteInlineContentFromClipboard(inlinePayload.orElseThrow().content());
+        if (payload.isEmpty()) { return pasteText(text); }
+        var captured = current();
+        var staged = prepareSemanticPaste(captured, payload.get());
+        transferDiagnostics = staged.diagnostics();
+        if (!(staged instanceof TransferInsertionResult.Success success) || current() != captured || !success.edit().changed()) { return false; }
+        clearPreferredCaretX();
+        diagramConnectionSource = null;
+        diagramDragInteraction = null;
+        return history.applyEdit(clearTypingMarks(success.edit()));
+    }
+
+    public List<TransferDiagnostic> transferDiagnostics() { return transferDiagnostics; }
+
+    private TransferInsertionResult prepareSemanticPaste(EditorState captured, ScholarClipboardPayload payload) {
+        try {
+            var carrier = LegacyFragmentClipboardAdapter.adapt(payload);
+            if (carrier.isEmpty()) { return unsupportedSemanticPaste(); }
+            var semantic = carrier.get();
+            var inserter = new TransferInserter(editor);
+            if (!inserter.supports(captured, semantic.fragment().content())) { return unsupportedSemanticPaste(); }
+            var context = inserter.contextFor(captured, semantic.fragment(), documentToken, semantic.sourceMetadata());
+            var planned = new TransferPlanner().plan(semantic.fragment(), context);
+            if (planned instanceof PlanningResult.Failure failure) { return new TransferInsertionResult.Failure(failure.diagnostics()); }
+            var plan = ((PlanningResult.Success) planned).plan();
+            var materialized = new TransferMaterializer().materialize(semantic.fragment(), plan);
+            if (materialized instanceof MaterializationResult.Failure failure) { return new TransferInsertionResult.Failure(failure.diagnostics()); }
+            return inserter.stage(captured, current(), ((MaterializationResult.Success) materialized).transfer());
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            return new TransferInsertionResult.Failure(List.of(new TransferDiagnostic(TransferDiagnostic.Severity.ERROR,
+                    TransferDiagnostic.Code.MALFORMED_FRAGMENT, exception.getMessage(), Optional.empty(), Optional.empty())));
         }
-        var documentBlockPayload = documentBlockFromClipboard(payload);
-        if (documentBlockPayload.isPresent()) {
-            return pasteDocumentBlockFromClipboard(documentBlockPayload.orElseThrow().block());
-        }
-        var datasetPayload = datasetFromClipboard(payload);
-        if (datasetPayload.isPresent()) {
-            return addDataset(datasetPayload.orElseThrow().dataset());
-        }
-        var tablePayload = tableFromClipboard(payload);
-        if (tablePayload.isPresent()) {
-            return pasteTableFromClipboard(tablePayload.orElseThrow().table());
-        }
-        var plotPayload = plotFromClipboard(payload);
-        if (plotPayload.isPresent()) {
-            return pastePlotFromClipboard(plotPayload.orElseThrow().plot());
-        }
-        var diagramPayload = diagramFromClipboard(payload);
-        if (diagramPayload.isPresent()) {
-            return pasteDiagramFromClipboard(diagramPayload.orElseThrow().diagram());
-        }
-        var figurePayload = figureFromClipboard(payload);
-        if (figurePayload.isPresent()) {
-            return pasteFigureFromClipboard(figurePayload.orElseThrow().figure());
-        }
-        return pasteText(text);
+    }
+
+    private static TransferInsertionResult unsupportedSemanticPaste() {
+        return new TransferInsertionResult.Failure(List.of(new TransferDiagnostic(TransferDiagnostic.Severity.ERROR,
+                TransferDiagnostic.Code.UNSUPPORTED_DESTINATION, "Recognized payload is unsupported at this destination.", Optional.empty(), Optional.empty())));
+    }
+
+    private static boolean validCandidate(EditResult edit) {
+        return dev.rgcb.scholar.validation.DocumentValidator.validate(edit.document()).isValid()
+                && new EditorSelectionValidator().isValid(edit.document(), edit.selection());
     }
 
     public boolean insertEmptyEquation() {
@@ -1762,7 +1787,7 @@ public final class EditorSession {
     }
 
     public boolean createDefaultDataset() {
-        return addDataset(defaultDataset(uniqueDatasetId("projectile-test")));
+        return addDataset(ScientificContentDefaults.dataset(uniqueDatasetId("dataset")));
     }
 
     public boolean addDataset(ScientificDataset dataset) {
@@ -1777,7 +1802,7 @@ public final class EditorSession {
             candidate = candidate.withId(uniqueDatasetId(candidate.id()));
         }
         datasets.add(candidate);
-        return history.applyEdit(new EditResult(new Document(current().document().blocks(), datasets), current().selection(), current().explicitTypingMarks(), true));
+        return history.applyEdit(new EditResult(new Document(current().document().blocks(), datasets, current().document().settings()), current().selection(), current().explicitTypingMarks(), true));
     }
 
     public boolean deleteDataset(String datasetId) {
@@ -1788,17 +1813,12 @@ public final class EditorSession {
         if (datasets.size() == current().document().datasets().size()) {
             return false;
         }
-        return history.applyEdit(new EditResult(new Document(current().document().blocks(), datasets), current().selection(), current().explicitTypingMarks(), true));
+        return history.applyEdit(new EditResult(new Document(current().document().blocks(), datasets, current().document().settings()), current().selection(), current().explicitTypingMarks(), true));
     }
 
     public Optional<ClipboardCopyResult> copyDatasetForClipboard(String datasetId) {
-        Objects.requireNonNull(datasetId, "datasetId");
-        return current().document().datasets().stream()
-                .filter(dataset -> dataset.id().equals(datasetId))
-                .findFirst()
-                .map(dataset -> ClipboardCopyResult.structured(
-                        datasetTsvSerializer.serialize(dataset),
-                        new DatasetClipboardPayload(dataset)));
+        return clipboardCopy(new FragmentExtractor().extract(current().document(),
+                new FragmentExtractionRequest.Datasets(List.of(datasetId)), Optional.of(documentToken)));
     }
 
     public boolean renameDataset(String datasetId, String displayName) {
@@ -1807,6 +1827,99 @@ public final class EditorSession {
 
     public boolean renameDatasetColumn(String datasetId, String columnId, String displayName) {
         return replaceDataset(datasetId, dataset -> dataset.withColumnDisplayName(columnId, displayName));
+    }
+
+    public boolean setDatasetColumnUnit(String datasetId, String columnId, Optional<UnitExpression> unit) {
+        Objects.requireNonNull(unit, "unit");
+        return replaceDataset(datasetId, dataset -> dataset.withColumnUnit(columnId, unit));
+    }
+
+    public boolean supportsSetSelectedDatasetColumnUnit() {
+        if (!current().isTableEditingSelection()) return false;
+        var selection = current().tableEditingSelection();
+        if (!(current().document().blocks().get(selection.blockIndex()) instanceof TableBlock table)
+                || table.datasetBinding().isEmpty()) return false;
+        var binding = table.datasetBinding().orElseThrow();
+        return current().document().datasets().stream().filter(dataset -> dataset.id().equals(binding.datasetId())).findFirst()
+                .flatMap(dataset -> datasetColumnId(dataset, binding, selection.selection().cell().columnIndex())
+                        .flatMap(dataset::column))
+                .filter(column -> column.type() == DatasetColumnType.NUMBER)
+                .isPresent();
+    }
+
+    public boolean setSelectedDatasetColumnUnit(Optional<UnitExpression> unit) {
+        Objects.requireNonNull(unit, "unit");
+        if (!supportsSetSelectedDatasetColumnUnit()) return false;
+        var selection = current().tableEditingSelection();
+        var table = (TableBlock) current().document().blocks().get(selection.blockIndex());
+        var binding = table.datasetBinding().orElseThrow();
+        var dataset = current().document().datasets().stream()
+                .filter(candidate -> candidate.id().equals(binding.datasetId())).findFirst().orElseThrow();
+        var columnId = datasetColumnId(dataset, binding, selection.selection().cell().columnIndex()).orElseThrow();
+        return setDatasetColumnUnit(dataset.id(), columnId, unit);
+    }
+
+    public boolean supportsInsertQuantity() {
+        return current().isTextSelection();
+    }
+
+    public boolean insertQuantity(QuantityValue value, NumberNotation notation) {
+        Objects.requireNonNull(value, "value");
+        Objects.requireNonNull(notation, "notation");
+        return history.applyEdit(editor.insertInlineContent(current(),
+                new InlineContent(List.of(new QuantityInline(value, notation)))));
+    }
+
+    public boolean supportsConvertQuantityAtCaret(UnitExpression target) {
+        Objects.requireNonNull(target, "target");
+        return quantityAtCaret().map(location -> location.quantity().value().nominal().unit()
+                .compatibleWith(target, dev.rgcb.scholar.quantity.UnitRegistry.builtIn())).orElse(false);
+    }
+
+    public boolean supportsEditQuantityAtCaret() {
+        return quantityAtCaret().isPresent();
+    }
+
+    public boolean convertQuantityAtCaret(UnitExpression target) {
+        Objects.requireNonNull(target, "target");
+        if (!supportsConvertQuantityAtCaret(target)) return false;
+        var location = quantityAtCaret().orElseThrow();
+        var value = location.quantity().value() instanceof MeasuredQuantity measured
+                ? measured.convertTo(target)
+                : ((Quantity) location.quantity().value()).convertTo(target);
+        return replaceQuantity(location, new QuantityInline(value, location.quantity().notation()));
+    }
+
+    public boolean setQuantityNotationAtCaret(NumberNotation notation) {
+        Objects.requireNonNull(notation, "notation");
+        var location = quantityAtCaret();
+        if (location.isEmpty() || location.orElseThrow().quantity().notation() == notation) return false;
+        var value = location.orElseThrow();
+        return replaceQuantity(value, new QuantityInline(value.quantity().value(), notation));
+    }
+
+    public boolean setPlotAxisDisplayUnit(int blockIndex, boolean xAxis, Optional<UnitExpression> unit) {
+        Objects.requireNonNull(unit, "unit");
+        if (blockIndex < 0 || blockIndex >= current().document().blocks().size()
+                || !(current().document().blocks().get(blockIndex) instanceof PlotBlock plot)) return false;
+        var definition = plot.definition();
+        var source = xAxis ? definition.xAxis() : definition.yAxis();
+        var replacement = new AxisDefinition(source.label(), source.explicitRange(), source.scale(), unit);
+        var updatedDefinition = new PlotDefinition(definition.title(), xAxis ? replacement : definition.xAxis(),
+                xAxis ? definition.yAxis() : replacement, definition.series(), definition.legendVisible(),
+                definition.gridVisible(), definition.height());
+        var blocks = new java.util.ArrayList<BlockNode>(current().document().blocks());
+        blocks.set(blockIndex, new PlotBlock(updatedDefinition));
+        return history.applyEdit(new EditResult(new Document(blocks, current().document().datasets(),
+                current().document().settings()), current().selection(), current().explicitTypingMarks(), true));
+    }
+
+    public boolean supportsSetSelectedPlotAxisDisplayUnit() {
+        return selectedPlotBlockIndex().isPresent();
+    }
+
+    public boolean setSelectedPlotAxisDisplayUnit(boolean xAxis, Optional<UnitExpression> unit) {
+        return selectedPlotBlockIndex().map(index -> setPlotAxisDisplayUnit(index, xAxis, unit)).orElse(false);
     }
 
     public boolean editDatasetCell(String datasetId, int rowIndex, String columnId, DatasetValue value) {
@@ -1867,7 +1980,7 @@ public final class EditorSession {
         var updatedPlot = new PlotBlock(new PlotDefinition(definition.title(), definition.xAxis(), definition.yAxis(), series, definition.legendVisible(), definition.gridVisible(), definition.height()));
         var blocks = new java.util.ArrayList<BlockNode>(current().document().blocks());
         blocks.set(blockIndex, updatedPlot);
-        return history.applyEdit(new EditResult(new Document(blocks, current().document().datasets()), new BlockSelection(blockIndex), Optional.empty(), true));
+        return history.applyEdit(new EditResult(new Document(blocks, current().document().datasets(), current().document().settings()), new BlockSelection(blockIndex), Optional.empty(), true));
     }
 
     public boolean supportsInsertTable() {
@@ -2525,7 +2638,7 @@ public final class EditorSession {
         }
         var datasets = new java.util.ArrayList<>(current().document().datasets());
         datasets.set(datasetIndex, updatedDataset);
-        var document = new Document(current().document().blocks(), datasets);
+        var document = new Document(current().document().blocks(), datasets, current().document().settings());
         return new EditResult(
                 document,
                 new TableEditingSelection(blockIndex, result.selection()),
@@ -2611,224 +2724,6 @@ public final class EditorSession {
         return plainText.map(text -> ClipboardCopyResult.structured(text, new MathClipboardPayload(fragment.orElseThrow())));
     }
 
-    private Optional<ClipboardCopyResult> copyInlineContentForClipboard() {
-        if (!current().hasSelection() || !current().selectionRange().isSingleBlock()) {
-            return Optional.empty();
-        }
-        var range = current().selectionRange();
-        var block = current().document().blocks().get(range.start().blockIndex());
-        if (!EditableInlineBlock.supports(block)) {
-            return Optional.empty();
-        }
-        var selected = InlineContentEditor.slice(
-                EditableInlineBlock.contentOf(block),
-                range.start().characterOffset(),
-                range.end().characterOffset());
-        if (selected.nodes().stream().noneMatch(CrossReference.class::isInstance)) {
-            return Optional.empty();
-        }
-        return clipboard.copy(current())
-                .map(text -> ClipboardCopyResult.structured(text, new InlineContentClipboardPayload(selected)));
-    }
-
-    private Optional<ClipboardCutResult> cutInlineContentForClipboard() {
-        var copy = copyInlineContentForClipboard();
-        if (copy.isEmpty()) {
-            return Optional.empty();
-        }
-        var result = editor.replaceRange(current().document(), current().selectionRange(), "");
-        if (!result.changed()) {
-            return Optional.empty();
-        }
-        var copied = copy.orElseThrow();
-        return Optional.of(new ClipboardCutResult(copied.plainText(), copied.payload(), result));
-    }
-
-    private Optional<ClipboardCopyResult> copySelectedBlockForClipboard() {
-        var blockIndex = current().blockSelection().blockIndex();
-        var block = current().document().blocks().get(blockIndex);
-        if (block instanceof TableBlock table) {
-            return Optional.of(ClipboardCopyResult.structured(
-                    tableTsvSerializer.serialize(table),
-                    new TableClipboardPayload(table)));
-        }
-        if (block instanceof PlotBlock plot) {
-            return Optional.of(ClipboardCopyResult.structured(
-                    plotPlainTextSerializer.serialize(plot),
-                    new PlotClipboardPayload(plot)));
-        }
-        if (block instanceof DiagramBlock diagram) {
-            return Optional.of(ClipboardCopyResult.structured(
-                    diagramPlainTextSerializer.serialize(diagram),
-                    new DiagramClipboardPayload(diagram)));
-        }
-        if (block instanceof EquationBlock equation) {
-            return Optional.of(ClipboardCopyResult.structured(
-                    documentPlainTextSerializer.serializeBlock(current().document(), blockIndex, equation),
-                    new DocumentBlockClipboardPayload(equation)));
-        }
-        if (block instanceof FigureBlock figure) {
-            var number = FigureNumbering.numberFor(current().document(), blockIndex).orElseThrow();
-            return Optional.of(ClipboardCopyResult.structured(
-                    figurePlainTextSerializer.serialize(current().document(), figure, number),
-                    new FigureClipboardPayload(figure)));
-        }
-        if (block instanceof Heading || block instanceof TableOfContentsBlock) {
-            return Optional.of(ClipboardCopyResult.structured(
-                    documentPlainTextSerializer.serializeBlock(current().document(), blockIndex, block),
-                    new DocumentBlockClipboardPayload(block)));
-        }
-        return Optional.empty();
-    }
-
-    private Optional<ClipboardCutResult> cutSelectedBlockForClipboard() {
-        var copy = copySelectedBlockForClipboard();
-        if (copy.isEmpty()) {
-            return Optional.empty();
-        }
-        var edit = editor.deleteSelectedBlock(current());
-        if (!edit.changed()) {
-            return Optional.empty();
-        }
-        var copied = copy.orElseThrow();
-        return Optional.of(new ClipboardCutResult(copied.plainText(), copied.payload(), edit));
-    }
-
-    private boolean supportsPasteTableFromClipboard() {
-        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isFigureCaptionSelection()) {
-            return false;
-        }
-        if (current().isBlockSelection()) {
-            return current().document().blocks().get(current().blockSelection().blockIndex()) instanceof TableBlock;
-        }
-        return editor.supportsInsertBlock(current());
-    }
-
-    private boolean pasteTableFromClipboard(TableBlock table) {
-        if (!supportsPasteTableFromClipboard()) {
-            return false;
-        }
-        if (current().isBlockSelection()) {
-            var blockIndex = current().blockSelection().blockIndex();
-            if (!(current().document().blocks().get(blockIndex) instanceof TableBlock)) {
-                return false;
-            }
-            var blocks = new java.util.ArrayList<>(current().document().blocks());
-            blocks.set(blockIndex, remapTableForPaste(table, Optional.of(blockIndex)));
-            var document = withCurrentDatasets(blocks);
-            return history.applyEdit(new EditResult(
-                    document,
-                    new BlockSelection(blockIndex),
-                    Optional.empty(),
-                    !document.equals(current().document())));
-        }
-        return history.applyEdit(editor.insertBlock(current(), remapTableForPaste(table, Optional.empty())));
-    }
-
-    private boolean supportsPastePlotFromClipboard() {
-        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
-            return false;
-        }
-        if (current().isBlockSelection()) {
-            return current().document().blocks().get(current().blockSelection().blockIndex()) instanceof PlotBlock;
-        }
-        return editor.supportsInsertBlock(current());
-    }
-
-    private boolean pastePlotFromClipboard(PlotBlock plot) {
-        if (!supportsPastePlotFromClipboard()) {
-            return false;
-        }
-        if (current().isBlockSelection()) {
-            var blockIndex = current().blockSelection().blockIndex();
-            if (!(current().document().blocks().get(blockIndex) instanceof PlotBlock)) {
-                return false;
-            }
-            var blocks = new java.util.ArrayList<>(current().document().blocks());
-            blocks.set(blockIndex, plot);
-            var document = withCurrentDatasets(blocks);
-            return history.applyEdit(new EditResult(
-                    document,
-                    new BlockSelection(blockIndex),
-                    Optional.empty(),
-                    !document.equals(current().document())));
-        }
-        return history.applyEdit(editor.insertBlock(current(), plot));
-    }
-
-    private boolean supportsPasteDiagramFromClipboard() {
-        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
-            return false;
-        }
-        if (current().isBlockSelection()) {
-            return current().document().blocks().get(current().blockSelection().blockIndex()) instanceof DiagramBlock;
-        }
-        return editor.supportsInsertBlock(current());
-    }
-
-    private boolean pasteDiagramFromClipboard(DiagramBlock diagram) {
-        if (!supportsPasteDiagramFromClipboard()) {
-            return false;
-        }
-        if (current().isBlockSelection()) {
-            var blockIndex = current().blockSelection().blockIndex();
-            if (!(current().document().blocks().get(blockIndex) instanceof DiagramBlock)) {
-                return false;
-            }
-            var blocks = new java.util.ArrayList<>(current().document().blocks());
-            blocks.set(blockIndex, diagram);
-            var document = withCurrentDatasets(blocks);
-            diagramConnectionSource = null;
-            diagramDragInteraction = null;
-            return history.applyEdit(new EditResult(
-                    document,
-                    new BlockSelection(blockIndex),
-                    Optional.empty(),
-                    !document.equals(current().document())));
-        }
-        diagramConnectionSource = null;
-        diagramDragInteraction = null;
-        return history.applyEdit(editor.insertBlock(current(), diagram));
-    }
-
-    private boolean supportsPasteFigureFromClipboard() {
-        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
-            return false;
-        }
-        if (current().isBlockSelection()) {
-            return current().document().blocks().get(current().blockSelection().blockIndex()) instanceof FigureBlock;
-        }
-        return editor.supportsInsertBlock(current());
-    }
-
-    private boolean pasteFigureFromClipboard(FigureBlock figure) {
-        if (!supportsPasteFigureFromClipboard()) {
-            return false;
-        }
-        var replacing = current().isBlockSelection()
-                ? Optional.of(current().blockSelection().blockIndex())
-                : Optional.<Integer>empty();
-        var pasted = figure.withId(uniqueFigureId(current().document(), figure.id(), replacing));
-        if (current().isBlockSelection()) {
-            var blockIndex = current().blockSelection().blockIndex();
-            if (!(current().document().blocks().get(blockIndex) instanceof FigureBlock)) {
-                return false;
-            }
-            var blocks = new java.util.ArrayList<>(current().document().blocks());
-            blocks.set(blockIndex, pasted);
-            var document = withCurrentDatasets(blocks);
-            diagramConnectionSource = null;
-            diagramDragInteraction = null;
-            return history.applyEdit(new EditResult(
-                    document,
-                    new BlockSelection(blockIndex),
-                    Optional.empty(),
-                    !document.equals(current().document())));
-        }
-        diagramConnectionSource = null;
-        diagramDragInteraction = null;
-        return history.applyEdit(editor.insertBlock(current(), pasted));
-    }
 
     private Optional<ClipboardCutResult> cutMathForClipboard() {
         var copy = copyMathForClipboard();
@@ -2864,153 +2759,13 @@ public final class EditorSession {
         if (nativePayload.isPresent()) {
             return nativePayload;
         }
+        if (payload.isPresent()) { return Optional.empty(); }
         return switch (mathPlainTextImporter.importText(text)) {
             case MathPlainTextImportResult.Success success -> Optional.of(new MathClipboardPayload(success.fragment()));
             case MathPlainTextImportResult.Failure ignored -> Optional.empty();
         };
     }
 
-    private static Optional<TableClipboardPayload> tableFromClipboard(Optional<ScholarClipboardPayload> payload) {
-        return payload.filter(TableClipboardPayload.class::isInstance)
-                .map(TableClipboardPayload.class::cast);
-    }
-
-    private static Optional<PlotClipboardPayload> plotFromClipboard(Optional<ScholarClipboardPayload> payload) {
-        return payload.filter(PlotClipboardPayload.class::isInstance)
-                .map(PlotClipboardPayload.class::cast);
-    }
-
-    private static Optional<DiagramClipboardPayload> diagramFromClipboard(Optional<ScholarClipboardPayload> payload) {
-        return payload.filter(DiagramClipboardPayload.class::isInstance)
-                .map(DiagramClipboardPayload.class::cast);
-    }
-
-    private static Optional<FigureClipboardPayload> figureFromClipboard(Optional<ScholarClipboardPayload> payload) {
-        return payload.filter(FigureClipboardPayload.class::isInstance)
-                .map(FigureClipboardPayload.class::cast);
-    }
-
-    private static Optional<InlineContentClipboardPayload> inlineContentFromClipboard(Optional<ScholarClipboardPayload> payload) {
-        return payload.filter(InlineContentClipboardPayload.class::isInstance)
-                .map(InlineContentClipboardPayload.class::cast);
-    }
-
-    private static Optional<DocumentBlockClipboardPayload> documentBlockFromClipboard(Optional<ScholarClipboardPayload> payload) {
-        return payload.filter(DocumentBlockClipboardPayload.class::isInstance)
-                .map(DocumentBlockClipboardPayload.class::cast);
-    }
-
-    private static Optional<DatasetClipboardPayload> datasetFromClipboard(Optional<ScholarClipboardPayload> payload) {
-        return payload.filter(DatasetClipboardPayload.class::isInstance)
-                .map(DatasetClipboardPayload.class::cast);
-    }
-
-    private boolean supportsPasteInlineContentFromClipboard() {
-        return !current().isBlockSelection()
-                && !current().isEquationEditingSelection()
-                && !current().isTableEditingSelection()
-                && !current().isPlotEditingSelection()
-                && !current().isDiagramEditingSelection()
-                && !current().isFigureCaptionSelection()
-                && (!current().hasSelection() || current().selectionRange().isSingleBlock());
-    }
-
-    private boolean pasteInlineContentFromClipboard(InlineContent content) {
-        if (!supportsPasteInlineContentFromClipboard()) {
-            return false;
-        }
-        return history.applyEdit(editor.insertInlineContent(current(), content));
-    }
-
-    private boolean supportsPasteDocumentBlockFromClipboard(BlockNode block) {
-        if (!(block instanceof Heading || block instanceof EquationBlock || block instanceof TableOfContentsBlock)) {
-            return false;
-        }
-        if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
-            return false;
-        }
-        return editor.supportsInsertBlock(current());
-    }
-
-    private boolean pasteDocumentBlockFromClipboard(BlockNode block) {
-        if (!supportsPasteDocumentBlockFromClipboard(block)) {
-            return false;
-        }
-        return history.applyEdit(editor.insertBlock(current(), remapDocumentBlockForPaste(block)));
-    }
-
-    private BlockNode remapDocumentBlockForPaste(BlockNode block) {
-        if (block instanceof Heading heading && heading.id().isPresent()) {
-            return heading.withId(uniqueHeadingId(heading.id().orElseThrow()));
-        }
-        if (block instanceof EquationBlock equation && equation.id().isPresent()) {
-            return equation.withId(uniqueEquationId(equation.id().orElseThrow()));
-        }
-        return block;
-    }
-
-    private TableBlock remapTableForPaste(TableBlock table, Optional<Integer> replacingBlockIndex) {
-        if (table.id().isEmpty()) {
-            return table;
-        }
-        return table.withId(uniqueTableId(table.id().orElseThrow(), replacingBlockIndex));
-    }
-
-    private String uniqueHeadingId(String baseId) {
-        var existing = new java.util.HashSet<String>();
-        for (var block : current().document().blocks()) {
-            if (block instanceof Heading heading) {
-                heading.id().ifPresent(existing::add);
-            }
-        }
-        if (!existing.contains(baseId)) {
-            return baseId;
-        }
-        var suffix = 2;
-        while (existing.contains(baseId + "-" + suffix)) {
-            suffix++;
-        }
-        return baseId + "-" + suffix;
-    }
-
-    private String uniqueEquationId(String baseId) {
-        var existing = new java.util.HashSet<String>();
-        for (var block : current().document().blocks()) {
-            if (block instanceof EquationBlock equation) {
-                equation.id().ifPresent(existing::add);
-            }
-        }
-        return uniqueId(baseId, "equation", existing);
-    }
-
-    private String uniqueTableId(String baseId, Optional<Integer> replacingBlockIndex) {
-        var existing = new java.util.HashSet<String>();
-        for (var index = 0; index < current().document().blocks().size(); index++) {
-            if (replacingBlockIndex.isPresent() && replacingBlockIndex.orElseThrow() == index) {
-                continue;
-            }
-            var block = current().document().blocks().get(index);
-            if (block instanceof TableBlock table) {
-                table.id().ifPresent(existing::add);
-            }
-        }
-        return uniqueId(baseId, "table", existing);
-    }
-
-    private static String uniqueId(String baseId, String fallback, java.util.Set<String> existing) {
-        var base = Objects.requireNonNull(baseId, "baseId").trim();
-        if (base.isEmpty()) {
-            base = fallback;
-        }
-        if (!existing.contains(base)) {
-            return base;
-        }
-        var suffix = 2;
-        while (existing.contains(base + "-" + suffix)) {
-            suffix++;
-        }
-        return base + "-" + suffix;
-    }
 
     private boolean replaceDataset(String datasetId, java.util.function.UnaryOperator<ScientificDataset> replacement) {
         Objects.requireNonNull(datasetId, "datasetId");
@@ -3023,7 +2778,7 @@ public final class EditorSession {
                     return false;
                 }
                 datasets.set(index, updated);
-                return history.applyEdit(new EditResult(new Document(current().document().blocks(), datasets), current().selection(), current().explicitTypingMarks(), true));
+                return history.applyEdit(new EditResult(new Document(current().document().blocks(), datasets, current().document().settings()), current().selection(), current().explicitTypingMarks(), true));
             }
         }
         return false;
@@ -3033,29 +2788,7 @@ public final class EditorSession {
         var existing = current().document().datasets().stream()
                 .map(ScientificDataset::id)
                 .collect(java.util.stream.Collectors.toSet());
-        if (!existing.contains(baseId)) {
-            return baseId;
-        }
-        var suffix = 2;
-        while (existing.contains(baseId + "-" + suffix)) {
-            suffix++;
-        }
-        return baseId + "-" + suffix;
-    }
-
-    private static ScientificDataset defaultDataset(String id) {
-        return new ScientificDataset(
-                id,
-                "Projectile Test",
-                List.of(
-                        new DatasetColumn("time", "Time", DatasetColumnType.NUMBER),
-                        new DatasetColumn("height", "Height", DatasetColumnType.NUMBER)),
-                List.of(
-                        new DatasetRow(List.of(DatasetValue.number("0.0"), DatasetValue.number("0.00"))),
-                        new DatasetRow(List.of(DatasetValue.number("0.5"), DatasetValue.number("3.78"))),
-                        new DatasetRow(List.of(DatasetValue.number("1.0"), DatasetValue.number("5.10"))),
-                        new DatasetRow(List.of(DatasetValue.number("1.5"), DatasetValue.number("3.98"))),
-                        new DatasetRow(List.of(DatasetValue.number("2.0"), DatasetValue.number("0.42")))));
+        return dev.rgcb.scholar.document.StableIdAllocator.firstFree(baseId, existing);
     }
 
     private static List<PlotSeries> replaceFirstSeriesBinding(List<PlotSeries> source, DatasetPlotBinding binding) {
@@ -3125,7 +2858,7 @@ public final class EditorSession {
     }
 
     private Document withCurrentDatasets(List<BlockNode> blocks) {
-        return new Document(blocks, current().document().datasets());
+        return new Document(blocks, current().document().datasets(), current().document().settings());
     }
 
     private PlotBlock currentPlot() {
@@ -3139,6 +2872,48 @@ public final class EditorSession {
         }
         throw new IllegalStateException("Current selection does not target a plot block.");
     }
+
+    private Optional<Integer> selectedPlotBlockIndex() {
+        if (current().isPlotEditingSelection()) return Optional.of(current().plotEditingSelection().blockIndex());
+        if (current().isBlockSelection()
+                && current().document().blocks().get(current().blockSelection().blockIndex()) instanceof PlotBlock) {
+            return Optional.of(current().blockSelection().blockIndex());
+        }
+        return Optional.empty();
+    }
+
+    private Optional<QuantityLocation> quantityAtCaret() {
+        if (!current().isTextSelection() || current().hasSelection()) return Optional.empty();
+        var caret = current().caret();
+        var block = current().document().blocks().get(caret.blockIndex());
+        if (!(block instanceof Paragraph) && !(block instanceof Heading)) return Optional.empty();
+        var content = EditableInlineBlock.contentOf(block);
+        var offset = 0;
+        QuantityLocation following = null;
+        for (var index = 0; index < content.nodes().size(); index++) {
+            var node = content.nodes().get(index);
+            var end = offset + InlineContentEditor.characterCount(node);
+            if (node instanceof QuantityInline quantity) {
+                var location = new QuantityLocation(caret.blockIndex(), index, quantity);
+                if (caret.characterOffset() == end) return Optional.of(location);
+                if (caret.characterOffset() == offset) following = location;
+            }
+            offset = end;
+        }
+        return Optional.ofNullable(following);
+    }
+
+    private boolean replaceQuantity(QuantityLocation location, QuantityInline replacement) {
+        var blocks = new java.util.ArrayList<BlockNode>(current().document().blocks());
+        var block = blocks.get(location.blockIndex());
+        var nodes = new java.util.ArrayList<InlineNode>(EditableInlineBlock.contentOf(block).nodes());
+        nodes.set(location.nodeIndex(), replacement);
+        blocks.set(location.blockIndex(), EditableInlineBlock.withContent(block, new InlineContent(nodes)));
+        return history.applyEdit(new EditResult(withCurrentDatasets(blocks), current().selection(),
+                current().explicitTypingMarks(), true));
+    }
+
+    private record QuantityLocation(int blockIndex, int nodeIndex, QuantityInline quantity) { }
 
     private DiagramBlock currentDiagram() {
         var selection = current().diagramEditingSelection();
@@ -3215,12 +2990,8 @@ public final class EditorSession {
         if (sanitized.isEmpty()) {
             sanitized = "figure";
         }
-        var candidate = sanitized;
-        var suffix = 2;
-        while (figureIdExists(document, candidate, replacingBlockIndex)) {
-            candidate = sanitized + "-" + suffix++;
-        }
-        return candidate;
+        return dev.rgcb.scholar.document.StableIdAllocator.firstFree(sanitized,
+                candidate -> figureIdExists(document, candidate, replacingBlockIndex));
     }
 
     private static boolean figureIdExists(Document document, String id, Optional<Integer> replacingBlockIndex) {

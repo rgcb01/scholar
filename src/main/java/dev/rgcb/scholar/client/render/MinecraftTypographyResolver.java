@@ -43,14 +43,19 @@ public final class MinecraftTypographyResolver {
     }
 
     public Component component(String text, ResolvedTypographyStyle resolved) {
+        return component(text, resolved, null);
+    }
+
+    public Component component(String text, ResolvedTypographyStyle resolved, TextStyle textStyle) {
         Objects.requireNonNull(text, "text");
         Objects.requireNonNull(resolved, "resolved");
         return Component.literal(text).withStyle(style -> {
             var styled = style;
-            styled = styled.withFont(fontIdFor(resolved));
+            styled = styled.withFont(fontIdFor(resolved, textStyle));
             return styled
                     .withBold(resolved.role() == TypographyRole.MATH && resolved.bold())
-                    .withItalic(resolved.role() == TypographyRole.MATH && resolved.italic());
+                    .withItalic(resolved.role() == TypographyRole.MATH && resolved.italic())
+                    .withUnderlined(textStyle != null && textStyle.marks().contains(TextMark.UNDERLINE));
         });
     }
 
@@ -59,7 +64,14 @@ public final class MinecraftTypographyResolver {
     }
 
     ResourceLocation fontIdFor(ResolvedTypographyStyle resolved) {
+        return fontIdFor(resolved, null);
+    }
+
+    ResourceLocation fontIdFor(ResolvedTypographyStyle resolved, TextStyle textStyle) {
         if (resolved.role() == TypographyRole.MATH) {
+            return MATH;
+        }
+        if (textStyle != null && textStyle.format().fontFamily().orElse(null) == dev.rgcb.scholar.document.ScholarFontFamily.SCIENTIFIC_MATH) {
             return MATH;
         }
         return selectVariant(resolved, DOCUMENT_REGULAR, DOCUMENT_BOLD, DOCUMENT_ITALIC, DOCUMENT_BOLD_ITALIC);

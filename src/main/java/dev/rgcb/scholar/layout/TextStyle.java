@@ -1,11 +1,15 @@
 package dev.rgcb.scholar.layout;
 
 import dev.rgcb.scholar.document.TextMark;
+import dev.rgcb.scholar.document.TextFormat;
 import dev.rgcb.scholar.typography.ScholarTypography;
 import dev.rgcb.scholar.typography.TypographyRole;
 import java.util.Set;
 
-public record TextStyle(Set<TextMark> marks, int headingLevel, TypographyRole role) {
+public record TextStyle(Set<TextMark> marks, int headingLevel, TypographyRole role, TextFormat format) {
+    public TextStyle(Set<TextMark> marks, int headingLevel, TypographyRole role) {
+        this(marks, headingLevel, role, TextFormat.none());
+    }
     public TextStyle(Set<TextMark> marks, int headingLevel) {
         this(marks, headingLevel, headingLevel == 0 ? TypographyRole.BODY : ScholarTypography.headingRole(headingLevel));
     }
@@ -15,6 +19,7 @@ public record TextStyle(Set<TextMark> marks, int headingLevel, TypographyRole ro
         if (role == null) {
             throw new NullPointerException("role");
         }
+        format = format == null ? TextFormat.none() : format;
         if (headingLevel < 0 || headingLevel > 6) {
             throw new IllegalArgumentException("headingLevel must be 0 or between 1 and 6.");
         }
@@ -39,7 +44,11 @@ public record TextStyle(Set<TextMark> marks, int headingLevel, TypographyRole ro
     }
 
     public TextStyle withMarks(Set<TextMark> marks) {
-        return new TextStyle(marks, headingLevel, role);
+        return new TextStyle(marks, headingLevel, role, format);
+    }
+
+    public TextStyle withFormat(TextFormat replacement) {
+        return new TextStyle(marks, headingLevel, role, replacement);
     }
 
     public boolean isHeading() {

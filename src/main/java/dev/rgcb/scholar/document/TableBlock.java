@@ -5,7 +5,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-public record TableBlock(List<TableRow> rows, int headerRowCount, Optional<String> id, Optional<DatasetTableBinding> datasetBinding) implements BlockNode {
+public record TableBlock(List<TableRow> rows, int headerRowCount, Optional<String> id, Optional<DatasetTableBinding> datasetBinding, ContentSpan span) implements BlockNode {
+    public TableBlock(List<TableRow> rows, int headerRowCount, Optional<String> id, Optional<DatasetTableBinding> datasetBinding) {
+        this(rows, headerRowCount, id, datasetBinding, ContentSpan.AUTO);
+    }
     public TableBlock(List<TableRow> rows, int headerRowCount) {
         this(rows, headerRowCount, Optional.empty(), Optional.empty());
     }
@@ -22,6 +25,7 @@ public record TableBlock(List<TableRow> rows, int headerRowCount, Optional<Strin
         rows = List.copyOf(Objects.requireNonNull(rows, "rows"));
         id = normalizeId(id);
         datasetBinding = Objects.requireNonNull(datasetBinding, "datasetBinding");
+        span = Objects.requireNonNull(span, "span");
         if (rows.isEmpty()) {
             throw new IllegalArgumentException("rows must not be empty.");
         }
@@ -61,16 +65,18 @@ public record TableBlock(List<TableRow> rows, int headerRowCount, Optional<Strin
     }
 
     public TableBlock withRows(List<TableRow> replacement) {
-        return new TableBlock(replacement, headerRowCount, id, datasetBinding);
+        return new TableBlock(replacement, headerRowCount, id, datasetBinding, span);
     }
 
     public TableBlock withId(String replacement) {
-        return new TableBlock(rows, headerRowCount, Optional.of(replacement), datasetBinding);
+        return new TableBlock(rows, headerRowCount, Optional.of(replacement), datasetBinding, span);
     }
 
     public TableBlock withDatasetBinding(DatasetTableBinding binding) {
-        return new TableBlock(rows, headerRowCount, id, Optional.of(binding));
+        return new TableBlock(rows, headerRowCount, id, Optional.of(binding), span);
     }
+
+    public TableBlock withSpan(ContentSpan replacement) { return new TableBlock(rows, headerRowCount, id, datasetBinding, replacement); }
 
     private static Optional<String> normalizeId(Optional<String> id) {
         return Objects.requireNonNull(id, "id")

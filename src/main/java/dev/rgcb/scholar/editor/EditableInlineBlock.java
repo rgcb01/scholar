@@ -27,8 +27,8 @@ final class EditableInlineBlock {
     }
 
     static BlockNode withContent(BlockNode block, InlineContent content) {
-        if (block instanceof Paragraph) {
-            return new Paragraph(content);
+        if (block instanceof Paragraph paragraph) {
+            return new Paragraph(content, paragraph.style(), paragraph.format());
         }
         if (block instanceof Heading heading) {
             return new Heading(heading.level(), content, heading.id());
@@ -48,10 +48,15 @@ final class EditableInlineBlock {
 
     static BlockNode withStyle(BlockNode block, BlockStyle style) {
         var content = contentOf(block);
-        return style.isParagraph() ? new Paragraph(content) : new Heading(style.headingLevel(), content, block instanceof Heading heading ? heading.id() : java.util.Optional.empty());
+        return style.isParagraph()
+                ? block instanceof Paragraph paragraph
+                        ? new Paragraph(content, paragraph.style(), paragraph.format())
+                        : new Paragraph(content)
+                : new Heading(style.headingLevel(), content, block instanceof Heading heading ? heading.id() : java.util.Optional.empty());
     }
 
     private static boolean textOnly(InlineContent content) {
-        return content.nodes().stream().allMatch(node -> node instanceof Text || node instanceof CrossReference);
+        return content.nodes().stream().allMatch(node -> node instanceof Text || node instanceof CrossReference
+                || node instanceof dev.rgcb.scholar.document.QuantityInline);
     }
 }

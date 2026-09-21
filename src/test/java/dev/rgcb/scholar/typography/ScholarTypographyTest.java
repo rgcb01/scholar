@@ -56,6 +56,17 @@ class ScholarTypographyTest {
     }
 
     @Test
+    void lowerHeadingRolesHaveAReadableNonColorHierarchy() {
+        var typography = ScholarTypography.defaultProfile();
+
+        assertTrue(typography.resolve(TypographyRole.HEADING_3, Set.of()).bold());
+        assertTrue(typography.resolve(TypographyRole.HEADING_5, Set.of()).italic());
+        assertTrue(typography.resolve(TypographyRole.HEADING_6, Set.of()).lineHeightAdjustment()
+                < typography.resolve(TypographyRole.HEADING_5, Set.of()).lineHeightAdjustment());
+        assertTrue(typography.headingSpacingBefore(3, false) > typography.headingSpacingBefore(6, false));
+    }
+
+    @Test
     void rejectsMissingRoleStyles() {
         var styles = new EnumMap<TypographyRole, TypographyRoleStyle>(TypographyRole.class);
         styles.put(TypographyRole.BODY, new TypographyRoleStyle(false, false, 0, 0));

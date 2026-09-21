@@ -24,6 +24,7 @@ public final class CaretGeometryResolver {
         }
 
         LaidOutText previousRun = null;
+        CaretGeometry atomicEnd = null;
         var previousLineY = block.lines().get(0).y();
         var previousLineHeight = block.lines().get(0).height();
         for (var line : block.lines()) {
@@ -32,6 +33,13 @@ public final class CaretGeometryResolver {
                     continue;
                 }
                 if (position.characterOffset() >= run.sourceStart() && position.characterOffset() <= run.sourceEnd()) {
+                    if (run.atomic()) {
+                        if (position.characterOffset() == run.sourceStart()) {
+                            return new CaretGeometry(run.x(), line.y(), line.height());
+                        }
+                        atomicEnd = new CaretGeometry(run.x() + run.width(), line.y(), line.height());
+                        continue;
+                    }
                     var prefix = TextBoundary.substring(run.text(), 0, position.characterOffset() - run.sourceStart());
                     var x = line.x() + run.x() + textMeasurer.measureWidth(prefix, run.style());
                     return new CaretGeometry(x, line.y(), line.height());
@@ -42,6 +50,9 @@ public final class CaretGeometryResolver {
             }
         }
 
+        if (atomicEnd != null) {
+            return atomicEnd;
+        }
         if (previousRun != null && position.characterOffset() == previousRun.sourceEnd()) {
             return new CaretGeometry(
                     previousRun.x() + previousRun.width(),

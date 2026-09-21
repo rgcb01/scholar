@@ -113,7 +113,7 @@ class DiagramClipboardTest {
 
         assertFalse(result.documentChanged());
         assertEquals(serializer.serialize(diagram), clipboard.text);
-        assertEquals(diagram, assertInstanceOf(DiagramClipboardPayload.class, sidecar.snapshot().orElseThrow().payload()).diagram());
+        assertEquals(diagram, dev.rgcb.scholar.editor.TransferClipboardAssertions.root(dev.rgcb.scholar.document.DiagramBlock.class, sidecar.snapshot().orElseThrow().payload()));
         assertEquals(new BlockSelection(1), session.current().selection());
         assertFalse(session.canUndo());
     }
@@ -145,7 +145,7 @@ class DiagramClipboardTest {
 
         assertTrue(result.documentChanged());
         assertEquals(serializer.serialize(diagram), clipboard.text);
-        assertInstanceOf(DiagramClipboardPayload.class, sidecar.snapshot().orElseThrow().payload());
+        dev.rgcb.scholar.editor.TransferClipboardAssertions.root(dev.rgcb.scholar.document.DiagramBlock.class, sidecar.snapshot().orElseThrow().payload());
         assertEquals(2, session.current().document().blocks().size());
         assertTrue(session.undo());
         assertEquals(document, session.current().document());

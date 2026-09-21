@@ -80,9 +80,9 @@ class DiagramBlockIntegrationTest {
         var inserted = (DiagramBlock) result.document().blocks().get(1);
         assertText("cd", result.document().blocks().get(2));
         assertEquals(new BlockSelection(1), result.selection());
-        assertEquals("System Diagram", inserted.definition().title());
-        assertEquals(2, inserted.definition().elements().size());
-        assertEquals(1, inserted.definition().connections().size());
+        assertEquals("Untitled Diagram", inserted.definition().title());
+        assertTrue(inserted.definition().elements().isEmpty());
+        assertTrue(inserted.definition().connections().isEmpty());
     }
 
     @Test

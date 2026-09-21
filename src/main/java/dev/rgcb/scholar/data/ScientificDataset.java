@@ -63,6 +63,16 @@ public record ScientificDataset(String id, Optional<String> displayName, List<Da
         return new ScientificDataset(id, displayName, updated, rows);
     }
 
+    public ScientificDataset withColumnUnit(String columnId, Optional<dev.rgcb.scholar.quantity.UnitExpression> unit) {
+        Objects.requireNonNull(unit, "unit");
+        var index = columnIndex(columnId);
+        if (index < 0) return this;
+        var source = columns.get(index);
+        var updated = new ArrayList<>(columns);
+        updated.set(index, new DatasetColumn(source.id(), source.displayName(), source.type(), unit));
+        return new ScientificDataset(id, displayName, updated, rows);
+    }
+
     public ScientificDataset withCell(int rowIndex, String columnId, DatasetValue value) {
         Objects.requireNonNull(value, "value");
         var columnIndex = columnIndex(columnId);

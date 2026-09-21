@@ -8,6 +8,7 @@ import dev.rgcb.scholar.math.MathNamedOperator;
 import dev.rgcb.scholar.math.MathNumber;
 import dev.rgcb.scholar.math.MathOperator;
 import dev.rgcb.scholar.math.MathOperatorRole;
+import dev.rgcb.scholar.math.MathQuantity;
 import dev.rgcb.scholar.math.MathRoot;
 import dev.rgcb.scholar.math.MathScript;
 import dev.rgcb.scholar.math.MathSymbol;
@@ -28,7 +29,8 @@ final class MathSpacingPolicy {
         if (rightAtom == Atom.CLOSE_DELIMITER || leftAtom == Atom.OPEN_DELIMITER) {
             return 0;
         }
-        if (leftAtom == Atom.NAMED_OPERATOR && rightAtom == Atom.OPEN_DELIMITER) {
+        if (leftAtom == Atom.NAMED_OPERATOR
+                && (rightAtom == Atom.OPEN_DELIMITER || right instanceof MathGroup)) {
             return 0;
         }
         if (leftAtom == Atom.TEXT || rightAtom == Atom.TEXT) {
@@ -65,7 +67,7 @@ final class MathSpacingPolicy {
         if (expression instanceof MathNamedOperator) {
             return Atom.NAMED_OPERATOR;
         }
-        if (expression instanceof MathText) {
+        if (expression instanceof MathText || expression instanceof MathQuantity) {
             return Atom.TEXT;
         }
         if (expression instanceof MathIdentifier) {
@@ -83,10 +85,6 @@ final class MathSpacingPolicy {
                 case ")", "]", "}" -> Atom.CLOSE_DELIMITER;
                 default -> Atom.SYMBOL;
             };
-        }
-        if (expression instanceof MathGroup group
-                && group.delimiter() == dev.rgcb.scholar.math.MathDelimiter.PARENTHESES) {
-            return Atom.OPEN_DELIMITER;
         }
         if (expression instanceof MathFraction || expression instanceof MathScript
                 || expression instanceof MathRoot || expression instanceof MathGroup) {

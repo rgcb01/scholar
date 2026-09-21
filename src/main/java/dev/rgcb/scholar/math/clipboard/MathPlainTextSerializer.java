@@ -12,6 +12,8 @@ import dev.rgcb.scholar.math.MathScript;
 import dev.rgcb.scholar.math.MathSequence;
 import dev.rgcb.scholar.math.MathSymbol;
 import dev.rgcb.scholar.math.MathText;
+import dev.rgcb.scholar.math.MathQuantity;
+import dev.rgcb.scholar.quantity.ScientificNumberFormatter;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -36,6 +38,9 @@ public final class MathPlainTextSerializer {
         }
         if (expression instanceof MathText text) {
             return Optional.of(text.content());
+        }
+        if (expression instanceof MathQuantity quantity) {
+            return Optional.of(new ScientificNumberFormatter().format(quantity.value(), quantity.notation(), false));
         }
         if (expression instanceof MathOperator operator) {
             return Optional.of(operator.symbol());

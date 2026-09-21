@@ -138,7 +138,7 @@ class DocumentHitTesterTest {
         assertEquals(position(0), hit(layout, -5, 0));
         assertEquals(position(0), hit(layout, 15, 0));
         assertEquals(position(2), hit(layout, 15, 10));
-        assertEquals(position(15), hit(layout, 200, 40));
+        assertEquals(position(TextBoundary.characterCount("alpha \u0394e\u0301 gamma")), hit(layout, 200, 40));
     }
 
     private DocumentPosition hit(dev.rgcb.scholar.layout.LaidOutDocument layout, int x, int y) {

@@ -13,11 +13,11 @@ The repository has advanced substantially beyond the original early-milestone ou
 - M17 Scientific Diagram Foundation is complete through M17G with full manual regression acceptance: semantic canvas/nodes/ports/connections, deterministic routing, hit testing, embedded editing/dragging, structural editing, native clipboard, and responsive/degenerate-geometry hardening.
 - M18A-M18G are complete/manual QA accepted: electrical architecture, static symbols, orientation/hit testing, full authoring, explicit junctions + derived nets, workspace scaling, clipboard/interchange regression, and final hardening.
 - M18 is complete/manual QA accepted through M18H.1 final terminal-length polish.
-- M19A through M19E.1 are complete/manual QA accepted: primitives, dimensions/callouts, scrollable menus, constraints, symbols, and annotation visual polish. M19F Mechanical Assembly & Part References is implemented and pending manual QA.
+- M19A through M19F are complete/manual QA accepted: primitives, dimensions/callouts, constraints, symbols, annotations, assemblies and part references.
 - M20 Figures & Scientific Media is complete/manual QA accepted: semantic figures wrap existing plots/diagrams, derive display numbering from document order, store editable captions, render content plus generated captions, and support native whole-figure clipboard with stable-ID remapping.
 - M21 Cross-References is complete/manual QA accepted: semantic references resolve Figure, Table, Equation, and Section targets from stable IDs.
 - M22 Document Structure & Navigation is complete/manual QA accepted: headings derive hierarchical section numbers, section references share that numbering, TOC blocks derive entries automatically, and the editor includes an outline panel.
-- M23 Scientific Data & Datasets is implemented with automated validation complete and manual Minecraft QA pending: documents own reusable datasets, tables and plots can resolve dataset-backed views, dataset edits propagate through views, and native dataset clipboard uses TSV fallback.
+- M23 Scientific Data & Datasets is complete/manual QA accepted: documents own reusable datasets, tables and plots can resolve dataset-backed views, and dataset edits propagate through views.
 - M24A Document Model Invariants & Validation Foundation is implemented with automated validation complete: a pure Java validator reports structural errors and degraded-state warnings without mutating documents.
 - M24B Selection & Caret Foundation is implemented with automated validation complete: transient editor selections are centrally validated, text selections cannot cross atomic blocks, `Ctrl+A` targets the active editing scope, and mixed-document navigation has deterministic regression coverage.
 - M24C Right-Click / Context Menu Foundation is implemented with automated validation complete: context menus reuse `EditorAction`, preserve valid selections, and stay transient Minecraft shell UI.
@@ -25,9 +25,57 @@ The repository has advanced substantially beyond the original early-milestone ou
 - M24E Undo/Redo & Transaction Hardening is implemented with automated validation complete: history depth is testable, one semantic edit maps to one transaction, transient UI/navigation state does not create undo entries, redo restores stable-ID snapshots deterministically, and validator-backed history regressions cover current editor systems.
 - M24F Input, Focus & Interaction Consistency is implemented with automated validation complete: focus ownership, input priority, popup isolation, scoped text input, and transient nested-editor transitions are documented and regression-tested.
 - M24G Final Editor Foundation Regression & Documentation is implemented with automated validation complete: the current foundation is covered by canonical mixed-document integration tests, seeded cross-subsystem replay, manual QA fixtures, and foundation v1 documentation.
+- M24 Editor Core Foundation V1 is complete and accepted, including final manual Minecraft QA. The per-slice entries above record their implementation checkpoints.
+- M25A Document Transfer & Identity Closure Architecture is complete: the authoritative contract is [M25A_TRANSFER_ARCHITECTURE_CONTRACT.md](M25A_TRANSFER_ARCHITECTURE_CONTRACT.md). No transfer implementation is claimed by architecture completion.
+- M25B Semantic Document Transfer Implementation is COMPLETE / ACCEPTED, including user-confirmed manual Minecraft QA. Extraction/planning/materialization, atomic validated insertion and semantic Copy/Cut/Paste are integrated. See [M25B_TRANSFER_IMPLEMENTATION.md](M25B_TRANSFER_IMPLEMENTATION.md) for the historical implementation report.
+- M26 Document Persistence is COMPLETE / ACCEPTED, including user-confirmed manual Minecraft QA. Explicit Scholar JSON V1 and local editor lifecycle are integrated; its report preserves the historical automated checkpoint.
+- M27 Editor Hardening & Foundation V2 is complete and accepted, including final manual Minecraft QA. One milestone covers stress fixtures, Unicode/atomic reference geometry, Figure dataset layout, viewport culling, scroll/input/resize hardening, large persistence/transfer and long-session regression. See [M27_EDITOR_HARDENING.md](M27_EDITOR_HARDENING.md).
+- M28 Productization & Visual Polish is complete and manually accepted. It resolves the accepted productization findings, gates development commands, removes demo insertion defaults, unifies shortcut authority, improves contextual menus and visual hierarchy, and preserves V1 persistence and M24-M27 contracts.
+- M29 Application Architecture & Workspace is technically complete with final Minecraft manual QA pending: `/scholar` opens a production Home, user documents have independent application identities, M26 persistence is repository-owned, and each open creates an isolated editor session.
 
 
 ## Current Forward Milestone Plan
+
+### M25A - Document Transfer & Identity Closure Architecture - Complete
+
+ROM-6 through ROM-11 audit and consolidate scoped semantic fragments, whole-dataset closure, namespace-aware materialization, safe references, composite ownership, explicit runtime same-document proof, atomic insertion, and M24 history/selection integration. The final contract supersedes provisional wording in issue-specific M25A documents.
+
+### M25B - Semantic Document Transfer Implementation - Complete / Accepted
+
+Implemented the internal fragment/transfer contract, typed closure/remap/reference handling, structural staging and rich clipboard integration under [M25A_TRANSFER_ARCHITECTURE_CONTRACT.md](M25A_TRANSFER_ARCHITECTURE_CONTRACT.md). Automated and manual QA are accepted. M25 does not define persistence, new selection modes, Figure generalization, graph framework or public plugin API; M26 supplies a separate native schema.
+
+Historical implementation checkpoints: [M25B_A_CORE_FRAGMENT_MODEL.md](M25B_A_CORE_FRAGMENT_MODEL.md), [M25B_B_FRAGMENT_EXTRACTION.md](M25B_B_FRAGMENT_EXTRACTION.md), [M25B_C_TRANSFER_PLANNING.md](M25B_C_TRANSFER_PLANNING.md).
+
+The externally meaningful milestone is M25B Transfer Implementation, not additional D/E/F/G milestones. The final report [M25B_TRANSFER_IMPLEMENTATION.md](M25B_TRANSFER_IMPLEMENTATION.md) supersedes checkpoint deferral/status wording for current implementation.
+
+### M26 - Document Persistence - Complete / Accepted
+
+One milestone covers the explicit versioned `.scholar.json` schema, pure-JVM codec,
+validated semantic reconstruction, safe local file replacement, atomic session opening,
+saved-snapshot dirty tracking, native file picker/actions and unsaved Save/Discard/Cancel.
+All current built-in document/math/dataset/diagram families round trip without identity
+remapping. History, selection, runtime proof, layout and derived state are not persisted.
+Automated acceptance: 1425 tests, zero failures/errors/skips; build passes. Manual fixture
+and twelve-step procedure: [M26_DOCUMENT_PERSISTENCE.md](M26_DOCUMENT_PERSISTENCE.md).
+No M26A/B/C roadmap milestones, cloud/autosave, recovery framework, new scientific content
+or public API. Final manual Minecraft acceptance is user-confirmed before M27.
+
+### M27 - Editor Hardening & Foundation V2 - Complete / Accepted
+
+M27 is one milestone, not a layout/rendering/performance/UX sub-milestone chain.
+Deterministic six-profile stress fixtures, measured baseline, scoped correctness fixes,
+block culling, exclusive menu input, resize gesture cancellation, large file/fragment
+round trips and exact 100-transaction history are implemented. Full suite: 1456 passing
+tests; build passes. Persistence V1 and M24/M25 semantic contracts remain unchanged.
+Final Minecraft QA is user-confirmed. The historical procedure remains in [M27_EDITOR_HARDENING.md](M27_EDITOR_HARDENING.md).
+
+### M28 - Productization & Visual Polish - Technical Complete / Manual QA Pending
+
+M28 resolves the ten accepted FIX NOW findings and the concrete visual QA defects without
+changing semantic ASTs, transfer policy, persistence V1, or introducing extension frameworks.
+The implementation report and concise manual procedure are in
+[M28_PRODUCTIZATION_AND_VISUAL_POLISH.md](M28_PRODUCTIZATION_AND_VISUAL_POLISH.md).
+No M29 feature milestone starts before manual acceptance.
 
 ### M17 - Scientific Diagram Foundation — Complete
 
@@ -196,6 +244,35 @@ Exit criteria:
 - A user can create or modify a small document without editing raw Markdown.
 - Editing operations preserve model invariants.
 
-## Current Status Through M24G
+## Implemented Foundation Through M24G
 
 Scholar now includes semantic document editing, structured math authoring, tables, plots, diagrams, electrical/mechanical diagram vocabularies, figures, first-class cross-references, derived document structure/navigation, first-class reusable datasets, a pure Java document validation foundation, a central selection/caret validity foundation, the first editor-wide right-click context menu foundation, structural editing hardening for current block/nested/resource operations, an explicit undo/redo transaction contract, an accepted input/focus contract for one authoritative consumer per input event, and final foundation-level regression coverage across the current mixed editor surface. Validation UI, repair workflows, persistence migration, and richer document-wide multi-object selection remain future work.
+## Milestone 29 - Application Architecture & Workspace
+
+Status: complete and manually accepted.
+
+- Adds a production `/scholar` Home and multi-document application lifecycle.
+- Separates application document identity/metadata from semantic AST stable IDs.
+- Wraps M26 V1 storage with a recoverable repository index and lightweight previews.
+- Creates a fresh workspace, EditorSession, history and runtime transfer token per open.
+- Adds New, Open/Home, Save, Save As, Rename and safe Close with unsaved-change handling.
+- Uses a compact data-driven production shell while preserving `EditorAction` command authority.
+- Keeps development fixtures behind development-only commands.
+
+Report: [M29_APPLICATION_ARCHITECTURE_AND_WORKSPACE.md](M29_APPLICATION_ARCHITECTURE_AND_WORKSPACE.md).
+
+## Milestone 30 - Scientific Document Typesetting
+
+Status: technically complete; final Minecraft manual QA pending.
+
+- Adds deterministic physical paper, margins, orientation, one/two-column flow, automatic pagination,
+  semantic PageBreak, and Figure/Table column/full-page spans.
+- Adds controlled scientific typography, paragraph formatting, semantic styles, Blank/IEEE-style
+  templates, Home template selection, Layout ribbon commands, and view-only zoom/Fit controls.
+- Production editor/viewer render distinct page sheets from paginated layout; zoom does not affect
+  wrapping, page count, semantic state, persistence, transfer, or history.
+- Scholar JSON V2 stores M30 semantics while retaining strict V1 loading and deterministic defaults.
+- M25 transfer preserves authored formatting/breaks/spans but never transfers document page policy
+  with ordinary copied blocks.
+
+Report: [M30_SCIENTIFIC_DOCUMENT_TYPESETTING.md](M30_SCIENTIFIC_DOCUMENT_TYPESETTING.md).

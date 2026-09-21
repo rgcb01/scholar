@@ -9,6 +9,7 @@ import dev.rgcb.scholar.document.FigureBlock;
 import dev.rgcb.scholar.document.InlineContent;
 import dev.rgcb.scholar.document.PlotBlock;
 import dev.rgcb.scholar.document.Text;
+import dev.rgcb.scholar.data.DatasetPlotResolver;
 import dev.rgcb.scholar.plot.clipboard.PlotPlainTextSerializer;
 import java.util.Objects;
 
@@ -16,6 +17,7 @@ public final class FigurePlainTextSerializer {
     private final PlotPlainTextSerializer plotSerializer = new PlotPlainTextSerializer();
     private final DiagramPlainTextSerializer diagramSerializer = new DiagramPlainTextSerializer();
     private final CrossReferenceResolver referenceResolver = new CrossReferenceResolver();
+    private final DatasetPlotResolver plotResolver = new DatasetPlotResolver();
 
     public String serialize(FigureBlock figure, int number) {
         return serialize(null, figure, number);
@@ -32,7 +34,8 @@ public final class FigurePlainTextSerializer {
                 .append(": ")
                 .append(captionText(document, figure.caption()));
         if (figure.content() instanceof PlotBlock plot) {
-            output.append("\n").append(plotSerializer.serialize(plot));
+            var displayPlot = document == null ? plot : plotResolver.resolve(document, plot);
+            output.append("\n").append(plotSerializer.serialize(displayPlot));
         } else if (figure.content() instanceof DiagramBlock diagram) {
             output.append("\n").append(diagramSerializer.serialize(diagram));
         }
@@ -44,6 +47,9 @@ public final class FigurePlainTextSerializer {
         for (var node : caption.nodes()) {
             if (node instanceof Text run) {
                 text.append(run.content());
+            } else if (node instanceof dev.rgcb.scholar.document.QuantityInline quantity) {
+                text.append(new dev.rgcb.scholar.quantity.ScientificNumberFormatter()
+                        .format(quantity.value(), quantity.notation(), false));
             } else if (document != null && node instanceof CrossReference reference) {
                 text.append(referenceResolver.resolve(document, reference).displayText());
             } else {

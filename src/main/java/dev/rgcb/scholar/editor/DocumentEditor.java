@@ -487,45 +487,11 @@ public final class DocumentEditor {
     }
 
     public EditResult insertDefaultPlot(EditorState state) {
-        var plot = new PlotBlock(PlotDefinition.of(
-                "Sample Plot",
-                AxisDefinition.linear("x"),
-                AxisDefinition.linear("y"),
-                List.of(new PlotSeries(
-                        "Series A",
-                        PlotSeriesKind.LINE,
-                        List.of(
-                                new DataPoint(0, 0),
-                                new DataPoint(1, 1),
-                                new DataPoint(2, 4),
-                                new DataPoint(3, 9))))));
-        return insertBlock(state, plot);
+        return insertBlock(state, ScientificContentDefaults.plot());
     }
 
     public EditResult insertDefaultDiagram(EditorState state) {
-        var leftId = new DiagramElementId("node-a");
-        var rightId = new DiagramElementId("node-b");
-        var outId = new DiagramPortId("out");
-        var inId = new DiagramPortId("in");
-        var diagram = new DiagramBlock(new DiagramDefinition(
-                "System Diagram",
-                new DiagramCanvas(100, 50),
-                List.of(
-                        new DiagramNode(
-                                leftId,
-                                new DiagramBounds(8, 14, 28, 20),
-                                "Node A",
-                                List.of(new DiagramPort(outId, "", new DiagramPortPlacement(DiagramPortSide.RIGHT, 0.5)))),
-                        new DiagramNode(
-                                rightId,
-                                new DiagramBounds(64, 14, 28, 20),
-                                "Node B",
-                                List.of(new DiagramPort(inId, "", new DiagramPortPlacement(DiagramPortSide.LEFT, 0.5))))),
-                List.of(new DiagramConnection(
-                        new DiagramEndpoint(leftId, outId),
-                        new DiagramEndpoint(rightId, inId),
-                        ""))));
-        return insertBlock(state, diagram);
+        return insertBlock(state, ScientificContentDefaults.diagram());
     }
 
     public EditResult insertBlock(EditorState state, BlockNode block) {
@@ -543,8 +509,11 @@ public final class DocumentEditor {
     }
 
     public EditResult replaceSelectionWithBlock(EditorState state, BlockNode block) {
+        return replaceSelectionWithBlocks(state, List.of(block));
+    }
+
+    private EditResult replaceSelectionWithBlocks(EditorState state, List<BlockNode> roots) {
         Objects.requireNonNull(state, "state");
-        Objects.requireNonNull(block, "block");
         if (state.isBlockSelection() || !state.hasSelection()) {
             return new EditResult(state.document(), state.selection(), state.explicitTypingMarks(), false);
         }
@@ -552,7 +521,7 @@ public final class DocumentEditor {
         var range = state.selectionRange();
         validateEditableRange(state.document(), range);
         if (isBoundaryOnlyRange(state.document(), range)) {
-            return insertBlockAtPoint(state.document(), new DocumentInsertionPoint(range.end().blockIndex()), block);
+            return insertBlocksAtPoint(state.document(), new DocumentInsertionPoint(range.end().blockIndex()), roots);
         }
 
         var updatedBlocks = new ArrayList<BlockNode>();
@@ -567,7 +536,7 @@ public final class DocumentEditor {
         addLeftPrefixBlock(updatedBlocks, startBlock, leftPrefix);
 
         var insertedBlockIndex = updatedBlocks.size();
-        updatedBlocks.add(block);
+        updatedBlocks.addAll(roots);
 
         var endBlock = editableInlineBlock(state.document(), range.end().blockIndex());
         var rightSuffix = InlineContentEditor.split(
@@ -579,11 +548,12 @@ public final class DocumentEditor {
             updatedBlocks.add(state.document().blocks().get(index));
         }
 
-        appendAuthoringFallbackIfNeeded(updatedBlocks, insertedBlockIndex);
+        var lastInserted = insertedBlockIndex + roots.size() - 1;
+        appendAuthoringFallbackIfNeeded(updatedBlocks, lastInserted);
         var updatedDocument = withBlocks(state.document(), updatedBlocks);
         return new EditResult(
                 updatedDocument,
-                new BlockSelection(insertedBlockIndex),
+                selectionForInsertedRoot(updatedDocument, lastInserted),
                 Optional.empty(),
                 !updatedDocument.equals(state.document()));
     }
@@ -635,7 +605,7 @@ public final class DocumentEditor {
                 var keepBeforeEnd = Math.max(0, range.start().characterOffset() - nodeStart);
                 var keepAfterStart = Math.min(TextBoundary.characterCount(text.content()), range.end().characterOffset() - nodeStart);
                 if (keepBeforeEnd > 0) {
-                    nodes.add(new Text(TextBoundary.substring(text.content(), 0, keepBeforeEnd), text.marks()));
+                    nodes.add(new Text(TextBoundary.substring(text.content(), 0, keepBeforeEnd), text.marks(), text.format()));
                 }
                 if (!inserted) {
                     if (!replacement.isEmpty()) {
@@ -644,7 +614,7 @@ public final class DocumentEditor {
                     inserted = true;
                 }
                 if (keepAfterStart < TextBoundary.characterCount(text.content())) {
-                    nodes.add(new Text(TextBoundary.substring(text.content(), keepAfterStart, TextBoundary.characterCount(text.content())), text.marks()));
+                    nodes.add(new Text(TextBoundary.substring(text.content(), keepAfterStart, TextBoundary.characterCount(text.content())), text.marks(), text.format()));
                 }
             } else if (!inserted) {
                 if (!replacement.isEmpty()) {
@@ -679,14 +649,14 @@ public final class DocumentEditor {
                 var keepBeforeEnd = Math.max(0, range.start().characterOffset() - nodeStart);
                 var keepAfterStart = Math.min(TextBoundary.characterCount(text.content()), range.end().characterOffset() - nodeStart);
                 if (keepBeforeEnd > 0) {
-                    nodes.add(new Text(TextBoundary.substring(text.content(), 0, keepBeforeEnd), text.marks()));
+                    nodes.add(new Text(TextBoundary.substring(text.content(), 0, keepBeforeEnd), text.marks(), text.format()));
                 }
                 if (!inserted) {
                     nodes.add(replacement);
                     inserted = true;
                 }
                 if (keepAfterStart < TextBoundary.characterCount(text.content())) {
-                    nodes.add(new Text(TextBoundary.substring(text.content(), keepAfterStart, TextBoundary.characterCount(text.content())), text.marks()));
+                    nodes.add(new Text(TextBoundary.substring(text.content(), keepAfterStart, TextBoundary.characterCount(text.content())), text.marks(), text.format()));
                 }
             } else if (!inserted) {
                 nodes.add(replacement);
@@ -748,6 +718,10 @@ public final class DocumentEditor {
     }
 
     private static EditResult insertBlockAtTextCaret(EditorState state, BlockNode insertedBlock) {
+        return insertBlocksAtTextCaret(state, List.of(insertedBlock));
+    }
+
+    private static EditResult insertBlocksAtTextCaret(EditorState state, List<BlockNode> roots) {
         var blockIndex = state.caret().blockIndex();
         var block = editableInlineBlock(state.document(), blockIndex);
         var content = EditableInlineBlock.contentOf(block);
@@ -757,17 +731,20 @@ public final class DocumentEditor {
 
         if (blockLength == 0) {
             var blocks = new ArrayList<BlockNode>(state.document().blocks());
-            blocks.set(blockIndex, insertedBlock);
-            appendAuthoringFallbackIfNeeded(blocks, blockIndex);
-            return new EditResult(withBlocks(state.document(), blocks), new BlockSelection(blockIndex), Optional.empty(), true);
+            blocks.remove(blockIndex);
+            blocks.addAll(blockIndex, roots);
+            var last = blockIndex + roots.size() - 1;
+            appendAuthoringFallbackIfNeeded(blocks, last);
+            var document = withBlocks(state.document(), blocks);
+            return new EditResult(document, selectionForInsertedRoot(document, last), Optional.empty(), true);
         }
 
         if (caretOffset == 0) {
-            return insertBlockAtPoint(state.document(), new DocumentInsertionPoint(blockIndex), insertedBlock);
+            return insertBlocksAtPoint(state.document(), new DocumentInsertionPoint(blockIndex), roots);
         }
 
         if (caretOffset == blockLength) {
-            return insertBlockAtPoint(state.document(), new DocumentInsertionPoint(blockIndex + 1), insertedBlock);
+            return insertBlocksAtPoint(state.document(), new DocumentInsertionPoint(blockIndex + 1), roots);
         }
 
         var split = InlineContentEditor.split(content, caretOffset);
@@ -777,17 +754,76 @@ public final class DocumentEditor {
                 ? new Paragraph(split.right())
                 : EditableInlineBlock.withContent(block, split.right());
         blocks.set(blockIndex, leftBlock);
-        blocks.add(blockIndex + 1, insertedBlock);
-        blocks.add(blockIndex + 2, rightBlock);
-        return new EditResult(withBlocks(state.document(), blocks), new BlockSelection(blockIndex + 1), Optional.empty(), true);
+        blocks.addAll(blockIndex + 1, roots);
+        blocks.add(blockIndex + 1 + roots.size(), rightBlock);
+        var document = withBlocks(state.document(), blocks);
+        return new EditResult(document, selectionForInsertedRoot(document, blockIndex + roots.size()), Optional.empty(), true);
     }
 
     private static EditResult insertBlockAtPoint(Document document, DocumentInsertionPoint point, BlockNode insertedBlock) {
+        return insertBlocksAtPoint(document, point, List.of(insertedBlock));
+    }
+
+    private static EditResult insertBlocksAtPoint(Document document, DocumentInsertionPoint point, List<BlockNode> roots) {
         validateInsertionPoint(document, point);
         var blocks = new ArrayList<BlockNode>(document.blocks());
-        blocks.add(point.blockIndex(), insertedBlock);
-        appendAuthoringFallbackIfNeeded(blocks, point.blockIndex());
-        return new EditResult(withBlocks(document, blocks), new BlockSelection(point.blockIndex()), Optional.empty(), true);
+        blocks.addAll(point.blockIndex(), roots);
+        var last = point.blockIndex() + roots.size() - 1;
+        appendAuthoringFallbackIfNeeded(blocks, last);
+        var updated = withBlocks(document, blocks);
+        return new EditResult(updated, selectionForInsertedRoot(updated, last), Optional.empty(), true);
+    }
+
+    public EditResult insertBlocks(EditorState state, List<BlockNode> roots) {
+        roots = List.copyOf(roots);
+        if (roots.isEmpty() || !supportsInsertBlock(state) || !(state.isTextSelection() || state.isBlockSelection())) {
+            return new EditResult(state.document(), state.selection(), state.explicitTypingMarks(), false);
+        }
+        if (state.isBlockSelection()) {
+            return insertBlocksAtPoint(state.document(), new DocumentInsertionPoint(state.blockSelection().blockIndex() + 1), roots);
+        }
+        return state.hasSelection() ? replaceSelectionWithBlocks(state, roots) : insertBlocksAtTextCaret(state, roots);
+    }
+
+    public EditResult insertInlineSegments(EditorState state, List<InlineContent> segments) {
+        segments = List.copyOf(segments);
+        if (!state.isTextSelection() || segments.isEmpty()) {
+            return new EditResult(state.document(), state.selection(), state.explicitTypingMarks(), false);
+        }
+        var range = state.selectionRange();
+        validateEditableRange(state.document(), range);
+        if (!state.hasSelection() && segments.size() == 1 && InlineContentEditor.characterCount(segments.get(0)) == 0) {
+            return new EditResult(state.document(), state.selection(), state.explicitTypingMarks(), false);
+        }
+        var left = state.document().blocks().get(range.start().blockIndex());
+        var prefix = InlineContentEditor.split(EditableInlineBlock.contentOf(left), range.start().characterOffset()).left();
+        var right = state.document().blocks().get(range.end().blockIndex());
+        var suffix = InlineContentEditor.split(EditableInlineBlock.contentOf(right), range.end().characterOffset()).right();
+        var blocks = new ArrayList<BlockNode>(state.document().blocks().subList(0, range.start().blockIndex()));
+        var first = InlineContentEditor.concat(prefix, segments.get(0));
+        if (segments.size() == 1) { first = InlineContentEditor.concat(first, suffix); }
+        blocks.add(EditableInlineBlock.withContent(left, first));
+        for (var i = 1; i < segments.size(); i++) {
+            var content = segments.get(i);
+            if (i == segments.size() - 1) { content = InlineContentEditor.concat(content, suffix); }
+            blocks.add(new Paragraph(content));
+        }
+        blocks.addAll(state.document().blocks().subList(range.end().blockIndex() + 1, state.document().blocks().size()));
+        var destination = withBlocks(state.document(), blocks);
+        var last = segments.size() - 1;
+        var offset = InlineContentEditor.characterCount(segments.get(last))
+                + (last == 0 ? range.start().characterOffset() : 0);
+        return new EditResult(destination, new DocumentPosition(range.start().blockIndex() + last, offset),
+                !destination.equals(state.document()));
+    }
+
+    private static EditorSelection selectionForInsertedRoot(Document document, int index) {
+        var root = document.blocks().get(index);
+        if (root instanceof Paragraph paragraph) {
+            var position = new DocumentPosition(index, InlineContentEditor.characterCount(paragraph.content()));
+            return new TextSelection(position, position);
+        }
+        return new BlockSelection(index);
     }
 
     private static boolean isBoundaryOnlyRange(Document document, DocumentRange range) {
@@ -1056,6 +1092,40 @@ public final class DocumentEditor {
                 !updatedDocument.equals(state.document()));
     }
 
+    public EditResult setTextFormat(EditorState state, dev.rgcb.scholar.document.TextFormat format) {
+        Objects.requireNonNull(state, "state");
+        Objects.requireNonNull(format, "format");
+        if (!state.hasSelection() || !state.isTextSelection()) {
+            return new EditResult(state.document(), state.selection(), state.explicitTypingMarks(), false);
+        }
+        var range = state.selectionRange();
+        validateEditableRange(state.document(), range);
+        var blocks = new ArrayList<BlockNode>(state.document().blocks());
+        for (var blockIndex = range.start().blockIndex(); blockIndex <= range.end().blockIndex(); blockIndex++) {
+            var block = editableInlineBlock(state.document(), blockIndex);
+            var local = selectedLocalRange(block, range, blockIndex);
+            var nodes = new ArrayList<InlineNode>();
+            var offset = 0;
+            for (var node : EditableInlineBlock.contentOf(block).nodes()) {
+                var length = InlineContentEditor.characterCount(node);
+                var selectedStart = Math.max(local.start().characterOffset(), offset);
+                var selectedEnd = Math.min(local.end().characterOffset(), offset + length);
+                if (node instanceof Text text && selectedStart < selectedEnd) {
+                    addTextSegment(nodes, text, 0, selectedStart - offset, text.marks());
+                    var content = TextBoundary.substring(text.content(), selectedStart - offset, selectedEnd - offset);
+                    nodes.add(new Text(content, text.marks(), text.format().overrideWith(format)));
+                    addTextSegment(nodes, text, selectedEnd - offset, length, text.marks());
+                } else {
+                    nodes.add(node);
+                }
+                offset += length;
+            }
+            blocks.set(blockIndex, EditableInlineBlock.withContent(block, new InlineContent(nodes)));
+        }
+        var updated = withBlocks(state.document(), blocks);
+        return new EditResult(updated, state.selection(), state.explicitTypingMarks(), !updated.equals(state.document()));
+    }
+
     private static List<InlineNode> transformInlineMark(BlockNode block, DocumentRange range, TextMark mark, boolean add) {
         var updatedNodes = new ArrayList<InlineNode>();
         var logicalOffset = 0;
@@ -1094,7 +1164,7 @@ public final class DocumentEditor {
         if (startOffset >= endOffset) {
             return;
         }
-        nodes.add(new Text(TextBoundary.substring(source.content(), startOffset, endOffset), marks));
+        nodes.add(new Text(TextBoundary.substring(source.content(), startOffset, endOffset), marks, source.format()));
     }
 
     private static Set<TextMark> marksForInsertion(Document document, DocumentPosition position) {
@@ -1143,7 +1213,7 @@ public final class DocumentEditor {
     }
 
     private static Document withBlocks(Document document, List<BlockNode> blocks) {
-        return new Document(blocks, document.datasets());
+        return new Document(blocks, document.datasets(), document.settings());
     }
 
     private static String blockText(BlockNode block) {

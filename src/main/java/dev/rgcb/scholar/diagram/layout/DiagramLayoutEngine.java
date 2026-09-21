@@ -44,7 +44,9 @@ public final class DiagramLayoutEngine {
     public static final int TITLE_GAP = 6;
     public static final int PORT_LABEL_GAP = 3;
     public static final int PORT_HIT_RADIUS = 5;
-    public static final int ELECTRICAL_LABEL_GAP = 4;
+    public static final int ELECTRICAL_LABEL_GAP = 6;
+    public static final int ELECTRICAL_LABEL_CLEARANCE = 2;
+    public static final int MECHANICAL_DIMENSION_LABEL_CLEARANCE = 3;
     public static final double ELECTRICAL_ANNOTATION_FOOTPRINT_SCALE = 0.62;
     /** Maximum derived straight run outside an electrical terminal before routing may turn. */
     public static final int ELECTRICAL_PORT_EXIT_LENGTH = 8;
@@ -140,6 +142,10 @@ public final class DiagramLayoutEngine {
         var portsByEndpoint = new HashMap<DiagramEndpoint, LaidOutDiagramPort>();
         var electricalEndpoints = new HashSet<DiagramEndpoint>();
         var junctionEndpoints = new HashSet<DiagramEndpoint>();
+        var electricalLabelObstacles = new ArrayList<LaidOutDiagramRect>();
+        for (var element : definition.elements()) {
+            electricalLabelObstacles.add(layoutElementRect(element.bounds(), transform, canvasRect));
+        }
         for (var elementIndex = 0; elementIndex < definition.elements().size(); elementIndex++) {
             var element = definition.elements().get(elementIndex);
             List<LaidOutDiagramPort> laidOutPorts;
@@ -155,12 +161,14 @@ public final class DiagramLayoutEngine {
                         canvasRect,
                         referenceStyle,
                         labelStyle,
-                        textMeasurer);
+                        textMeasurer,
+                        electricalLabelObstacles);
                 electricalComponents.add(laidOut);
                 laidOutPorts = laidOut.ports();
             } else if (element instanceof ElectricalJunction junction) {
                 var laidOut = layoutElectricalJunction(
-                        junction, elementIndex, transform, canvasRect, labelStyle, textMeasurer);
+                        junction, elementIndex, transform, canvasRect, labelStyle, textMeasurer,
+                        electricalLabelObstacles);
                 electricalJunctions.add(laidOut);
                 laidOutPorts = laidOut.ports();
             } else if (element instanceof MechanicalPrimitive primitive) {
@@ -213,13 +221,9 @@ public final class DiagramLayoutEngine {
                 var dimensionText = dimension.displayText();
                 var labelWidth = textMeasurer.measureWidth(dimensionText, labelStyle);
                 var labelHeight = textMeasurer.lineHeight(labelStyle);
-                var label = new LaidOutDiagramLabel(
-                        dimensionText,
-                        rect.x() + (rect.width() - labelWidth) / 2,
-                        rect.y() + (rect.height() - labelHeight) / 2,
-                        labelWidth,
-                        labelHeight,
-                        labelStyle);
+                var label = layoutMechanicalDimensionLabel(
+                        dimension.kind(), dimensionText, rect, canvasRect,
+                        labelWidth, labelHeight, labelStyle);
                 mechanicalDimensions.add(new LaidOutMechanicalDimension(
                         elementIndex, dimension.id(), dimension.kind(), rect, label));
                 laidOutPorts = List.of();
@@ -284,6 +288,67 @@ public final class DiagramLayoutEngine {
                 connections,
                 transform,
                 effectiveViewport);
+    }
+
+    private static LaidOutDiagramLabel layoutMechanicalDimensionLabel(
+            dev.rgcb.scholar.mechanical.MechanicalDimensionKind kind,
+            String text,
+            LaidOutDiagramRect rect,
+            LaidOutDiagramRect canvasRect,
+            int width,
+            int height,
+            TextStyle style
+    ) {
+        var clearance = MECHANICAL_DIMENSION_LABEL_CLEARANCE;
+        var centerX = rect.x() + rect.width() / 2;
+        var centerY = rect.y() + rect.height() / 2;
+        int x;
+        int y;
+        switch (kind) {
+            case HORIZONTAL -> {
+                var lineY = rect.y() + Math.max(3, rect.height() / 3);
+                x = centerX - width / 2;
+                y = lineY + clearance;
+                if (y + height > canvasRect.bottom()) {
+                    y = lineY - clearance - height;
+                }
+            }
+            case VERTICAL -> {
+                var lineX = rect.x() + Math.max(3, rect.width() / 3);
+                x = lineX + clearance;
+                y = centerY - height / 2;
+                if (x + width > canvasRect.right()) {
+                    x = lineX - clearance - width;
+                }
+            }
+            case ALIGNED -> {
+                x = centerX + clearance;
+                y = centerY + clearance;
+            }
+            case RADIUS, DIAMETER -> {
+                x = centerX - width / 2;
+                y = centerY + clearance;
+                if (y + height > canvasRect.bottom()) {
+                    y = centerY - clearance - height;
+                }
+            }
+            case ANGLE -> {
+                x = rect.right() + clearance;
+                y = centerY - height / 2;
+                if (x + width > canvasRect.right()) {
+                    x = centerX + clearance;
+                    y = rect.y();
+                }
+            }
+            default -> throw new IllegalStateException("Unsupported mechanical dimension kind: " + kind);
+        }
+        if (width <= canvasRect.width()) {
+            x = clamp(x, canvasRect.x(), canvasRect.right() - width);
+        }
+        if (height <= canvasRect.height()) {
+            y = clamp(y, canvasRect.y(), canvasRect.bottom() - height);
+        }
+        return new LaidOutDiagramLabel(text, x, y, width, height, style);
     }
 
     private static LaidOutDiagramRect layoutMechanicalAnnotationRect(
@@ -429,7 +494,8 @@ public final class DiagramLayoutEngine {
             LaidOutDiagramRect canvasRect,
             TextStyle referenceStyle,
             TextStyle valueStyle,
-            TextMeasurer textMeasurer
+            TextMeasurer textMeasurer,
+            List<LaidOutDiagramRect> labelObstacles
     ) {
         var rect = layoutElementRect(component.bounds(), transform, canvasRect);
         var ports = layoutPorts(
@@ -441,12 +507,15 @@ public final class DiagramLayoutEngine {
                 canvasRect,
                 valueStyle,
                 textMeasurer);
-        var annotationRect = electricalAnnotationRect(rect);
         var labelPolicy = electricalLabelPolicy(component);
         var reference = layoutElectricalLabel(
-                component.referenceDesignator(), annotationRect, canvasRect, labelPolicy.referenceSides(), referenceStyle, textMeasurer);
+                component.referenceDesignator(), rect, canvasRect, labelPolicy.referenceSides(),
+                referenceStyle, textMeasurer, labelObstacles);
+        reference.ifPresent(label -> addLabelObstacle(labelObstacles, label));
         var value = layoutElectricalLabel(
-                component.valueLabel(), annotationRect, canvasRect, labelPolicy.valueSides(), valueStyle, textMeasurer);
+                component.valueLabel(), rect, canvasRect, labelPolicy.valueSides(),
+                valueStyle, textMeasurer, labelObstacles);
+        value.ifPresent(label -> addLabelObstacle(labelObstacles, label));
         var primitives = electricalSymbolLayoutEngine.layout(component, transform, rect.width(), rect.height());
         return new LaidOutElectricalComponent(
                 elementIndex,
@@ -468,25 +537,18 @@ public final class DiagramLayoutEngine {
             DiagramCoordinateTransform transform,
             LaidOutDiagramRect canvasRect,
             TextStyle labelStyle,
-            TextMeasurer textMeasurer
+            TextMeasurer textMeasurer,
+            List<LaidOutDiagramRect> labelObstacles
     ) {
         var rect = layoutElementRect(junction.bounds(), transform, canvasRect);
         var ports = layoutPorts(
                 junction.id(), junction.bounds(), junction.ports(), elementIndex, transform, canvasRect, labelStyle, textMeasurer);
-        var label = Optional.<LaidOutDiagramLabel>empty();
-        if (!junction.netLabel().isBlank()) {
-            var width = textMeasurer.measureWidth(junction.netLabel(), labelStyle);
-            var height = textMeasurer.lineHeight(labelStyle);
-            var x = rect.right() + 4;
-            var y = rect.y() + (rect.height() - height) / 2;
-            if (width <= canvasRect.width()) {
-                x = clamp(x, canvasRect.x(), canvasRect.right() - width);
-            }
-            if (height <= canvasRect.height()) {
-                y = clamp(y, canvasRect.y(), canvasRect.bottom() - height);
-            }
-            label = Optional.of(new LaidOutDiagramLabel(junction.netLabel(), x, y, width, height, labelStyle));
-        }
+        var label = layoutElectricalLabel(
+                junction.netLabel(), rect, canvasRect,
+                List.of(ElectricalLabelSide.RIGHT, ElectricalLabelSide.BOTTOM,
+                        ElectricalLabelSide.TOP, ElectricalLabelSide.LEFT),
+                labelStyle, textMeasurer, labelObstacles);
+        label.ifPresent(item -> addLabelObstacle(labelObstacles, item));
         return new LaidOutElectricalJunction(
                 elementIndex, junction.id(), rect.x(), rect.y(), rect.width(), rect.height(), label, ports);
     }
@@ -663,7 +725,8 @@ public final class DiagramLayoutEngine {
             LaidOutDiagramRect canvasRect,
             List<ElectricalLabelSide> candidateSides,
             TextStyle style,
-            TextMeasurer textMeasurer
+            TextMeasurer textMeasurer,
+            List<LaidOutDiagramRect> obstacles
     ) {
         if (text.isBlank()) {
             return Optional.empty();
@@ -673,7 +736,8 @@ public final class DiagramLayoutEngine {
 
         for (var side : candidateSides) {
             var position = electricalLabelPosition(componentRect, side, width, height);
-            if (fitsInside(position.x(), position.y(), width, height, canvasRect)) {
+            if (fitsInside(position.x(), position.y(), width, height, canvasRect)
+                    && clearsObstacles(position.x(), position.y(), width, height, obstacles)) {
                 return Optional.of(new LaidOutDiagramLabel(
                         text, position.x(), position.y(), width, height, style));
             }
@@ -690,6 +754,25 @@ public final class DiagramLayoutEngine {
             y = clamp(y, canvasRect.y(), canvasRect.bottom() - height);
         }
         return Optional.of(new LaidOutDiagramLabel(text, x, y, width, height, style));
+    }
+
+    private static void addLabelObstacle(List<LaidOutDiagramRect> obstacles, LaidOutDiagramLabel label) {
+        obstacles.add(new LaidOutDiagramRect(label.x(), label.y(),
+                Math.max(1, label.width()), Math.max(1, label.height())));
+    }
+
+    private static boolean clearsObstacles(
+            int x, int y, int width, int height, List<LaidOutDiagramRect> obstacles
+    ) {
+        for (var obstacle : obstacles) {
+            if (x < obstacle.right() + ELECTRICAL_LABEL_CLEARANCE
+                    && x + width + ELECTRICAL_LABEL_CLEARANCE > obstacle.x()
+                    && y < obstacle.bottom() + ELECTRICAL_LABEL_CLEARANCE
+                    && y + height + ELECTRICAL_LABEL_CLEARANCE > obstacle.y()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static LaidOutDiagramPoint electricalLabelPosition(

@@ -232,7 +232,7 @@ class EditorFoundationIntegrationTest {
         copyPasteBlockTwice(session, context, indexOf(session.current().document(), TableOfContentsBlock.class));
 
         var copy = session.copyDatasetForClipboard("projectile").orElseThrow();
-        assertInstanceOf(DatasetClipboardPayload.class, copy.payload().orElseThrow());
+        dev.rgcb.scholar.editor.TransferClipboardAssertions.dataset(copy.payload().orElseThrow());
         sidecar.install(copy.plainText(), copy.payload().orElseThrow());
         clipboard.setText(copy.plainText());
         assertTrue(action(EditorActionId.PASTE).execute(context).documentChanged());

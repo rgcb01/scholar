@@ -30,6 +30,9 @@ public final class TableTsvSerializer {
         for (InlineNode node : cell.content().content().nodes()) {
             if (node instanceof Text text) {
                 output.append(text.content());
+            } else if (node instanceof dev.rgcb.scholar.document.QuantityInline quantity) {
+                output.append(new dev.rgcb.scholar.quantity.ScientificNumberFormatter()
+                        .format(quantity.value(), quantity.notation(), false));
             } else {
                 throw new IllegalArgumentException("Unsupported inline node in table cell: " + node.getClass().getName());
             }

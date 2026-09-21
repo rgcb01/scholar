@@ -47,6 +47,20 @@ class MechanicalPrimitiveTest {
     }
 
     @Test
+    void successiveAuthoredPrimitivesUseDistinctDefaultGeometry() {
+        var first = editor.addPrimitive(emptyBlock(), new DiagramPropertyTarget(DiagramProperty.TITLE),
+                MechanicalPrimitiveKind.RECTANGLE);
+        var second = editor.addPrimitive(first.diagram(), first.target(), MechanicalPrimitiveKind.CIRCLE);
+        var firstBounds = second.diagram().definition().elements().get(0).bounds();
+        var secondBounds = second.diagram().definition().elements().get(1).bounds();
+
+        assertFalse(firstBounds.x() < secondBounds.right() + 2.0
+                && firstBounds.right() + 2.0 > secondBounds.x()
+                && firstBounds.y() < secondBounds.bottom() + 2.0
+                && firstBounds.bottom() + 2.0 > secondBounds.y());
+    }
+
+    @Test
     void primitiveUsesGenericWithBoundsForDragging() {
         var result = editor.addPrimitive(emptyBlock(), new DiagramPropertyTarget(DiagramProperty.TITLE),
                 MechanicalPrimitiveKind.LINE);

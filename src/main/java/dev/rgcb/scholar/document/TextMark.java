@@ -5,5 +5,8 @@ package dev.rgcb.scholar.document;
  */
 public enum TextMark {
     BOLD,
-    ITALIC
+    ITALIC,
+    UNDERLINE,
+    SUPERSCRIPT,
+    SUBSCRIPT
 }

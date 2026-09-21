@@ -28,8 +28,11 @@ import dev.rgcb.scholar.document.FigureBlock;
 import dev.rgcb.scholar.document.Heading;
 import dev.rgcb.scholar.document.InlineContent;
 import dev.rgcb.scholar.document.InlineNode;
+import dev.rgcb.scholar.document.LayoutSectionBreak;
+import dev.rgcb.scholar.document.ColumnLayout;
 import dev.rgcb.scholar.document.Paragraph;
 import dev.rgcb.scholar.document.PlotBlock;
+import dev.rgcb.scholar.document.QuantityInline;
 import dev.rgcb.scholar.document.TableBlock;
 import dev.rgcb.scholar.document.TableCell;
 import dev.rgcb.scholar.document.TableCellContent;
@@ -65,11 +68,16 @@ import dev.rgcb.scholar.math.MathSequence;
 import dev.rgcb.scholar.math.MathSymbol;
 import dev.rgcb.scholar.math.MathSymbolKind;
 import dev.rgcb.scholar.math.MathText;
+import dev.rgcb.scholar.math.MathQuantity;
 import dev.rgcb.scholar.plot.AxisDefinition;
 import dev.rgcb.scholar.plot.DataPoint;
 import dev.rgcb.scholar.plot.PlotDefinition;
 import dev.rgcb.scholar.plot.PlotSeries;
 import dev.rgcb.scholar.plot.PlotSeriesKind;
+import dev.rgcb.scholar.quantity.MeasuredQuantity;
+import dev.rgcb.scholar.quantity.NumberNotation;
+import dev.rgcb.scholar.quantity.Quantity;
+import dev.rgcb.scholar.quantity.UnitParser;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -189,6 +197,24 @@ public final class DevelopmentDocument {
         return new Document(List.of(
                 paragraph("Editable paragraph: velocity changes over time, and notes may include Δx, Δt, θ, λ, or café. "
                         + "Type more text here to verify that the paragraph wraps and reflows while the caret follows the edited document."),
+                heading("m25-transfer", 1, "M25 Semantic Transfer"),
+                paragraph(text("Plain "), new Text("bold ", Set.of(dev.rgcb.scholar.document.TextMark.BOLD)),
+                        new Text("italic ", Set.of(dev.rgcb.scholar.document.TextMark.ITALIC)),
+                        new Text("both ", Set.of(dev.rgcb.scholar.document.TextMark.BOLD, dev.rgcb.scholar.document.TextMark.ITALIC)),
+                        text("café λ Ω. See "), ref(CrossReferenceTargetKind.FIGURE, "m25-transfer-figure"), text(".")),
+                paragraph("First boundary paragraph."),
+                paragraph("Second boundary paragraph."),
+                heading("m25-copy-heading", 2, "Whole Heading versus selected text"),
+                averageVelocityEquation().withId("m25-equation"),
+                scientificTable().withId("m25-authored-table"),
+                datasetBackedProjectileTable().withId("m25-bound-table"),
+                datasetBackedProjectilePlot(),
+                sampleDiagram(),
+                new FigureBlock("m25-transfer-figure", datasetBackedProjectilePlot(), new InlineContent(List.of(
+                        text("Self "), ref(CrossReferenceTargetKind.FIGURE, "m25-transfer-figure"),
+                        text("; external "), ref(CrossReferenceTargetKind.FIGURE, "shaft-assembly")))),
+                figure("m25-diagram-figure", sampleElectricalNetDiagram(), "Complete graph transfer."),
+                paragraph("Transfer destination paragraph."),
                 new TableOfContentsBlock(),
                 heading("m24b-editor-navigation", 2, "M24B editor navigation fixture"),
                 paragraph(
@@ -244,6 +270,179 @@ public final class DevelopmentDocument {
                 paragraph("Paragraph between the diagram and table for atomic navigation checks."),
                 scientificTable(),
                 paragraph("Paragraph after the table for atomic navigation, selection, deletion, and undo/redo checks.")), developmentDatasets());
+    }
+
+    /** Focused scientific-units document for the M31 manual QA pass. */
+    public static Document createScientificUnitsQa() {
+        var units = new UnitParser();
+        var metre = units.parseRequired("m");
+        var millimetre = units.parseRequired("mm");
+        var celsius = units.parseRequired("°C");
+        var volt = units.parseRequired("V");
+        var milliampere = units.parseRequired("mA");
+        var kiloohm = units.parseRequired("kΩ");
+        var acceleration = units.parseRequired("m/s²");
+        var dataset = new ScientificDataset("m31-thermal", "Thermal Calibration", List.of(
+                new DatasetColumn("time", "Time", DatasetColumnType.NUMBER, Optional.of(units.parseRequired("s"))),
+                new DatasetColumn("kelvin", "Sensor A", DatasetColumnType.NUMBER, Optional.of(units.parseRequired("K"))),
+                new DatasetColumn("celsius", "Sensor B", DatasetColumnType.NUMBER, Optional.of(celsius)),
+                new DatasetColumn("note", "Observation", DatasetColumnType.TEXT)), List.of(
+                new DatasetRow(List.of(DatasetValue.number("0"), DatasetValue.number("293.15"), DatasetValue.number("20"), DatasetValue.text("ambient"))),
+                new DatasetRow(List.of(DatasetValue.number("5"), DatasetValue.number("298.15"), DatasetValue.number("25"), DatasetValue.text("warming"))),
+                new DatasetRow(List.of(DatasetValue.number("10"), DatasetValue.number("303.15"), DatasetValue.number("30"), DatasetValue.text("stable")))));
+        var plot = new PlotBlock(new PlotDefinition("Compatible temperature conversion",
+                AxisDefinition.linear("Time"), AxisDefinition.linear("Temperature").withDisplayUnit(celsius),
+                List.of(new PlotSeries("Sensor A (stored K)", PlotSeriesKind.LINE,
+                                new DatasetPlotBinding(dataset.id(), "time", "kelvin")),
+                        new PlotSeries("Sensor B (stored °C)", PlotSeriesKind.SCATTER,
+                                new DatasetPlotBinding(dataset.id(), "time", "celsius"))), true, true, 180));
+        return new Document(List.of(
+                heading("m31-units", 1, "Scientific Units & Quantities"),
+                paragraph(text("Length examples: "), new QuantityInline(new Quantity("12.5", metre)),
+                        text(" and "), new QuantityInline(new MeasuredQuantity("1.2", "0.1", millimetre)), text(".")),
+                paragraph(text("Temperature: "), new QuantityInline(new Quantity("25", celsius)),
+                        text(". Electrical: "), new QuantityInline(new Quantity("5", volt)), text(", "),
+                        new QuantityInline(new Quantity("2.4", milliampere), NumberNotation.SCIENTIFIC), text(", "),
+                        new QuantityInline(new Quantity("3.3", kiloohm)), text(".")),
+                paragraph(text("Acceleration: "), new QuantityInline(new Quantity("9.81", acceleration)), text(".")),
+                new EquationBlock("m31-gravity", new MathSequence(List.of(id("g"), op("="),
+                        new MathQuantity(new Quantity("9.81", acceleration))))),
+                paragraph("The dataset-backed table keeps unit metadata separate from its column names."),
+                new TableBlock(new DatasetTableBinding(dataset.id())).withId("m31-unit-table"),
+                paragraph("The plot converts the Kelvin series to the selected Celsius display unit without changing the dataset."),
+                plot), List.of(dataset));
+    }
+
+    /** Purpose-built editable document for the M28 manual visual QA pass. */
+    public static Document createVisualQa() {
+        var blocks = new ArrayList<BlockNode>();
+        blocks.add(new Paragraph(new InlineContent(List.of(new Text("Scholar Scientific Typesetting", Set.of(),
+                new dev.rgcb.scholar.document.TextFormat(Optional.empty(), Optional.of(28))))),
+                dev.rgcb.scholar.document.SemanticStyle.TITLE, dev.rgcb.scholar.document.ParagraphFormat.none()));
+        blocks.add(styledParagraph(dev.rgcb.scholar.document.SemanticStyle.AUTHOR, "Ada Lovelace and Emmy Noether"));
+        blocks.add(styledParagraph(dev.rgcb.scholar.document.SemanticStyle.AFFILIATION, "Scholar Scientific Computing Laboratory"));
+        blocks.add(styledParagraph(dev.rgcb.scholar.document.SemanticStyle.ABSTRACT,
+                "Abstract—This development fixture verifies semantic scientific typesetting across page and column boundaries."));
+        blocks.add(styledParagraph(dev.rgcb.scholar.document.SemanticStyle.KEYWORDS,
+                "Keywords—scientific documents, structured editing, reproducible layout"));
+        blocks.add(new LayoutSectionBreak(ColumnLayout.two()));
+        blocks.add(heading("m28-visual-qa", 1, "M28 Visual QA"));
+        blocks.add(paragraph(
+                new Text("QA instructions: ", Set.of(dev.rgcb.scholar.document.TextMark.BOLD)),
+                text("inspect typography, spacing, alignment, wrapping, borders, selection, hover, focus, and scientific block proportions. Open the File menu and a context menu, then click an equation, table, plot, and diagram to inspect their nested editors.")));
+        blocks.add(new TableOfContentsBlock());
+
+        blocks.add(heading("m28-typography", 2, "Typography & Prose"));
+        blocks.add(heading("m28-heading-three", 3, "Heading Level 3"));
+        blocks.add(heading("m28-heading-four", 4, "Heading Level 4"));
+        blocks.add(heading("m28-heading-five", 5, "Heading Level 5"));
+        blocks.add(heading("m28-heading-six", 6, "Heading Level 6"));
+        blocks.add(paragraph(
+                text("A controlled experiment separates "),
+                new Text("measurement", Set.of(dev.rgcb.scholar.document.TextMark.BOLD)),
+                text(" from "),
+                new Text("interpretation", Set.of(dev.rgcb.scholar.document.TextMark.ITALIC)),
+                text(", while "),
+                new Text("uncertainty analysis", Set.of(dev.rgcb.scholar.document.TextMark.BOLD, dev.rgcb.scholar.document.TextMark.ITALIC)),
+                text(" keeps both claims scientifically honest.")));
+        blocks.add(paragraph("Short prose checks the normal body rhythm."));
+        blocks.add(paragraph("Long wrapped prose: A projectile launched above a level surface converts vertical kinetic energy into gravitational potential energy while its horizontal velocity remains approximately constant. Repeated measurements, uncertainty estimates, and a clearly stated coordinate system make the comparison between prediction and observation meaningful at narrow and wide editor sizes."));
+        blocks.add(paragraph("Unicode check: Δx, Δt, θ, λ, Ω, μ, σ, ±, ×, ≤, ≥, →, café, and naïve remain legible alongside ordinary scientific prose."));
+        blocks.add(paragraph(("Column-flow evidence records method, observation, uncertainty, and interpretation in a compact scientific paragraph. ").repeat(250)));
+        blocks.add(new dev.rgcb.scholar.document.PageBreak());
+
+        blocks.add(heading("m28-structure", 2, "Document Structure & Navigation"));
+        blocks.add(paragraph(
+                text("Valid targets: "),
+                ref(CrossReferenceTargetKind.SECTION, "m28-equations"), text(", "),
+                ref(CrossReferenceTargetKind.EQUATION, "m28-energy-equation"), text(", "),
+                ref(CrossReferenceTargetKind.TABLE, "m28-authored-table"), text(", and "),
+                ref(CrossReferenceTargetKind.FIGURE, "m28-response-figure"), text(".")));
+        blocks.add(paragraph("Right-click this paragraph near the lower-right of the viewport to inspect context-menu clamping and selection retention."));
+
+        blocks.add(heading("m28-equations", 2, "Equations"));
+        blocks.add(paragraph("Click each prepared equation to inspect its focus border, caret, structural selection, and current mathematical proportions."));
+        blocks.add(new EquationBlock("m28-simple-equation", sequence(id("F"), op("="), id("m"), op("*"), id("a"))));
+        blocks.add(new EquationBlock("m28-energy-equation", sequence(
+                id("E"), op("="), new MathFraction(
+                        sequence(id("m"), script(id("v"), null, number("2"))),
+                        number("2")))));
+        blocks.add(new EquationBlock("m28-deep-equation", sequence(
+                new MathRoot(new dev.rgcb.scholar.math.MathGroup(
+                        new MathFraction(
+                                sequence(script(id("x"), null, number("2")), op("+"), script(id("y"), null, number("2"))),
+                                new MathRoot(sequence(id("z"), op("+"), number("1")), Optional.of(number("3")))),
+                        dev.rgcb.scholar.math.MathDelimiter.PARENTHESES), Optional.empty()),
+                op("="),
+                script(new MathRoot(id("r"), Optional.empty()), id("0"), number("2")))));
+
+        blocks.add(heading("m28-tables", 2, "Tables"));
+        blocks.add(paragraph("Click the authored table to inspect headers, active-cell treatment, padding, numeric alignment, long-cell wrapping, and the empty cell."));
+        blocks.add(m28AuthoredTable());
+        blocks.add(paragraph("Click the dataset-backed table to inspect typed columns, decimal values, long text, and one missing observation."));
+        blocks.add(m28DatasetBackedTable());
+
+        blocks.add(heading("m28-data-plots", 2, "Scientific Dataset & Plot"));
+        blocks.add(paragraph("The first plot has authored line and scatter series. The second resolves two series from the deterministic thermal-response dataset."));
+        blocks.add(samplePlot());
+        blocks.add(m28DatasetBackedPlot());
+
+        blocks.add(heading("m28-figures", 2, "Figures"));
+        blocks.add(new FigureBlock("m28-response-figure", m28DatasetBackedPlot(), new InlineContent(List.of(
+                text("Measured and predicted thermal response. Compare with "),
+                ref(CrossReferenceTargetKind.EQUATION, "m28-energy-equation"),
+                text("; this deliberately long caption checks wrapping, numbering, hierarchy, and content-to-caption spacing without introducing an invalid target."))),
+                dev.rgcb.scholar.document.ContentSpan.PAGE_WIDTH));
+        blocks.add(new FigureBlock("m28-circuit-figure", sampleElectricalNetDiagram(), new InlineContent(List.of(
+                text("Branched electrical network with an explicit junction; see "),
+                ref(CrossReferenceTargetKind.SECTION, "m28-electrical"),
+                text(" for the interactive inspection copy.")))));
+
+        blocks.add(heading("m28-electrical", 2, "Electrical Diagram"));
+        blocks.add(paragraph("Click the schematic to inspect component selection, terminals, junction connectivity, labels, zoom, and line contrast."));
+        blocks.add(sampleElectricalNetDiagram());
+        blocks.add(paragraph("The symbol sheet provides additional diode, LED, switch, and orientation geometry for visual comparison."));
+        blocks.add(sampleElectricalSymbolsDiagram());
+
+        blocks.add(heading("m28-mechanical", 2, "Mechanical Diagram"));
+        blocks.add(paragraph("Click through these compact drawings to inspect dimensions, constraints, labels, notes, leaders, symbols, and callout contrast."));
+        blocks.add(sampleMechanicalDimensionsDiagram());
+        blocks.add(sampleMechanicalConstraintsDiagram());
+        blocks.add(sampleMechanicalAnnotationsDiagram());
+        blocks.add(sampleMechanicalAssemblyDiagram());
+
+        blocks.add(new LayoutSectionBreak(ColumnLayout.one()));
+        blocks.add(heading("m28-edge-content", 2, "Long & Edge Content"));
+        blocks.add(paragraph("Narrow-width wrapping check: spectrophotometrically characterized microstructures require careful calibration, reproducible acquisition parameters, uncertainty bounds, and traceable provenance. Symbols α β γ δ ε ζ η θ ι κ λ μ ν ξ π ρ σ τ υ φ χ ψ ω should remain readable without clipping or colliding with the following line."));
+        blocks.add(paragraph(
+                text("Several inline references remain distinct while wrapping: "),
+                ref(CrossReferenceTargetKind.SECTION, "m28-tables"), text(", "),
+                ref(CrossReferenceTargetKind.EQUATION, "m28-deep-equation"), text(", "),
+                ref(CrossReferenceTargetKind.TABLE, "m28-dataset-table"), text(", "),
+                ref(CrossReferenceTargetKind.FIGURE, "m28-circuit-figure"), text(".")));
+
+        blocks.add(heading("m28-interactive", 2, "Atomic & Interactive Content"));
+        blocks.add(paragraph("RIGHT CLICK HERE for the context menu. OPEN FILE MENU for action alignment. CLICK THE EQUATION, TABLE, PLOT, FIGURE CAPTION, OR DIAGRAM above to enter the corresponding prepared editing scope."));
+        blocks.add(paragraph("Transient screenshot states are intentionally not pre-opened: the document starts at the top with a valid caret, no modal, and no context menu."));
+
+        return new Document(blocks, List.of(projectileDataset(), mixedObservationsDataset(), m28ThermalDataset()),
+                dev.rgcb.scholar.document.DocumentTemplates.settings(dev.rgcb.scholar.document.DocumentTemplateId.IEEE_STYLE));
+    }
+
+    public static Document createPersistenceFixture() {
+        var base = createEditable();
+        var blocks = new ArrayList<BlockNode>();
+        blocks.add(heading("m26-persistence", 1, "M26 Document Persistence"));
+        blocks.add(paragraph("Save As m26-qa, edit this paragraph, save, close and reopen through File > Open."));
+        blocks.add(new EquationBlock("m26-math", new MathSequence(List.of(
+                new MathNamedOperator("sin"),
+                new dev.rgcb.scholar.math.MathGroup(new MathIdentifier("x"), dev.rgcb.scholar.math.MathDelimiter.PARENTHESES),
+                new MathOperator("=", MathOperatorRole.RELATION),
+                new MathScript(new MathRoot(new MathIdentifier("x"), Optional.of(new MathNumber("3"))),
+                        Optional.of(new MathIdentifier("i")), Optional.of(new MathFraction(new MathNumber("1"), new MathNumber("2")))),
+                new MathText("if x > 0"), new MathSymbol("\u03a9", MathSymbolKind.GREEK)))));
+        blocks.addAll(base.blocks());
+        return new Document(blocks, base.datasets(), base.settings());
     }
 
     private static EquationBlock averageVelocityEquation() {
@@ -393,6 +592,32 @@ public final class DevelopmentDocument {
                         "Height",
                         PlotSeriesKind.LINE,
                         new DatasetPlotBinding("projectile-test", "time", "height")))));
+    }
+
+    private static TableBlock m28AuthoredTable() {
+        return new TableBlock("m28-authored-table", List.of(
+                tableRow("Sample", "Mass (g)", "Temperature (°C)", "Observation"),
+                tableRow("A", "12.50", "21.4", "Stable baseline"),
+                tableRow("B", "12.48", "24.9", "Long observation: slight oscillation after the heater switched off"),
+                tableRow("C", "12.53", "28.2", "Within uncertainty"),
+                new TableRow(List.of(tableCell("D"), tableCell("12.51"), TableCell.empty(), tableCell("Missing temperature")))
+        ), 1).withSpan(dev.rgcb.scholar.document.ContentSpan.COLUMN);
+    }
+
+    private static TableBlock m28DatasetBackedTable() {
+        return new TableBlock(new DatasetTableBinding("m28-thermal-response")).withId("m28-dataset-table");
+    }
+
+    private static PlotBlock m28DatasetBackedPlot() {
+        return new PlotBlock(PlotDefinition.of(
+                "Thermal Response",
+                AxisDefinition.linear("Elapsed time (s)"),
+                AxisDefinition.linear("Temperature (°C)"),
+                List.of(
+                        new PlotSeries("Measured", PlotSeriesKind.SCATTER,
+                                new DatasetPlotBinding("m28-thermal-response", "elapsed", "measured")),
+                        new PlotSeries("Predicted", PlotSeriesKind.LINE,
+                                new DatasetPlotBinding("m28-thermal-response", "elapsed", "predicted")))));
     }
 
     private static DiagramBlock sampleDiagram() {
@@ -704,6 +929,23 @@ public final class DevelopmentDocument {
                         new DatasetRow(List.of(DatasetValue.text("C"), DatasetValue.number("22"), DatasetValue.text("text reading"), DatasetValue.text("n/a")))));
     }
 
+    private static ScientificDataset m28ThermalDataset() {
+        return new ScientificDataset(
+                "m28-thermal-response",
+                "Thermal Response Trial",
+                List.of(
+                        new DatasetColumn("elapsed", "Elapsed (s)", DatasetColumnType.NUMBER),
+                        new DatasetColumn("measured", "Measured (°C)", DatasetColumnType.NUMBER),
+                        new DatasetColumn("predicted", "Predicted (°C)", DatasetColumnType.NUMBER),
+                        new DatasetColumn("note", "Observation", DatasetColumnType.TEXT)),
+                List.of(
+                        new DatasetRow(List.of(DatasetValue.number("0.0"), DatasetValue.number("20.1"), DatasetValue.number("20.0"), DatasetValue.text("ambient"))),
+                        new DatasetRow(List.of(DatasetValue.number("2.5"), DatasetValue.number("24.8"), DatasetValue.number("24.6"), DatasetValue.text("heater active"))),
+                        new DatasetRow(List.of(DatasetValue.number("5.0"), DatasetValue.number("28.3"), DatasetValue.number("28.1"), DatasetValue.missing())),
+                        new DatasetRow(List.of(DatasetValue.number("7.5"), DatasetValue.number("30.2"), DatasetValue.number("30.0"), DatasetValue.text("near equilibrium"))),
+                        new DatasetRow(List.of(DatasetValue.number("10.0"), DatasetValue.number("30.7"), DatasetValue.number("30.6"), DatasetValue.text("stable")))));
+    }
+
     private static EquationBlock equation(dev.rgcb.scholar.math.MathExpression... expressions) {
         return new EquationBlock(sequence(expressions));
     }
@@ -735,6 +977,11 @@ public final class DevelopmentDocument {
 
     private static Paragraph paragraph(String text) {
         return new Paragraph(new InlineContent(List.of((InlineNode) new Text(text, Set.of()))));
+    }
+
+    private static Paragraph styledParagraph(dev.rgcb.scholar.document.SemanticStyle style, String value) {
+        return new Paragraph(new InlineContent(List.of((InlineNode) new Text(value, Set.of()))), style,
+                dev.rgcb.scholar.document.ParagraphFormat.none());
     }
 
     private static Paragraph paragraph(InlineNode... nodes) {

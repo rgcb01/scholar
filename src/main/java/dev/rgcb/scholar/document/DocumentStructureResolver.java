@@ -39,6 +39,9 @@ public final class DocumentStructureResolver {
                 text.append(run.content());
             } else if (node instanceof CrossReference) {
                 text.append("[Reference]");
+            } else if (node instanceof QuantityInline quantity) {
+                text.append(new dev.rgcb.scholar.quantity.ScientificNumberFormatter()
+                        .format(quantity.value(), quantity.notation(), true));
             }
         }
         return text.toString();

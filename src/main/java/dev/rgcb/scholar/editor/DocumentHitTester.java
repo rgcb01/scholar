@@ -142,6 +142,9 @@ public final class DocumentHitTester {
     }
 
     private static int nearestBoundary(LaidOutText run, int x, TextMeasurer textMeasurer) {
+        if (run.atomic()) {
+            return x - run.x() < run.width() / 2.0 ? run.sourceStart() : run.sourceEnd();
+        }
         var bestOffset = 0;
         var bestDistance = Math.abs(x - run.x());
         var characters = TextBoundary.characterCount(run.text());

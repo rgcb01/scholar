@@ -6,13 +6,25 @@ import org.junit.jupiter.api.Test;
 
 class ScholarShellLayoutTest {
     @Test
-    void reservesMenuAndToolbarBeforeDocumentWorkspace() {
+    void preservesDevelopmentMenuAndToolbarGeometry() {
         var layout = ScholarShellLayout.compute(320, 240);
 
         assertEquals(new ShellRect(0, 0, 320, MenuBarWidget.HEIGHT), layout.menuBarBounds());
         assertEquals(new ShellRect(0, MenuBarWidget.HEIGHT, 320, ToolbarWidget.HEIGHT), layout.toolbarBounds());
-        assertEquals(MenuBarWidget.HEIGHT + ToolbarWidget.HEIGHT, layout.documentWorkspaceBounds().y());
-        assertEquals(240 - MenuBarWidget.HEIGHT - ToolbarWidget.HEIGHT, layout.documentWorkspaceBounds().height());
+        assertEquals(new ShellRect(0, MenuBarWidget.HEIGHT + ToolbarWidget.HEIGHT, 320, ApplicationHeaderWidget.HEIGHT), layout.applicationHeaderBounds());
+        assertEquals(MenuBarWidget.HEIGHT + ToolbarWidget.HEIGHT + ApplicationHeaderWidget.HEIGHT, layout.documentWorkspaceBounds().y());
+        assertEquals(240 - MenuBarWidget.HEIGHT - ToolbarWidget.HEIGHT - ApplicationHeaderWidget.HEIGHT, layout.documentWorkspaceBounds().height());
+    }
+
+    @Test
+    void productionReservesARealRibbonWithoutOverlappingDocument() {
+        var layout = ScholarShellLayout.compute(640, 360, true);
+
+        assertEquals(0, layout.applicationHeaderBounds().y());
+        assertEquals(ApplicationHeaderWidget.HEIGHT, layout.menuBarBounds().y());
+        assertEquals(RibbonWidget.TAB_HEIGHT, layout.menuBarBounds().height());
+        assertEquals(RibbonWidget.COMMAND_HEIGHT, layout.toolbarBounds().height());
+        assertEquals(layout.toolbarBounds().bottom(), layout.documentWorkspaceBounds().y());
     }
 
     @Test

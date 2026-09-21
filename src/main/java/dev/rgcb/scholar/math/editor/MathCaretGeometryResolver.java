@@ -4,6 +4,7 @@ import dev.rgcb.scholar.math.layout.LaidOutMath;
 import dev.rgcb.scholar.math.layout.MathBox;
 import dev.rgcb.scholar.math.layout.MathGlyphRun;
 import dev.rgcb.scholar.math.layout.MathTextMeasurer;
+import java.util.ArrayList;
 import java.util.Objects;
 
 public final class MathCaretGeometryResolver {
@@ -80,10 +81,40 @@ public final class MathCaretGeometryResolver {
         if (exact != null) {
             return exact;
         }
+        var virtualSequenceAlias = findVirtualSequenceAlias(box, x, baselineY, path);
+        if (virtualSequenceAlias != null) {
+            return virtualSequenceAlias;
+        }
         if (!path.segments().isEmpty() && path.last() instanceof SequenceChild child && child.index() == 0) {
             var parent = findExactBox(box, x, baselineY, path.parent());
             if (parent != null && parent.box().children().isEmpty() && !parent.box().primitives().isEmpty()) {
                 return parent;
+            }
+        }
+        return null;
+    }
+
+    private static PositionedBox findVirtualSequenceAlias(
+            MathBox box,
+            int x,
+            int baselineY,
+            MathPath path
+    ) {
+        for (var index = path.segments().size() - 1; index >= 0; index--) {
+            var segment = path.segments().get(index);
+            if (!(segment instanceof SequenceChild child) || child.index() != 0) {
+                continue;
+            }
+            var reducedSegments = new ArrayList<>(path.segments());
+            reducedSegments.remove(index);
+            var reducedPath = new MathPath(reducedSegments);
+            var exact = findExactBox(box, x, baselineY, reducedPath);
+            if (exact != null) {
+                return exact;
+            }
+            var nestedAlias = findVirtualSequenceAlias(box, x, baselineY, reducedPath);
+            if (nestedAlias != null) {
+                return nestedAlias;
             }
         }
         return null;

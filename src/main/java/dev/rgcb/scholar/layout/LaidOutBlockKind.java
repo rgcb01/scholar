@@ -8,5 +8,7 @@ public enum LaidOutBlockKind {
     TABLE,
     PLOT,
     DIAGRAM,
-    FIGURE
+    FIGURE,
+    PAGE_BREAK,
+    LAYOUT_SECTION_BREAK
 }

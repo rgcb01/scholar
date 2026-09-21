@@ -451,10 +451,7 @@ public final class MechanicalDiagramEditor {
         };
         w = Math.max(4.0, Math.min(w, canvas.width()));
         h = Math.max(4.0, Math.min(h, canvas.height()));
-        return new DiagramBounds(
-                Math.max(0.0, (canvas.width() - w) / 2.0),
-                Math.max(0.0, (canvas.height() - h) / 2.0),
-                w, h);
+        return placeWithoutOverlap(definition, w, h);
     }
 
     private static DiagramBounds defaultBounds(DiagramDefinition definition, MechanicalPrimitiveKind kind) {
@@ -473,10 +470,7 @@ public final class MechanicalDiagramEditor {
         };
         w = Math.max(2.0, Math.min(w, canvas.width()));
         h = Math.max(2.0, Math.min(h, canvas.height()));
-        return new DiagramBounds(
-                Math.max(0.0, (canvas.width() - w) / 2.0),
-                Math.max(0.0, (canvas.height() - h) / 2.0),
-                w, h);
+        return placeWithoutOverlap(definition, w, h);
     }
 
     private static Optional<DiagramElement> referenceableTarget(DiagramBlock diagram,DiagramEditTarget target){if(!(target instanceof DiagramElementTarget t)||t.elementIndex()<0||t.elementIndex()>=diagram.definition().elements().size())return Optional.empty();var e=diagram.definition().elements().get(t.elementIndex());if(!e.id().equals(t.elementId())||e instanceof MechanicalConstraint||e instanceof MechanicalDimension||e instanceof MechanicalAnnotation||e instanceof MechanicalPartReference)return Optional.empty();return (e instanceof MechanicalPrimitive||e instanceof MechanicalSymbol)?Optional.of(e):Optional.empty();}
@@ -486,7 +480,7 @@ public final class MechanicalDiagramEditor {
     private static int nextAnnotationOrdinal(DiagramDefinition definition){var n=1;while(containsId(definition.elements(),new DiagramElementId("mechanical-annotation-"+n)))n++;return n;}
     private static DiagramBounds defaultAnnotationBounds(DiagramDefinition d,MechanicalAnnotationKind k){
         double w=switch(k){case PART_LABEL->30;case NOTE->38;case LEADER->42;},h=switch(k){case PART_LABEL->12;case NOTE->14;case LEADER->18;};
-        w=Math.min(w,d.canvas().width());h=Math.min(h,d.canvas().height());return new DiagramBounds(Math.max(0,(d.canvas().width()-w)/2),Math.max(0,(d.canvas().height()-h)/2),w,h);
+        w=Math.min(w,d.canvas().width());h=Math.min(h,d.canvas().height());return placeWithoutOverlap(d,w,h);
     }
 
     private static int nextSymbolOrdinal(DiagramDefinition definition) {
@@ -496,7 +490,35 @@ public final class MechanicalDiagramEditor {
     private static DiagramBounds defaultSymbolBounds(DiagramDefinition definition, MechanicalSymbolKind kind) {
         double w=switch(kind){ case SHAFT -> 38; case SPRING, PISTON -> 34; case GEAR, BEARING -> 28; case BOLT -> 30; };
         double h=switch(kind){ case SHAFT -> 10; case SPRING -> 16; case PISTON -> 20; case GEAR, BEARING -> 28; case BOLT -> 14; };
-        return new DiagramBounds(Math.max(0,(definition.canvas().width()-w)/2),Math.max(0,(definition.canvas().height()-h)/2),w,h);
+        w = Math.min(w, definition.canvas().width());
+        h = Math.min(h, definition.canvas().height());
+        return placeWithoutOverlap(definition, w, h);
+    }
+
+    private static DiagramBounds placeWithoutOverlap(DiagramDefinition definition, double width, double height) {
+        var canvas = definition.canvas();
+        var maxX = Math.max(0.0, canvas.width() - width);
+        var maxY = Math.max(0.0, canvas.height() - height);
+        var centered = new DiagramBounds(maxX / 2.0, maxY / 2.0, width, height);
+        if (definition.elements().stream().noneMatch(element -> overlaps(centered, element.bounds()))) {
+            return centered;
+        }
+        var stepX = Math.max(2.0, width + 4.0);
+        var stepY = Math.max(2.0, height + 4.0);
+        for (double y = 2.0; y <= maxY + 1.0e-9; y += stepY) {
+            for (double x = 2.0; x <= maxX + 1.0e-9; x += stepX) {
+                var candidate = new DiagramBounds(Math.min(x, maxX), Math.min(y, maxY), width, height);
+                if (definition.elements().stream().noneMatch(element -> overlaps(candidate, element.bounds()))) {
+                    return candidate;
+                }
+            }
+        }
+        return centered;
+    }
+
+    private static boolean overlaps(DiagramBounds left, DiagramBounds right) {
+        return left.x() < right.right() + 2.0 && left.right() + 2.0 > right.x()
+                && left.y() < right.bottom() + 2.0 && left.bottom() + 2.0 > right.y();
     }
 
     private static int nextOrdinal(DiagramDefinition definition) {

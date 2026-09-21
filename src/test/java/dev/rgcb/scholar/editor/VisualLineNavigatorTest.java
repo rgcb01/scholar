@@ -154,7 +154,7 @@ class VisualLineNavigatorTest {
 
         var target = navigator.moveDown(state, layout, textMeasurer, 20, true).orElseThrow();
 
-        assertEquals(caret(0, 8), target);
+        assertEquals(caret(0, TextBoundary.characterCount("cafe\u0301 \u0394\u03b8")), target);
     }
 
     private LaidOutDocument layout(Document document, int width) {

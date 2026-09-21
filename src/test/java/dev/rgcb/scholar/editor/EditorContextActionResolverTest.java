@@ -159,8 +159,8 @@ class EditorContextActionResolverTest {
         var ids = ids(resolver.resolve(state, allActions()));
 
         assertTrue(ids.contains(EditorActionId.DIAGRAM_ADD_NODE));
-        assertTrue(ids.contains(EditorActionId.DIAGRAM_ADD_RESISTOR));
-        assertTrue(ids.contains(EditorActionId.DIAGRAM_ADD_MECHANICAL_LINE));
+        assertFalse(ids.contains(EditorActionId.DIAGRAM_ADD_RESISTOR));
+        assertFalse(ids.contains(EditorActionId.DIAGRAM_ADD_MECHANICAL_LINE));
         assertTrue(ids.contains(EditorActionId.DIAGRAM_WORKSPACE_TALLER));
     }
 
@@ -184,7 +184,31 @@ class EditorContextActionResolverTest {
 
         assertTrue(electricalIds.contains(EditorActionId.DIAGRAM_ROTATE_CLOCKWISE));
         assertTrue(electricalIds.contains(EditorActionId.DIAGRAM_DELETE_ELECTRICAL_COMPONENT));
+        assertFalse(electricalIds.contains(EditorActionId.DIAGRAM_DELETE_MECHANICAL_PRIMITIVE));
         assertTrue(mechanicalIds.contains(EditorActionId.DIAGRAM_DELETE_MECHANICAL_PRIMITIVE));
+        assertFalse(mechanicalIds.contains(EditorActionId.DIAGRAM_DELETE_ELECTRICAL_COMPONENT));
+    }
+
+    @Test
+    void diagramMenuResolvesDiagramContainedByFigure() {
+        var componentId = new DiagramElementId("r1");
+        var diagram = diagramBlock(new ElectricalComponent(
+                componentId,
+                new DiagramBounds(10, 10, 40, 20),
+                ElectricalComponentKind.RESISTOR,
+                ElectricalOrientation.DEG_0,
+                "R1",
+                "1k"));
+        var state = new EditorState(
+                document(new FigureBlock("fig-circuit", diagram, inline("Circuit"))),
+                new DiagramEditingSelection(0, new DiagramElementTarget(0, componentId)),
+                Optional.empty());
+
+        var ids = assertDoesNotThrow(() -> ids(resolver.resolve(state, allActions())));
+
+        assertTrue(ids.contains(EditorActionId.DIAGRAM_ROTATE_CLOCKWISE));
+        assertTrue(ids.contains(EditorActionId.DIAGRAM_DELETE_ELECTRICAL_COMPONENT));
+        assertFalse(ids.contains(EditorActionId.DIAGRAM_DELETE_MECHANICAL_PRIMITIVE));
     }
 
     @Test

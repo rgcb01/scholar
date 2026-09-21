@@ -114,7 +114,7 @@ class PlotClipboardTest {
 
         assertFalse(result.documentChanged());
         assertEquals(serializer.serialize(plot), clipboard.text);
-        assertEquals(plot, assertInstanceOf(PlotClipboardPayload.class, sidecar.snapshot().orElseThrow().payload()).plot());
+        assertEquals(plot, dev.rgcb.scholar.editor.TransferClipboardAssertions.root(dev.rgcb.scholar.document.PlotBlock.class, sidecar.snapshot().orElseThrow().payload()));
         assertEquals(new BlockSelection(1), session.current().selection());
         assertFalse(session.canUndo());
     }
@@ -147,7 +147,7 @@ class PlotClipboardTest {
 
         assertTrue(result.documentChanged());
         assertEquals(serializer.serialize(plot), clipboard.text);
-        assertInstanceOf(PlotClipboardPayload.class, sidecar.snapshot().orElseThrow().payload());
+        dev.rgcb.scholar.editor.TransferClipboardAssertions.root(dev.rgcb.scholar.document.PlotBlock.class, sidecar.snapshot().orElseThrow().payload());
         assertEquals(2, session.current().document().blocks().size());
         assertTrue(session.undo());
         assertEquals(document, session.current().document());

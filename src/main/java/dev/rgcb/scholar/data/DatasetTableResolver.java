@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import dev.rgcb.scholar.quantity.UnitRegistry;
 
 public final class DatasetTableResolver {
     private final DatasetRegistry registry = new DatasetRegistry();
@@ -39,7 +40,8 @@ public final class DatasetTableResolver {
         }
         var rows = new ArrayList<TableRow>();
         rows.add(new TableRow(columns.stream()
-                .map(column -> cell(column.displayName()))
+                .map(column -> cell(column.displayName() + column.unit()
+                        .map(unit -> " (" + unit.displaySymbol(UnitRegistry.builtIn()) + ")").orElse("")))
                 .toList()));
         for (var row : dataset.rows()) {
             var cells = new ArrayList<TableCell>();

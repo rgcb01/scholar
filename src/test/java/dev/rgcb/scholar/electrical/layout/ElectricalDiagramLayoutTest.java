@@ -1,6 +1,7 @@
 package dev.rgcb.scholar.electrical.layout;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.rgcb.scholar.diagram.DiagramBounds;
@@ -20,6 +21,7 @@ import dev.rgcb.scholar.document.DiagramBlock;
 import dev.rgcb.scholar.editor.TextBoundary;
 import dev.rgcb.scholar.electrical.ElectricalComponent;
 import dev.rgcb.scholar.electrical.ElectricalComponentKind;
+import dev.rgcb.scholar.electrical.ElectricalJunction;
 import dev.rgcb.scholar.electrical.ElectricalOrientation;
 import dev.rgcb.scholar.layout.TextMeasurer;
 import dev.rgcb.scholar.layout.TextStyle;
@@ -121,6 +123,25 @@ class ElectricalDiagramLayoutTest {
         assertTrue(!overlaps(capacitorValue, groundReference));
     }
 
+    @Test
+    void junctionAndNeighboringComponentLabelsKeepDeterministicClearance() {
+        var layout = engine.layout(junctionClearanceDiagram(), 0, 0, 0, 320, textMeasurer);
+        var source = layout.electricalComponents().get(0);
+        var capacitor = layout.electricalComponents().get(2);
+        var sourceReference = source.referenceDesignator().orElseThrow();
+        var sourceValue = source.valueLabel().orElseThrow();
+        var capacitorReference = capacitor.referenceDesignator().orElseThrow();
+        var capacitorValue = capacitor.valueLabel().orElseThrow();
+        var netLabel = layout.electricalJunctions().get(0).netLabel().orElseThrow();
+
+        assertTrue(sourceReference.x() + sourceReference.width()
+                <= source.x() - DiagramLayoutEngine.ELECTRICAL_LABEL_GAP);
+        assertTrue(sourceValue.x()
+                >= source.x() + source.width() + DiagramLayoutEngine.ELECTRICAL_LABEL_GAP);
+        assertFalse(overlaps(netLabel, capacitorReference));
+        assertFalse(overlaps(netLabel, capacitorValue));
+    }
+
     private static boolean overlaps(
             dev.rgcb.scholar.diagram.layout.LaidOutDiagramLabel first,
             dev.rgcb.scholar.diagram.layout.LaidOutDiagramLabel second
@@ -129,6 +150,28 @@ class ElectricalDiagramLayoutTest {
                 && first.x() + first.width() > second.x()
                 && first.y() < second.y() + second.height()
                 && first.y() + first.height() > second.y();
+    }
+
+    private static DiagramBlock junctionClearanceDiagram() {
+        var sourceId = new DiagramElementId("v1");
+        var resistorId = new DiagramElementId("r1");
+        var junctionId = new DiagramElementId("junction");
+        var capacitorId = new DiagramElementId("c1");
+        return new DiagramBlock(new DiagramDefinition(
+                "Junction clearance",
+                new DiagramCanvas(130, 82),
+                List.of(
+                        new ElectricalComponent(sourceId, new DiagramBounds(8, 24, 18, 30),
+                                ElectricalComponentKind.DC_VOLTAGE_SOURCE,
+                                ElectricalOrientation.DEG_90, "V1", "5 V"),
+                        new ElectricalComponent(resistorId, new DiagramBounds(34, 18, 28, 12),
+                                ElectricalComponentKind.RESISTOR,
+                                ElectricalOrientation.DEG_0, "R1", "1 kΩ"),
+                        new ElectricalJunction(junctionId, new DiagramBounds(67, 24, 4, 4), "VOUT"),
+                        new ElectricalComponent(capacitorId, new DiagramBounds(82, 14, 14, 28),
+                                ElectricalComponentKind.CAPACITOR,
+                                ElectricalOrientation.DEG_90, "C1", "100 nF")),
+                List.of()));
     }
 
     private static DiagramBlock mixedDiagram() {

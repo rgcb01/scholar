@@ -374,7 +374,7 @@ Key ADRs:
 
 ## M24G - Final Editor Foundation Regression And Documentation
 
-Status: implemented; automated validation complete.
+Status: complete and accepted, including final manual Minecraft QA. M24 Editor Core Foundation V1 is fully accepted.
 
 M24G closes the M24 editor-foundation hardening pass:
 
@@ -393,3 +393,219 @@ Key reports:
 Key ADRs:
 
 - No new ADRs. M24G consolidates and tests M24A-M24F decisions.
+
+## M25A - Document Transfer And Identity Closure Architecture
+
+Status: architecture complete and accepted. M25B is now in progress; its implementation checkpoints are recorded separately below. No production transfer implementation is claimed by M25A itself.
+
+- ROM-6 maps current clipboard/transfer entry points, payloads, identity remappers, resource gaps, and tests.
+- ROM-7 defines immutable semantic DocumentFragment versus destination-aware DocumentTransfer, separate from editor/history/clipboard/persistence.
+- ROM-8 defines minimal whole-dataset resource closure and source-identity deduplication through supported ownership boundaries.
+- ROM-9 defines document-global versus owner-local identities, shared namespace-aware remapping, conservative resource reuse, safe external reference Text degradation, and snapshot redo.
+- ROM-10 defines whole composite ownership: Figure wrapper/caption/Plot-or-Diagram, complete Diagram graph, exact table/plot/math content, semantic TOC marker, and distinct nested editing scopes.
+- ROM-11 consolidates the authoritative contract, explicitly resolves provisional conflicts, freezes runtime same-document proof and partial-prose insertion shape, requires resource-complete/proven-reuse insertion, and defines atomic application plus implementation/test obligations.
+
+Authoritative contract:
+
+- [M25A_TRANSFER_ARCHITECTURE_CONTRACT.md](M25A_TRANSFER_ARCHITECTURE_CONTRACT.md)
+
+Supporting evidence/rationale:
+
+- `M25A_CURRENT_TRANSFER_AUDIT.md`
+- `M25A_DOCUMENT_FRAGMENT_TRANSFER_CONTRACT.md`
+- `M25A_RESOURCE_CLOSURE_POLICY.md`
+- `M25A_IDENTITY_REFERENCE_POLICY.md`
+- `M25A_COMPOSITE_CONTENT_TRANSFER_POLICY.md`
+
+No new ADRs: the final consolidated contract captures the architecture without duplicating issue-specific decisions. Production sources and tests remain unchanged during M25A consolidation. M25B requires its own implementation and manual Minecraft QA before acceptance.
+
+## M25B-A - Core Fragment Model
+
+Status: complete. M25B Semantic Document Transfer Implementation remains IN PROGRESS, not complete.
+
+- Added pure Java `dev.rgcb.scholar.transfer` values: closed Blocks/InlineSegments/ResourcePrimary content, DocumentFragment, typed source keys and derived/validated identity indexes.
+- Resources preserve complete ScientificDataset values and source identities. Duplicate typed provided identities are rejected; same spelling across namespaces remains distinct. Shared dataset bindings can refer to one resource entry.
+- Added opaque runtime document tokens, explicit immutable source target/dataset witnesses and reference export text, and destination context values. Token matching establishes only live-document relation, not per-target applicability.
+- Added operational diagnostic values without an engine/result pipeline, persistence metadata, layout state, transient editor state, or semantic reference degradation.
+- Existing immutable AST values are retained exactly. Figure remains one owner root; TOC remains a marker; math clipboard stays local and distinct.
+- Added 54 focused value-model/boundary tests. Full suite: 1190 tests, zero failures/errors/skips. `gradlew.bat test` and `gradlew.bat build` pass.
+- No existing production types, clipboard behavior, editor/history semantics, UI, or tests were migrated. Extraction, closure discovery, remap planning, insertion and clipboard integration are deferred. No new ADR is needed for implementing the accepted contract.
+
+Contract/report: [M25B_A_CORE_FRAGMENT_MODEL.md](M25B_A_CORE_FRAGMENT_MODEL.md). No manual Minecraft behavior change is claimed by this value-model-only subphase; full M25B acceptance still requires manual QA.
+
+## M25B-B - Transfer Context + Fragment Extraction
+
+Status: complete. M25B remains IN PROGRESS; M25B-C is not started.
+
+- Added pure source FragmentExtractor, semantic FragmentExtractionRequest and explicit immutable Success/Failure extraction results.
+- Added an unused editor-side adapter using EditorSelectionValidator and existing InlineContentEditor slicing. Whole BlockSelection stays one block; explicit core requests support ordered collections. Partial Paragraph/Heading and multi-block text ranges produce InlineSegments, preserving marks, reference atoms and empty boundaries.
+- Reused identity enumeration for ordered dataset dependency discovery through Table/Plot/Figure ownership. Required complete datasets travel once by source ID; missing required datasets fail without a partial fragment. Resource-primary copies do not pull consumers.
+- Captured supplied runtime token, original semantic target/resource witnesses and separate source textual reference exports. No AST references are rewritten/degraded; Figure/Diagram ownership and semantic TOC markers remain intact.
+- Scoped existing DocumentValidator checks to selected owned values/resources, with ambiguity rejection for involved source IDs. Warnings can survive without repair; unsupported nested selections are explicit failures, not owner widening.
+- Added 53 focused test executions plus a 75-case deterministic mixed extraction replay. Full test suite: 1243 tests, zero failures/errors/skips; test/build pass.
+- Existing EditorSession, clipboard/action paths, model types, UI and tests remain unmigrated. Destination ID allocation/remapping/resource reuse/insertion/history/persistence are deferred. No new ADR is required.
+
+Report: [M25B_B_FRAGMENT_EXTRACTION.md](M25B_B_FRAGMENT_EXTRACTION.md). No commit/push or manual Minecraft behavior acceptance is claimed by this additive subphase.
+
+## M25B-C - Resource Closure + Identity Remap Planning
+
+Status: complete. M25B remains IN PROGRESS; M25B-D is not started.
+
+- Added pure TransferPlanner and immutable identity/resource/reference plans, TransferPlan and PlanningResult.
+- Extended context with semantic scopes and caller-approved removed-root survivor facts, retaining original destination snapshot.
+- Namespace-aware inventory and deterministic pre-reservation preserve free IDs and suffix colliding IDs without mutating content.
+- Dependency datasets reuse only with explicit token and exact applicable witness; resource-primary imports never reuse. Unproven resources transfer as new; missing snapshot/proof fails without partial plan.
+- Internal reference occurrences use shared remap; proven external occurrences preserve; others plan Text degradation with warnings and captured export, never sentinel IDs.
+- Extracted only existing EditorSession collision loops to a shared pure allocator; legacy normalization and clipboard behavior remain unchanged.
+- Added 41 test executions, including a 75-case fixed-seed collision replay. Full suite: 1284 tests, zero failures/errors/skips. Test/build and diff checks pass.
+- No AST materialization, insertion, clipboard migration, history integration, UI, persistence or new ADR. No commit/push or manual Minecraft acceptance claimed.
+
+Report: [M25B_C_TRANSFER_PLANNING.md](M25B_C_TRANSFER_PLANNING.md).
+
+## M25B - Semantic Document Transfer Implementation
+
+Status: COMPLETE with automated acceptance; manual Minecraft QA remains pending. No additional D/E/F/G milestones are introduced. M26 is not started.
+
+- Completed pure plan materialization, shared identity/binding rewrites, exact dataset additions/reuse, safe external-reference Text degradation and Figure/Diagram/Equation/TOC preservation.
+- Extended existing DocumentEditor helpers for ordered block collections and InlineSegments, including boundary-only ranges, destination left ownership, valid final selection and one final authoring fallback.
+- Added editor receiving-context/stale-state preflight, zero-ERROR DocumentValidator and valid-selection candidate gates before a single history commit.
+- Migrated authoritative Copy/Cut/Paste to fragment carriers. Cut writes before deletion and guards reentrant source changes. Rich rejection cannot bypass semantics through text fallback; local math and explicit table-cell text conversion remain specialized.
+- Removed duplicated session semantic remappers; retained old carriers as shape-only compatibility adapters and existing external serializers/importers.
+- Added 45 test executions: eight materializer cases and 37 integration cases, including twelve root families, golden mixed collision/resource/reference scenario, 50-case fixed-seed full replay, exact Undo/Redo, negative atomicity and development fixture checks. Existing regressions remain enabled; migration assertions reflect the new carrier/safe reference policy.
+- Full suite: 1329 tests, zero failures/errors/skips. Test/build and diff checks pass; transfer core boundary passes.
+- Added M25 development fixtures and exact manual QA steps. No manual acceptance, M26 work, ADR, commit or push claimed.
+
+Final report: [M25B_TRANSFER_IMPLEMENTATION.md](M25B_TRANSFER_IMPLEMENTATION.md). Historical A/B/C reports describe their checkpoint states; this report governs current implementation status.
+
+## M25 Acceptance Before M26
+
+User confirmed M25 complete/accepted, including final manual Minecraft QA, the 1329-test
+baseline, golden transfer and fixed-seed replay, build and core boundary. Earlier pending-QA
+wording above records implementation checkpoints, not the current accepted baseline.
+
+## M26 - Document Persistence
+
+Status: technically COMPLETE after automated acceptance; manual Minecraft QA ready/pending.
+This is one milestone, not an M26A/B/C chain. M27 is not started.
+
+- Audited all current semantic block/inline/math/dataset/plot/diagram families, existing
+  serializers and M24/M25 ownership/history contracts; no suitable complete native codec existed.
+- Added explicit Scholar JSON V1 schema mapping and version dispatch, generic structured
+  results/diagnostics, strict bounded parsing and zero-ERROR DocumentValidator save/load gates.
+- Preserved IDs, marks, token segmentation, BigDecimal values/scale, shared root datasets,
+  bindings, nested Figure content and complete generic/electrical/mechanical diagram semantics.
+- Excluded runtime tokens, history, selection, layout, derived numbering/labels/views and UI.
+- Added safe application-directory `.scholar.json` storage, filename/path validation,
+  temporary flushed writes, atomic replacement/documented fallback and failure-safe loading.
+- Added DocumentWorkspace saved-value dirty baselines, fresh session/history/provenance,
+  valid default selection, minimal New, native File actions/picker, overwrite confirmation
+  and explicit unsaved Save/Discard/Cancel; Save/Save As add no history.
+- Added 96 test executions: codec golden/independent wire fixture/all math/malformed cases,
+  75-case fixed-seed round trips, canonical output, storage/failure/fallback/traversal tests,
+  workspace dirty/load/nested editing and loaded M25 transfer/provenance regression.
+- Full suite: 1425 tests, zero failures/errors/skips. Test/build pass; persistence core
+  boundary passes. Complex development fixture and twelve-step manual QA procedure exist.
+- No M27, cloud/network/autosave, repair framework, plugin schema, commit or push.
+
+Report: [M26_DOCUMENT_PERSISTENCE.md](M26_DOCUMENT_PERSISTENCE.md). Automated acceptance
+does not claim manual Minecraft acceptance or client-startup QA.
+
+## M26 Acceptance Before M27
+
+User confirmed M26 COMPLETE / ACCEPTED, including final manual Minecraft QA and the
+1425-test/build/persistence baseline. Earlier pending-QA wording records implementation
+history rather than the current accepted baseline.
+
+## M27 - Editor Hardening & Foundation V2
+
+Status: automated hardening implemented; final manual Minecraft acceptance pending.
+One milestone, no M27A/B/C roadmap split and no following scientific feature work.
+
+- Added six deterministic mixed/large/data/diagram stress profiles and development command selectors.
+- Recorded synthetic CPU baseline before production fixes; measured layout, local edit/reflow,
+  reference/structure/hit/selection/scroll, codec, actual filesystem and larger transfer behavior.
+- Fixed Unicode logical offsets and cluster wrapping in prose/tables, atomic reference hit/caret/
+  selection/navigation geometry, very narrow TOC extents and dataset-bound Figure Plot layout.
+- Added measured block-level viewport culling; retained synchronous full layout and snapshot history.
+- Hardened tall-object visibility, exclusive menu input/keyboard activation, overflow title access,
+  popup/tooltip origins and transient gesture/menu cancellation on resize.
+- Preserve exact unrepresentable dataset decimals; omit nonfinite plot points and emit bounded warnings.
+- Added 31 executions, including all-profile reflow/owner hits, 100 exact mixed history transactions,
+  golden persisted nested session, fixed-seed mixed editing, 100-root transfer and large file round trips.
+- Full suite: 1456 tests, zero failures/errors/skips; build passes. V1 schema and core boundaries unchanged.
+- Fifteen-step Minecraft QA is ready, not performed or accepted automatically. No commit/push.
+
+Report: [M27_EDITOR_HARDENING.md](M27_EDITOR_HARDENING.md).
+
+## M27 Acceptance Before M28
+
+User confirmed M27 COMPLETE / ACCEPTED, including final Minecraft manual QA. Earlier
+pending-QA wording records the automated implementation checkpoint, not current status.
+
+## M28 - Productization & Visual Polish
+
+Status: technically complete; final Minecraft visual QA pending.
+
+- Resolved whole-equation and dataset-backed Plot/Figure plain-text fallback gaps.
+- Gated development commands with NeoForge's production environment flag while preserving
+  the visual and stress fixtures for development QA.
+- Replaced normal Plot, Diagram, and Dataset demo data with minimal valid authoring defaults.
+- Unified action shortcut display and GLFW matching through one platform-neutral descriptor.
+- Extracted viewport-safe modal geometry, shared document scrolling policy, and contextual
+  diagram-menu filtering without replacing the screen or EditorSession architecture.
+- Removed fixture numbering duplication, strengthened H3-H6 hierarchy, compacted TOC indent,
+  corrected the complex Root fixture and restored relation spacing after MathGroup.
+- Preserved table/plot/Figure visual language and existing clipping/wrapping contracts;
+  improved deterministic mechanical insertion placement.
+- Added focused productization, shell, visual-fixture, math/layout and integrated
+  persistence/transfer/history regressions.
+
+Report: [M28_PRODUCTIZATION_AND_VISUAL_POLISH.md](M28_PRODUCTIZATION_AND_VISUAL_POLISH.md).
+No M29 work, commit, or push was included in the M28 implementation checkpoint.
+
+## M28 Acceptance Before M29
+
+M28 was manually accepted after the final electrical-label, mechanical-dimension-label and equation-caret visual QA pass.
+
+## M29 - Application Architecture & Workspace
+
+Status: technically complete; final Minecraft manual QA pending.
+
+- Added a production `/scholar` Home and a multi-document repository/workspace layer.
+- Separated stable application document identity and recoverable workspace metadata from the semantic AST.
+- Reused M26 Scholar JSON V1 documents under `scholar/documents` and added a disposable `workspace.json` index.
+- Added neutral collision-safe New, Open, Save, Save As, Rename, Close/Home and Save/Discard/Cancel flows.
+- Added lightweight content-derived previews and recency ordering without per-frame document loading/layout.
+- Added a compact production header and data-driven File/Home/Insert/Data/Figure/Diagram/View shell over existing actions.
+- Preserved fresh history/runtime tokens per open, M25 cross-document transfer, M26 persistence, M27 transaction/input and M28 development gating.
+
+Report: [M29_APPLICATION_ARCHITECTURE_AND_WORKSPACE.md](M29_APPLICATION_ARCHITECTURE_AND_WORKSPACE.md).
+M30 was not started at this checkpoint.
+
+## M29 Acceptance Before M30
+
+M29 was manually accepted after the final Home/ribbon application-shell QA and responsive
+Diagram/View/File/Insert/Data polish pass.
+
+## M30 - Scientific Document Typesetting
+
+Status: technically complete; final Minecraft manual QA pending.
+
+- Added physical page settings in integer micrometres, Letter/A4/Legal/custom paper, portrait/
+  landscape orientation, margins, one/two-column policy, minimal headers/footers/page numbers,
+  semantic PageBreak, and Figure/Table column/full-page spans.
+- Added derived paginated pages/columns, automatic paragraph continuation, atomic scientific-block
+  placement, full-width scientific content, paginated TOC hit geometry, and clipped page-sheet rendering.
+- Added controlled font families/sizes, underline/superscript/subscript, paragraph alignment,
+  justification, spacing and indentation, layered semantic styles, and Figure Caption style use.
+- Added Blank and IEEE-style Scientific Paper templates plus Home template selection; extended Home,
+  Layout, and View ribbon actions without changing command authority.
+- Added transient zoom/Fit controls that do not mutate layout, history, transfer, or persistence.
+- Evolved native persistence to canonical V2 while retaining strict V1 decoding/default migration.
+- Extended M25 materialization and editor reconstruction to preserve M30 semantic formatting while
+  keeping destination document settings authoritative.
+- Added focused M30 integration coverage and a deterministic save/reopen/layout/transfer/undo golden
+  scenario. Full checkpoint suite: 1,525 tests, zero failures/errors/skips.
+
+Report: [M30_SCIENTIFIC_DOCUMENT_TYPESETTING.md](M30_SCIENTIFIC_DOCUMENT_TYPESETTING.md).
+No commit/push or manual Minecraft acceptance is claimed by this implementation checkpoint.

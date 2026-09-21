@@ -367,7 +367,7 @@ public final class TableEditor {
         if (startOffset >= endOffset) {
             return;
         }
-        nodes.add(new Text(TextBoundary.substring(source.content(), startOffset, endOffset), marks));
+        nodes.add(new Text(TextBoundary.substring(source.content(), startOffset, endOffset), marks, source.format()));
     }
 
     private static Set<TextMark> transformedMarks(Set<TextMark> source, TextMark mark, boolean add) {

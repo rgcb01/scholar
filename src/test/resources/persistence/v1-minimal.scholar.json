@@ -1,0 +1,30 @@
+{
+  "format": "scholar-document",
+  "version": 1,
+  "blocks": [
+    {
+      "type": "heading",
+      "id": "intro",
+      "level": 1,
+      "content": [{"type": "text", "content": "Scholar", "marks": ["bold"]}]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {"type": "text", "content": "See ", "marks": []},
+        {"type": "reference", "kind": "section", "targetId": "intro"}
+      ]
+    },
+    {
+      "type": "equation",
+      "id": null,
+      "expression": {
+        "type": "fraction",
+        "numerator": {"type": "number", "content": "1"},
+        "denominator": {"type": "identifier", "name": "x"}
+      }
+    },
+    {"type": "toc"}
+  ],
+  "datasets": []
+}

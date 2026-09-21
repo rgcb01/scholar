@@ -33,9 +33,9 @@ class CrossReferenceLayoutTest {
         var block = layoutEngine.layout(document, 200, new FixedTextMeasurer()).blocks().get(0);
 
         assertEquals("See Figure 1.", lineText(block.lines().get(0)));
-        var referenceRun = block.lines().get(0).textRuns().get(1);
-        assertEquals(" Figure", referenceRun.text());
-        assertEquals(3, referenceRun.sourceStart());
+        var referenceRun = block.lines().get(0).textRuns().stream().filter(LaidOutText::atomic).findFirst().orElseThrow();
+        assertEquals("Figure 1", referenceRun.text());
+        assertEquals(4, referenceRun.sourceStart());
         assertEquals(5, referenceRun.sourceEnd());
     }
 

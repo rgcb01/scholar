@@ -97,8 +97,8 @@ class DocumentStructureEditorTest {
         BuiltInEditorActions.copy().execute(new EditorActionContext(session, clipboard, sidecar));
 
         assertEquals("1.1 Average velocity", clipboard.text);
-        var payload = assertInstanceOf(DocumentBlockClipboardPayload.class, sidecar.snapshot().orElseThrow().payload());
-        var heading = assertInstanceOf(Heading.class, payload.block());
+        var payload = dev.rgcb.scholar.editor.TransferClipboardAssertions.root(dev.rgcb.scholar.document.BlockNode.class, sidecar.snapshot().orElseThrow().payload());
+        var heading = assertInstanceOf(Heading.class, payload);
         assertEquals("average", heading.id().orElseThrow());
     }
 
@@ -131,7 +131,7 @@ class DocumentStructureEditorTest {
         BuiltInEditorActions.copy().execute(context);
 
         assertTrue(clipboard.text.startsWith("Contents"));
-        assertInstanceOf(DocumentBlockClipboardPayload.class, sidecar.snapshot().orElseThrow().payload());
+        dev.rgcb.scholar.editor.TransferClipboardAssertions.root(dev.rgcb.scholar.document.BlockNode.class, sidecar.snapshot().orElseThrow().payload());
 
         session.setCurrent(new EditorState(session.current().document(), new DocumentPosition(0, 5)));
         assertTrue(BuiltInEditorActions.paste().execute(context).documentChanged());

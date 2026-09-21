@@ -82,12 +82,12 @@ class CrossReferenceEditingTest {
         var copy = session.copyForClipboard().orElseThrow();
 
         assertEquals("Figure 1", copy.plainText());
-        var payload = assertInstanceOf(InlineContentClipboardPayload.class, copy.payload().orElseThrow());
-        assertEquals(List.of(ref("velocity")), payload.content().nodes());
+        var payload = dev.rgcb.scholar.editor.TransferClipboardAssertions.inline(copy.payload().orElseThrow());
+        assertEquals(List.of(ref("velocity")), payload.nodes());
     }
 
     @Test
-    void nativeInlineClipboardPastePreservesCrossReferenceTargetId() {
+    void legacyInlineClipboardWithoutProvenanceDegradesInsteadOfBindingByRawId() {
         var document = document(new Paragraph(new InlineContent(List.of())), figure("velocity"));
         var session = new EditorSession(document, 0);
         var payload = new InlineContentClipboardPayload(new InlineContent(List.of(ref("velocity"))));
@@ -95,8 +95,8 @@ class CrossReferenceEditingTest {
         assertTrue(session.pasteFromClipboard(Optional.of(payload), "Figure 1"));
 
         var nodes = ((Paragraph) session.current().document().blocks().get(0)).content().nodes();
-        assertEquals(ref("velocity"), nodes.get(0));
-        assertEquals(new DocumentPosition(0, 1), session.current().caret());
+        assertEquals(new Text("[Missing reference]", Set.of()), nodes.get(0));
+        assertEquals(new DocumentPosition(0, 19), session.current().caret());
     }
 
     @Test
@@ -111,7 +111,7 @@ class CrossReferenceEditingTest {
 
         assertFalse(result.documentChanged());
         assertEquals("Figure 1", clipboard.text);
-        assertInstanceOf(InlineContentClipboardPayload.class, sidecar.snapshot().orElseThrow().payload());
+        dev.rgcb.scholar.editor.TransferClipboardAssertions.inline(sidecar.snapshot().orElseThrow().payload());
     }
 
     @Test

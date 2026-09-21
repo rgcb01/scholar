@@ -2,6 +2,8 @@
 
 Status: ROM-7 architecture design document. Not yet an accepted ADR. No production classes are implemented by this document.
 
+Authority notice: ROM-7 is accepted supporting rationale. [M25A Transfer Architecture Contract](M25A_TRANSFER_ARCHITECTURE_CONTRACT.md) is the final authority for M25B, including fragment shape, resolved questions, and any superseded wording below.
+
 ## 1. Executive Decision
 
 Scholar should introduce two separate architectural concepts in M25:
@@ -705,4 +707,3 @@ ROM-7 can close after review if the team accepts:
 - nested editor transfer remaining specialized unless document-level transfer needs it.
 
 This contract gives ROM-8 through ROM-10 a stable design frame without starting implementation or overgeneralizing the architecture.
-

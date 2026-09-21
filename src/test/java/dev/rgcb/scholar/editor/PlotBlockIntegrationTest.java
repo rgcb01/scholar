@@ -96,9 +96,9 @@ class PlotBlockIntegrationTest {
         var inserted = assertInstanceOf(PlotBlock.class, result.document().blocks().get(1));
         assertText("cd", result.document().blocks().get(2));
         assertEquals(new BlockSelection(1), result.selection());
-        assertEquals("Sample Plot", inserted.definition().title());
-        assertEquals(List.of(new DataPoint(0, 0), new DataPoint(1, 1), new DataPoint(2, 4), new DataPoint(3, 9)),
-                inserted.definition().series().get(0).points());
+        assertEquals("Untitled Plot", inserted.definition().title());
+        assertEquals("Series 1", inserted.definition().series().get(0).name());
+        assertTrue(inserted.definition().series().get(0).points().isEmpty());
     }
 
     @Test

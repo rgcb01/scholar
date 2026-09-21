@@ -15,6 +15,7 @@ import dev.rgcb.scholar.math.MathSequence;
 import dev.rgcb.scholar.math.MathSymbol;
 import dev.rgcb.scholar.math.MathSymbolKind;
 import dev.rgcb.scholar.math.MathText;
+import dev.rgcb.scholar.math.MathQuantity;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -1688,6 +1689,7 @@ public final class MathExpressionEditor {
                 || expression instanceof MathIdentifier
                 || expression instanceof MathNamedOperator
                 || expression instanceof MathText
+                || expression instanceof MathQuantity
                 || expression instanceof MathOperator
                 || expression instanceof MathSymbol;
     }
@@ -1697,6 +1699,7 @@ public final class MathExpressionEditor {
                 || expression instanceof MathIdentifier
                 || expression instanceof MathNamedOperator
                 || expression instanceof MathText
+                || expression instanceof MathQuantity
                 || expression instanceof MathFraction
                 || expression instanceof MathRoot
                 || expression instanceof MathScript

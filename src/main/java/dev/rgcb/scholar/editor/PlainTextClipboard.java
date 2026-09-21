@@ -135,6 +135,9 @@ public final class PlainTextClipboard {
                     text.append(TextBoundary.substring(run.content(), selectedStart - nodeStart, selectedEnd - nodeStart));
                 } else if (node instanceof CrossReference reference) {
                     text.append(resolver.resolve(document, reference).displayText());
+                } else if (node instanceof dev.rgcb.scholar.document.QuantityInline quantity) {
+                    text.append(new dev.rgcb.scholar.quantity.ScientificNumberFormatter()
+                            .format(quantity.value(), quantity.notation(), false));
                 } else {
                     throw new IllegalArgumentException("Unsupported inline node: " + node.getClass().getName());
                 }

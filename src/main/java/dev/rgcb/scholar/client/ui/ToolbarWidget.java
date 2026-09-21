@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Objects;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import org.lwjgl.glfw.GLFW;
 
 public final class ToolbarWidget {
     public static final int HEIGHT = 24;
@@ -31,6 +32,18 @@ public final class ToolbarWidget {
     private boolean blockStyleOpen;
     private boolean groupOpen;
     private boolean semanticConvertOpen;
+    private int viewportHeight = Integer.MAX_VALUE;
+
+    public void setViewportHeight(int height) { viewportHeight = Math.max(0, height); }
+
+    private int popupX(ToolbarItemBounds control, int popupWidth) {
+        return Math.max(0, Math.min(bounds.x() + control.x(), bounds.right() - popupWidth));
+    }
+
+    private int popupY(ToolbarItemBounds control, int rows) {
+        return Math.max(0, Math.min(bounds.y() + control.y() + control.height() + 2,
+                viewportHeight - rows * POPUP_ROW_HEIGHT));
+    }
 
     public ToolbarWidget(ScholarEditorController controller, List<ToolbarItem> items) {
         this(controller, items, List.of());
@@ -112,8 +125,8 @@ public final class ToolbarWidget {
             blockStyleOpen = false;
             return;
         }
-        var popupX = bounds.x() + control.x();
-        var popupY = bounds.y() + control.y() + control.height() + 2;
+        var popupX = popupX(control, POPUP_WIDTH);
+        var popupY = popupY(control, blockStyleActions.size());
         var popupHeight = blockStyleActions.size() * POPUP_ROW_HEIGHT;
         ScholarShellRenderer.drawRaisedPanel(graphics, popupX, popupY, POPUP_WIDTH, popupHeight, ScholarShellStyle.PANEL_RECESSED);
         graphics.fill(popupX + 3, popupY + 3, popupX + POPUP_WIDTH - 3, popupY + popupHeight - 3, ScholarShellStyle.PANEL_INSET);
@@ -154,8 +167,8 @@ public final class ToolbarWidget {
                 : Math.max(font.width(firstLine), font.width(secondLine));
         var tooltipWidth = textWidth + 10;
         var tooltipHeight = secondLine.isEmpty() ? 17 : 28;
-        var x = mouseX + 10;
-        var y = mouseY + 12;
+        var x = Math.max(0, Math.min(mouseX + 10, bounds.right() - tooltipWidth));
+        var y = Math.max(0, Math.min(mouseY + 12, viewportHeight - tooltipHeight));
         graphics.fill(x, y, x + tooltipWidth, y + tooltipHeight, TOOLTIP_BACKGROUND);
         graphics.renderOutline(x, y, tooltipWidth, tooltipHeight, TOOLTIP_BORDER);
         graphics.drawString(font, firstLine, x + 5, y + 5, TOOLTIP_TEXT, false);
@@ -268,15 +281,15 @@ public final class ToolbarWidget {
     }
 
     public boolean keyPressed(int keyCode) {
-        if (keyCode == 256 && blockStyleOpen) {
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE && blockStyleOpen) {
             blockStyleOpen = false;
             return true;
         }
-        if (keyCode == 256 && groupOpen) {
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE && groupOpen) {
             groupOpen = false;
             return true;
         }
-        if (keyCode == 256 && semanticConvertOpen) {
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE && semanticConvertOpen) {
             semanticConvertOpen = false;
             return true;
         }
@@ -409,8 +422,8 @@ public final class ToolbarWidget {
             groupOpen = false;
             return;
         }
-        var popupX = bounds.x() + control.x();
-        var popupY = bounds.y() + control.y() + control.height() + 2;
+        var popupX = popupX(control, GROUP_POPUP_WIDTH);
+        var popupY = popupY(control, groupActions.size());
         var popupHeight = groupActions.size() * POPUP_ROW_HEIGHT;
         ScholarShellRenderer.drawRaisedPanel(graphics, popupX, popupY, GROUP_POPUP_WIDTH, popupHeight, ScholarShellStyle.PANEL_RECESSED);
         graphics.fill(popupX + 3, popupY + 3, popupX + GROUP_POPUP_WIDTH - 3, popupY + popupHeight - 3, ScholarShellStyle.PANEL_INSET);
@@ -443,8 +456,8 @@ public final class ToolbarWidget {
             semanticConvertOpen = false;
             return;
         }
-        var popupX = bounds.x() + control.x();
-        var popupY = bounds.y() + control.y() + control.height() + 2;
+        var popupX = popupX(control, CONVERT_POPUP_WIDTH);
+        var popupY = popupY(control, semanticConversionActions.size());
         var popupHeight = semanticConversionActions.size() * POPUP_ROW_HEIGHT;
         ScholarShellRenderer.drawRaisedPanel(graphics, popupX, popupY, CONVERT_POPUP_WIDTH, popupHeight, ScholarShellStyle.PANEL_RECESSED);
         graphics.fill(popupX + 3, popupY + 3, popupX + CONVERT_POPUP_WIDTH - 3, popupY + popupHeight - 3, ScholarShellStyle.PANEL_INSET);
@@ -537,8 +550,8 @@ public final class ToolbarWidget {
         if (control == null) {
             return -1;
         }
-        var popupX = bounds.x() + control.x();
-        var popupY = bounds.y() + control.y() + control.height() + 2;
+        var popupX = popupX(control, POPUP_WIDTH);
+        var popupY = popupY(control, blockStyleActions.size());
         if (mouseX < popupX || mouseX >= popupX + POPUP_WIDTH || mouseY < popupY || mouseY >= popupY + blockStyleActions.size() * POPUP_ROW_HEIGHT) {
             return -1;
         }
@@ -551,8 +564,8 @@ public final class ToolbarWidget {
         if (control == null) {
             return -1;
         }
-        var popupX = bounds.x() + control.x();
-        var popupY = bounds.y() + control.y() + control.height() + 2;
+        var popupX = popupX(control, CONVERT_POPUP_WIDTH);
+        var popupY = popupY(control, semanticConversionActions.size());
         if (mouseX < popupX || mouseX >= popupX + CONVERT_POPUP_WIDTH
                 || mouseY < popupY || mouseY >= popupY + semanticConversionActions.size() * POPUP_ROW_HEIGHT) {
             return -1;
@@ -566,8 +579,8 @@ public final class ToolbarWidget {
         if (control == null) {
             return -1;
         }
-        var popupX = bounds.x() + control.x();
-        var popupY = bounds.y() + control.y() + control.height() + 2;
+        var popupX = popupX(control, GROUP_POPUP_WIDTH);
+        var popupY = popupY(control, groupActions.size());
         if (mouseX < popupX || mouseX >= popupX + GROUP_POPUP_WIDTH
                 || mouseY < popupY || mouseY >= popupY + groupActions.size() * POPUP_ROW_HEIGHT) {
             return -1;

@@ -2,6 +2,8 @@
 
 Status: ROM-8 architecture design document. Not yet an accepted ADR. No production classes are implemented by this document.
 
+Authority notice: ROM-8 is accepted supporting rationale. [M25A Transfer Architecture Contract](M25A_TRANSFER_ARCHITECTURE_CONTRACT.md) governs M25B. In particular, provisional repeated cross-document reuse, inferred same-document identity, and missing-resource degraded insertion below are superseded by explicit proof, independent resource materialization, and required-resource rejection.
+
 ## 1. Executive Decision
 
 Scholar transfer should use a minimal transferable resource closure:

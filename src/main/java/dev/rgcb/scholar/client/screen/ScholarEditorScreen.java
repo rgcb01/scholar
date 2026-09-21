@@ -1,6 +1,7 @@
 package dev.rgcb.scholar.client.screen;
 
-import dev.rgcb.scholar.client.DevelopmentDocument;
+import dev.rgcb.scholar.application.ApplicationDocumentWorkspace;
+import dev.rgcb.scholar.application.ScholarApplication;
 import dev.rgcb.scholar.client.editor.MinecraftClipboardAdapter;
 import dev.rgcb.scholar.client.editor.ScholarEditorController;
 import dev.rgcb.scholar.client.render.MinecraftDocumentRenderer;
@@ -8,22 +9,30 @@ import dev.rgcb.scholar.client.render.MinecraftMathTextMeasurer;
 import dev.rgcb.scholar.client.render.MinecraftTextMeasurer;
 import dev.rgcb.scholar.client.render.MinecraftTypographyResolver;
 import dev.rgcb.scholar.client.ui.ContextMenuWidget;
+import dev.rgcb.scholar.client.ui.ApplicationHeaderWidget;
 import dev.rgcb.scholar.client.ui.MenuBarWidget;
+import dev.rgcb.scholar.client.ui.ModalGeometry;
 import dev.rgcb.scholar.client.ui.MenuDefinition;
 import dev.rgcb.scholar.client.ui.MenuEntry;
+import dev.rgcb.scholar.client.ui.MinecraftShortcutMatcher;
 import dev.rgcb.scholar.client.ui.ScholarShellLayout;
 import dev.rgcb.scholar.client.ui.ScholarShellRenderer;
+import dev.rgcb.scholar.client.ui.ScholarShellModel;
 import dev.rgcb.scholar.client.ui.ScholarShellStyle;
+import dev.rgcb.scholar.client.ui.ScholarRibbonModel;
+import dev.rgcb.scholar.client.ui.RibbonWidget;
 import dev.rgcb.scholar.client.ui.ShellRect;
 import dev.rgcb.scholar.client.ui.ToolbarItem;
 import dev.rgcb.scholar.client.ui.ToolbarWidget;
 import dev.rgcb.scholar.editor.BuiltInEditorActions;
+import dev.rgcb.scholar.editor.ActionShortcut;
 import dev.rgcb.scholar.editor.CaretGeometryResolver;
 import dev.rgcb.scholar.editor.DocumentHitTester;
 import dev.rgcb.scholar.editor.DocumentHit;
 import dev.rgcb.scholar.editor.DocumentPosition;
 import dev.rgcb.scholar.editor.EditorAction;
 import dev.rgcb.scholar.editor.EditorActionId;
+import dev.rgcb.scholar.editor.EditorDocumentWorkspace;
 import dev.rgcb.scholar.editor.EditorContextActionResolver;
 import dev.rgcb.scholar.editor.EditorSession;
 import dev.rgcb.scholar.editor.EditorState;
@@ -94,11 +103,15 @@ public final class ScholarEditorScreen extends Screen {
     private static final int DIAGRAM_FOCUS_BORDER = 0xFF6B7280;
     private static final int DIAGRAM_TARGET_BORDER = 0xFF2563EB;
     private static final int DIAGRAM_CONNECTION_SOURCE_BORDER = 0xFFF59E0B;
-    private static final int SCROLL_STEP = 24;
+    private static final ActionShortcut SELECT_ALL_SHORTCUT = ActionShortcut.ctrl(ActionShortcut.Key.A);
 
     private final ScholarTypography typography = ScholarTypography.defaultProfile();
+    private final ApplicationHeaderWidget applicationHeader = new ApplicationHeaderWidget();
     private final DocumentLayoutEngine layoutEngine = new DocumentLayoutEngine(typography);
-    private final EditorSession session = new EditorSession(DevelopmentDocument.createEditable(), 0);
+    private final EditorDocumentWorkspace workspace;
+    private final ScholarApplication application;
+    private final EditorSession session;
+    private final List<EditorAction> fileActions;
     private final List<EditorAction> editActions = BuiltInEditorActions.editMenuActions();
     private final List<EditorAction> insertActions = BuiltInEditorActions.insertMenuActions();
     private final List<EditorAction> blockStyleActions = BuiltInEditorActions.blockStyleActions();
@@ -115,6 +128,8 @@ public final class ScholarEditorScreen extends Screen {
     private final List<EditorAction> diagramActions = BuiltInEditorActions.diagramMenuActions();
     private final List<EditorAction> figureActions = BuiltInEditorActions.figureMenuActions();
     private final List<EditorAction> viewActions = BuiltInEditorActions.viewMenuActions();
+    private final List<EditorAction> viewportActions;
+    private final List<EditorAction> layoutActions = BuiltInEditorActions.layoutMenuActions();
     private final List<EditorAction> dataActions = BuiltInEditorActions.dataMenuActions();
     private final List<EditorAction> allActions = List.of(
             action(editActions, EditorActionId.UNDO),
@@ -247,6 +262,7 @@ public final class ScholarEditorScreen extends Screen {
     private ScholarEditorController controller;
     private MenuBarWidget menuBar;
     private ToolbarWidget toolbar;
+    private RibbonWidget ribbon;
     private ContextMenuWidget contextMenu;
     private boolean equationToolbarActive;
     private boolean semanticTokenPopupOpen;
@@ -289,16 +305,115 @@ public final class ScholarEditorScreen extends Screen {
     private int viewportWidth;
     private int viewportHeight;
     private int scrollOffset;
+    private float zoom = 1.0f;
     private boolean dragging;
     private MathPosition mathDragAnchor;
     private TableCellTextSelection tableDragAnchor;
 
-    private ScholarEditorScreen() {
-        super(Component.literal("Scholar Development Editor"));
+    private ScholarEditorScreen(EditorDocumentWorkspace workspace, ScholarApplication application) {
+        super(Component.literal(application == null ? "Scholar Development Editor" : "Scholar"));
+        this.workspace = workspace;
+        this.application = application;
+        viewportActions = List.of(
+                fileAction(EditorActionId.VIEW_ZOOM_OUT, "Zoom Out", () -> setZoom(zoom - 0.1f)),
+                fileAction(EditorActionId.VIEW_ZOOM_IN, "Zoom In", () -> setZoom(zoom + 0.1f)),
+                fileAction(EditorActionId.VIEW_FIT_PAGE, "Fit Page", this::fitPage),
+                fileAction(EditorActionId.VIEW_FIT_WIDTH, "Fit Width", this::fitWidth));
+        session = workspace.session();
+        fileActions = List.of(
+                fileAction(EditorActionId.FILE_NEW, "New", () -> protectUnsaved(() -> {
+                    if (application == null) {
+                        ((dev.rgcb.scholar.editor.DocumentWorkspace) workspace).newDocument();
+                        minecraft.setScreen(forWorkspace((dev.rgcb.scholar.editor.DocumentWorkspace) workspace));
+                    } else openCreatedDocument();
+                })),
+                fileAction(EditorActionId.FILE_OPEN, application == null ? "Open..." : "Open / Home", () -> protectUnsaved(this::openHomeOrLegacyDialog)),
+                fileAction(EditorActionId.FILE_SAVE, "Save", this::saveDocument),
+                fileAction(EditorActionId.FILE_SAVE_AS, "Save As...", () -> minecraft.setScreen(ScholarFileDialog.save(this, workspace, () -> { }))),
+                fileAction(EditorActionId.FILE_RENAME, "Rename...", () -> minecraft.setScreen(ScholarFileDialog.rename(this, workspace))),
+                fileAction(EditorActionId.FILE_CLOSE, "Close", () -> protectUnsaved(this::returnFromEditor)));
     }
 
-    public static ScholarEditorScreen createDevelopmentScreen() {
-        return new ScholarEditorScreen();
+    static ScholarEditorScreen forWorkspace(dev.rgcb.scholar.editor.DocumentWorkspace workspace) {
+        return new ScholarEditorScreen(workspace, null);
+    }
+
+    public static ScholarEditorScreen forApplication(ScholarApplication application, ApplicationDocumentWorkspace workspace) {
+        return new ScholarEditorScreen(workspace, application);
+    }
+
+    private EditorAction fileAction(EditorActionId id, String label, Runnable operation) {
+        return new EditorAction() {
+            public EditorActionId id() { return id; }
+            public String label() { return label; }
+            public String tooltip() {
+                return switch (id) {
+                    case FILE_NEW -> "Create a new Scholar document";
+                    case FILE_OPEN -> "Open a Scholar document";
+                    case FILE_SAVE -> "Save the current Scholar document";
+                    case FILE_SAVE_AS -> "Save a copy with a different name";
+                    case FILE_RENAME -> "Rename the current Scholar document";
+                    case FILE_CLOSE -> "Close the current document";
+                    default -> label;
+                };
+            }
+            public java.util.Optional<ActionShortcut> shortcut() {
+                return dev.rgcb.scholar.client.ui.ScholarScreenActionShortcuts.forAction(id);
+            }
+            public boolean isEnabled(dev.rgcb.scholar.editor.EditorActionContext context) { return true; }
+            public dev.rgcb.scholar.editor.EditorActionResult execute(dev.rgcb.scholar.editor.EditorActionContext context) {
+                contextMenu = null;
+                if (menuBar != null) menuBar.close();
+                if (toolbar != null) toolbar.closePopup();
+                if (ribbon != null) ribbon.closePopup();
+                operation.run();
+                return dev.rgcb.scholar.editor.EditorActionResult.NONE;
+            }
+        };
+    }
+
+    private void saveDocument() {
+        if (workspace.name().isEmpty()) {
+            minecraft.setScreen(ScholarFileDialog.save(this, workspace, () -> { }));
+        } else {
+            var result = workspace.save();
+            if (result instanceof dev.rgcb.scholar.persistence.PersistenceResult.Failure<?>) {
+                minecraft.setScreen(ScholarFileDialog.error(this, workspace, result));
+            }
+        }
+    }
+
+    private void openCreatedDocument() {
+        var result = application.createDocument();
+        if (result instanceof dev.rgcb.scholar.persistence.PersistenceResult.Success<ApplicationDocumentWorkspace> success) {
+            minecraft.setScreen(forApplication(application, success.value()));
+        } else minecraft.setScreen(ScholarFileDialog.error(this, workspace, result));
+    }
+
+    private void openHomeOrLegacyDialog() {
+        if (application == null) minecraft.setScreen(ScholarFileDialog.open(this, (dev.rgcb.scholar.editor.DocumentWorkspace) workspace));
+        else returnFromEditor();
+    }
+
+    private void returnFromEditor() {
+        minecraft.setScreen(application == null ? null : ScholarHomeScreen.forApplication(application));
+    }
+
+    private void protectUnsaved(Runnable continuation) {
+        dragging = false;
+        mathDragAnchor = null;
+        tableDragAnchor = null;
+        session.cancelDiagramElementDrag();
+        contextMenu = null;
+        if (menuBar != null) menuBar.close();
+        if (toolbar != null) toolbar.closePopup();
+        if (ribbon != null) ribbon.closePopup();
+        if (workspace.isDirty()) minecraft.setScreen(ScholarFileDialog.unsaved(this, workspace, continuation));
+        else continuation.run();
+    }
+
+    @Override public void onClose() {
+        protectUnsaved(this::returnFromEditor);
     }
 
     @Override
@@ -315,13 +430,29 @@ public final class ScholarEditorScreen extends Screen {
                     this::openCrossReferencePopup,
                     this::toggleOutline);
             menuBar = new MenuBarWidget(controller, menuDefinitions());
-            refreshContextualToolbar();
+            if (application == null) {
+                refreshContextualToolbar();
+            } else {
+                menuBar = null;
+                ribbon = new RibbonWidget(controller, ScholarRibbonModel.production(fileActions, editActions,
+                        formatActions, blockStyleActions, insertActions, dataActions, tableActions, plotActions,
+                        figureActions, diagramActions, layoutActions, combinedViewActions()));
+            }
         }
         relayout();
     }
 
     @Override
     public void resize(Minecraft minecraft, int width, int height) {
+        session.cancelDiagramElementDrag();
+        dragging = false;
+        diagramPanning = false;
+        diagramPanBlockIndex = -1;
+        mathDragAnchor = null;
+        tableDragAnchor = null;
+        if (toolbar != null) { toolbar.closePopup(); }
+        if (menuBar != null) { menuBar.close(); }
+        if (ribbon != null) { ribbon.closePopup(); }
         super.resize(minecraft, width, height);
         contextMenu = null;
         relayout();
@@ -329,16 +460,20 @@ public final class ScholarEditorScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        refreshContextualToolbar();
+        if (application == null) refreshContextualToolbar();
         graphics.fill(0, 0, width, height, BACKGROUND_COLOR);
         if (laidOutDocument != null && typographyResolver != null && textMeasurer != null) {
+            graphics.pose().pushPose();
+            graphics.pose().translate(viewportX, viewportY, 0);
+            graphics.pose().scale(zoom, zoom, 1.0f);
+            graphics.pose().translate(-viewportX, -viewportY, 0);
             new MinecraftDocumentRenderer(typographyResolver).render(
                     graphics,
                     laidOutDocument,
                     viewportX,
                     viewportY,
                     viewportWidth,
-                    viewportHeight,
+                    logicalViewportHeight(),
                     scrollOffset);
             renderSelection(graphics);
             renderObjectSelection(graphics);
@@ -347,9 +482,14 @@ public final class ScholarEditorScreen extends Screen {
             renderTableEditing(graphics);
             renderPlotEditing(graphics);
             renderDiagramEditing(graphics);
+            graphics.pose().popPose();
         }
         if (toolbar != null) {
             toolbar.render(graphics, font, mouseX, mouseY);
+        }
+        applicationHeader.render(graphics, font, shellLayout.applicationHeaderBounds(), workspace.name().orElse("Untitled"), workspace.isDirty());
+        if (ribbon != null) {
+            ribbon.render(graphics, font, mouseX, mouseY);
         }
         if (menuBar != null) {
             menuBar.render(graphics, font, width, height, mouseX, mouseY);
@@ -360,6 +500,7 @@ public final class ScholarEditorScreen extends Screen {
         if (toolbar != null && (menuBar == null || !menuBar.isOpen())) {
             toolbar.renderTooltip(graphics, font, mouseX, mouseY);
         }
+        if (ribbon != null) ribbon.renderTooltip(graphics, font, mouseX, mouseY, height);
         if (contextMenu != null && !anyModalPopupOpen()) {
             contextMenu.render(graphics, font, width, height, mouseX, mouseY);
         }
@@ -557,6 +698,10 @@ public final class ScholarEditorScreen extends Screen {
         if (toolbar != null && toolbar.keyPressed(keyCode)) {
             return true;
         }
+        if (ribbon != null && ribbon.isPopupOpen() && keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            ribbon.closePopup();
+            return true;
+        }
 
         var shiftDown = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;
         if (editorState().isTableEditingSelection()) {
@@ -683,43 +828,16 @@ public final class ScholarEditorScreen extends Screen {
                 return true;
             }
         }
-        if (Screen.hasControlDown()) {
-            if (keyCode == GLFW.GLFW_KEY_Z && shiftDown) {
-                executeAction(EditorActionId.REDO);
+        for (var action : java.util.stream.Stream.concat(fileActions.stream(), allActions.stream()).toList()) {
+            if (action.shortcut().isPresent()
+                    && MinecraftShortcutMatcher.matches(action.shortcut().orElseThrow(), keyCode, modifiers)) {
+                controller.execute(action);
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_Z) {
-                executeAction(EditorActionId.UNDO);
-                return true;
-            }
-            if (keyCode == GLFW.GLFW_KEY_Y) {
-                executeAction(EditorActionId.REDO);
-                return true;
-            }
-            if (keyCode == GLFW.GLFW_KEY_C) {
-                executeAction(EditorActionId.COPY);
-                return true;
-            }
-            if (keyCode == GLFW.GLFW_KEY_X) {
-                executeAction(EditorActionId.CUT);
-                return true;
-            }
-            if (keyCode == GLFW.GLFW_KEY_V) {
-                executeAction(EditorActionId.PASTE);
-                return true;
-            }
-            if (keyCode == GLFW.GLFW_KEY_A) {
-                controller.selectAll();
-                return true;
-            }
-            if (keyCode == GLFW.GLFW_KEY_B) {
-                executeAction(EditorActionId.BOLD);
-                return true;
-            }
-            if (keyCode == GLFW.GLFW_KEY_I) {
-                executeAction(EditorActionId.ITALIC);
-                return true;
-            }
+        }
+        if (MinecraftShortcutMatcher.matches(SELECT_ALL_SHORTCUT, keyCode, modifiers)) {
+            controller.selectAll();
+            return true;
         }
         if (menuBar != null && menuBar.isOpen()) {
             return true;
@@ -823,6 +941,9 @@ public final class ScholarEditorScreen extends Screen {
         if (outlineOpen && contains(outlinePanelRect(), mouseX, mouseY)) {
             return outlinePanelClicked(mouseX, mouseY);
         }
+        if (ribbon != null && ribbon.isPopupOpen()) {
+            return ribbon.mouseClicked(mouseX, mouseY, button);
+        }
         if (toolbar != null && toolbar.isPopupOpen()) {
             toolbar.mouseClicked(mouseX, mouseY);
             return true;
@@ -837,6 +958,9 @@ public final class ScholarEditorScreen extends Screen {
             if (menuBar != null && toolbar.isPopupOpen()) {
                 menuBar.close();
             }
+            return true;
+        }
+        if (ribbon != null && ribbon.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
         if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
@@ -1041,6 +1165,9 @@ public final class ScholarEditorScreen extends Screen {
         if (toolbar != null && toolbar.mouseReleased(mouseX, mouseY)) {
             return true;
         }
+        if (ribbon != null && ribbon.mouseReleased(mouseX, mouseY, button)) {
+            return true;
+        }
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && dragging) {
             dragging = false;
             mathDragAnchor = null;
@@ -1052,6 +1179,10 @@ public final class ScholarEditorScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (contextMenu == null && !anyModalPopupOpen() && menuBar != null && mouseY < MenuBarWidget.HEIGHT
+                && menuBar.mouseScrolled(mouseX, mouseY, scrollY)) {
+            return true;
+        }
         if (contextMenu != null) {
             if (contextMenu.mouseScrolled(mouseX, mouseY, scrollY)) {
                 return true;
@@ -1068,8 +1199,12 @@ public final class ScholarEditorScreen extends Screen {
         if (toolbar != null && toolbar.contains(mouseX, mouseY)) {
             return true;
         }
+        if (ribbon != null && ribbon.contains(mouseX, mouseY)) {
+            ribbon.mouseScrolled(mouseX, mouseY, scrollY);
+            return true;
+        }
         if (outlineOpen && contains(outlinePanelRect(), mouseX, mouseY)) {
-            outlineScroll = clampOutlineScroll(outlineScroll - (int) Math.signum(scrollY) * SCROLL_STEP);
+            outlineScroll = clampOutlineScroll(outlineScroll - (int) Math.signum(scrollY) * ScholarShellLayout.DOCUMENT_SCROLL_STEP);
             return true;
         }
         if (laidOutDocument == null || !isInsideViewport(mouseX, mouseY)) {
@@ -1090,7 +1225,7 @@ public final class ScholarEditorScreen extends Screen {
             }
         }
 
-        scrollOffset = clampScroll(scrollOffset - (int) Math.signum(scrollY) * SCROLL_STEP);
+        scrollOffset = clampScroll(scrollOffset - (int) Math.signum(scrollY) * ScholarShellLayout.DOCUMENT_SCROLL_STEP);
         return true;
     }
 
@@ -1112,6 +1247,9 @@ public final class ScholarEditorScreen extends Screen {
         }
         if (toolbar != null) {
             toolbar.closePopup();
+        }
+        if (ribbon != null) {
+            ribbon.closePopup();
         }
         dragging = false;
         mathDragAnchor = null;
@@ -1235,26 +1373,31 @@ public final class ScholarEditorScreen extends Screen {
             return;
         }
 
-        shellLayout = ScholarShellLayout.compute(width, height);
-        refreshContextualToolbar();
+        shellLayout = ScholarShellLayout.compute(width, height, application != null);
+        if (menuBar != null) { menuBar.setViewportSize(width, height); }
+        if (application == null) refreshContextualToolbar();
         if (toolbar != null) {
             toolbar.setBounds(shellLayout.toolbarBounds());
+            toolbar.setViewportHeight(height);
+        }
+        if (ribbon != null) {
+            ribbon.setBounds(shellLayout.menuBarBounds(), shellLayout.toolbarBounds());
+            ribbon.setViewportHeight(height);
         }
         var horizontalMargin = Math.max(typography.minPageMargin(), width / 12);
-        viewportWidth = Math.min(typography.maxReadableContentWidth(), Math.max(80, width - horizontalMargin * 2));
         viewportHeight = Math.max(60, shellLayout.documentWorkspaceBounds().height() - typography.minPageMargin() * 2);
-        viewportX = (width - viewportWidth) / 2;
         viewportY = shellLayout.documentWorkspaceBounds().y() + typography.minPageMargin();
         typographyResolver = new MinecraftTypographyResolver(font, typography);
         textMeasurer = new MinecraftTextMeasurer(typographyResolver);
         mathTextMeasurer = new MinecraftMathTextMeasurer(typographyResolver);
         diagramViewports.reconcile(editorState().document());
-        laidOutDocument = layoutEngine.layout(
+        laidOutDocument = layoutEngine.layoutPaginated(
                 editorState().document(),
-                viewportWidth,
                 textMeasurer,
                 mathTextMeasurer,
                 this::diagramViewportFor);
+        viewportWidth = Math.min(laidOutDocument.width(), Math.max(80, width - horizontalMargin * 2));
+        viewportX = (width - viewportWidth) / 2;
         scrollOffset = clampScroll(scrollOffset);
         if (controller != null) {
             controller.clearPreferredCaretX();
@@ -1265,8 +1408,8 @@ public final class ScholarEditorScreen extends Screen {
         if (document == null || textMeasurer == null || mathTextMeasurer == null || viewportWidth <= 0) {
             return;
         }
-        laidOutDocument = layoutEngine.layout(
-                document, viewportWidth, textMeasurer, mathTextMeasurer, this::diagramViewportFor);
+        laidOutDocument = layoutEngine.layoutPaginated(
+                document, textMeasurer, mathTextMeasurer, this::diagramViewportFor);
         scrollOffset = clampScroll(scrollOffset);
     }
 
@@ -1790,29 +1933,17 @@ public final class ScholarEditorScreen extends Screen {
         }
         if (editorState().isPlotEditingSelection()) {
             var block = laidOutDocument.blocks().get(editorState().plotEditingSelection().blockIndex());
-            if (block.y() - scrollOffset < 0) {
-                scrollOffset = clampScroll(block.y());
-            } else if (block.y() + block.height() - scrollOffset > viewportHeight) {
-                scrollOffset = clampScroll(block.y() + block.height() - viewportHeight);
-            }
+            scrollOffset = dev.rgcb.scholar.editor.ScrollGeometry.reveal(scrollOffset, laidOutDocument.height(), viewportHeight, block.y(), block.height());
             return;
         }
         if (editorState().isDiagramEditingSelection()) {
             var block = laidOutDocument.blocks().get(editorState().diagramEditingSelection().blockIndex());
-            if (block.y() - scrollOffset < 0) {
-                scrollOffset = clampScroll(block.y());
-            } else if (block.y() + block.height() - scrollOffset > viewportHeight) {
-                scrollOffset = clampScroll(block.y() + block.height() - viewportHeight);
-            }
+            scrollOffset = dev.rgcb.scholar.editor.ScrollGeometry.reveal(scrollOffset, laidOutDocument.height(), viewportHeight, block.y(), block.height());
             return;
         }
         if (editorState().isBlockSelection()) {
             var block = laidOutDocument.blocks().get(editorState().blockSelection().blockIndex());
-            if (block.y() - scrollOffset < 0) {
-                scrollOffset = clampScroll(block.y());
-            } else if (block.y() + block.height() - scrollOffset > viewportHeight) {
-                scrollOffset = clampScroll(block.y() + block.height() - viewportHeight);
-            }
+            scrollOffset = dev.rgcb.scholar.editor.ScrollGeometry.reveal(scrollOffset, laidOutDocument.height(), viewportHeight, block.y(), block.height());
             return;
         }
         var caret = caretGeometryResolver.resolve(editorState().caret(), laidOutDocument, textMeasurer);
@@ -1992,8 +2123,7 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private int clampScroll(int value) {
-        var maxScroll = laidOutDocument == null ? 0 : Math.max(0, laidOutDocument.height() - viewportHeight);
-        return Math.max(0, Math.min(value, maxScroll));
+        return dev.rgcb.scholar.editor.ScrollGeometry.clamp(value, laidOutDocument == null ? 0 : laidOutDocument.height(), logicalViewportHeight());
     }
 
     private boolean isInsideViewport(double mouseX, double mouseY) {
@@ -2125,11 +2255,37 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private int documentLocalX(double mouseX) {
-        return (int) Math.round(mouseX) - viewportX;
+        return (int) Math.round((mouseX - viewportX) / zoom);
     }
 
     private int documentLocalY(double mouseY) {
-        return (int) Math.round(mouseY) - viewportY + scrollOffset;
+        return (int) Math.round((mouseY - viewportY) / zoom) + scrollOffset;
+    }
+
+    private int logicalViewportHeight() {
+        return Math.max(1, Math.round(viewportHeight / zoom));
+    }
+
+    private List<EditorAction> combinedViewActions() {
+        var result = new java.util.ArrayList<EditorAction>(viewActions);
+        result.addAll(viewportActions);
+        return List.copyOf(result);
+    }
+
+    private void setZoom(float value) {
+        zoom = Math.max(0.4f, Math.min(2.0f, Math.round(value * 10.0f) / 10.0f));
+        scrollOffset = clampScroll(scrollOffset);
+    }
+
+    private void fitPage() {
+        if (laidOutDocument == null || laidOutDocument.pages().isEmpty()) return;
+        var page = laidOutDocument.pages().getFirst();
+        setZoom(Math.min((float) viewportWidth / page.width(), (float) viewportHeight / page.height()));
+    }
+
+    private void fitWidth() {
+        if (laidOutDocument == null) return;
+        setZoom((float) viewportWidth / laidOutDocument.width());
     }
 
     private List<ToolbarItem> toolbarItems() {
@@ -2157,7 +2313,7 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void refreshContextualToolbar() {
-        if (controller == null) {
+        if (controller == null || application != null) {
             return;
         }
         var mathMode = editorState().isEquationEditingSelection();
@@ -2170,7 +2326,12 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private List<MenuDefinition> menuDefinitions() {
+        if (application != null) {
+            return ScholarShellModel.production(fileActions, editActions, formatActions, insertActions,
+                    dataActions, tableActions, plotActions, figureActions, diagramActions, viewActions);
+        }
         return List.of(
+                new MenuDefinition("File", fileActions.stream().map(MenuEntry::action).toList()),
                 new MenuDefinition("Edit", List.of(
                         MenuEntry.action(action(EditorActionId.UNDO)),
                         MenuEntry.action(action(EditorActionId.REDO)),
@@ -2688,7 +2849,7 @@ public final class ScholarEditorScreen extends Screen {
     private ShellRect plotValuePopupRect() {
         var popupWidth = 310;
         var popupHeight = plotPopupTarget instanceof PlotPointTarget ? 148 : 118;
-        return new ShellRect((width - popupWidth) / 2, Math.max(MenuBarWidget.HEIGHT + 12, (height - popupHeight) / 2), popupWidth, popupHeight);
+        return ModalGeometry.centered(width, height, popupWidth, popupHeight, MenuBarWidget.HEIGHT + 12);
     }
 
     private void openDiagramCanvasPopup() {
@@ -2816,7 +2977,7 @@ public final class ScholarEditorScreen extends Screen {
     private ShellRect diagramCanvasPopupRect() {
         var popupWidth = 330;
         var popupHeight = 150;
-        return new ShellRect((width - popupWidth) / 2, Math.max(MenuBarWidget.HEIGHT + 12, (height - popupHeight) / 2), popupWidth, popupHeight);
+        return ModalGeometry.centered(width, height, popupWidth, popupHeight, MenuBarWidget.HEIGHT + 12);
     }
 
     private static String formatDiagramDimension(double value) {
@@ -2925,7 +3086,7 @@ public final class ScholarEditorScreen extends Screen {
     private ShellRect diagramLabelPopupRect() {
         var popupWidth = 310;
         var popupHeight = 118;
-        return new ShellRect((width - popupWidth) / 2, Math.max(MenuBarWidget.HEIGHT + 12, (height - popupHeight) / 2), popupWidth, popupHeight);
+        return ModalGeometry.centered(width, height, popupWidth, popupHeight, MenuBarWidget.HEIGHT + 12);
     }
 
     private void openElectricalComponentPopup() {
@@ -3030,7 +3191,7 @@ public final class ScholarEditorScreen extends Screen {
     private ShellRect electricalComponentPopupRect() {
         var popupWidth = 330;
         var popupHeight = 150;
-        return new ShellRect((width - popupWidth) / 2, Math.max(MenuBarWidget.HEIGHT + 12, (height - popupHeight) / 2), popupWidth, popupHeight);
+        return ModalGeometry.centered(width, height, popupWidth, popupHeight, MenuBarWidget.HEIGHT + 12);
     }
 
     private static ShellRect electricalReferenceFieldRect(ShellRect popup) {
@@ -3060,13 +3221,13 @@ public final class ScholarEditorScreen extends Screen {
     private ShellRect semanticTokenPopupRect() {
         var popupWidth = 270;
         var popupHeight = 144;
-        return new ShellRect((width - popupWidth) / 2, Math.max(MenuBarWidget.HEIGHT + 12, (height - popupHeight) / 2), popupWidth, popupHeight);
+        return ModalGeometry.centered(width, height, popupWidth, popupHeight, MenuBarWidget.HEIGHT + 12);
     }
 
     private ShellRect crossReferencePopupRect() {
         var popupWidth = 360;
         var popupHeight = 66 + crossReferencePopupVisibleRows() * 20;
-        return new ShellRect((width - popupWidth) / 2, Math.max(MenuBarWidget.HEIGHT + 12, (height - popupHeight) / 2), popupWidth, popupHeight);
+        return ModalGeometry.centered(width, height, popupWidth, popupHeight, MenuBarWidget.HEIGHT + 12);
     }
 
     private int crossReferencePopupVisibleRows() {

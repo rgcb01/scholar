@@ -121,7 +121,7 @@ class FigureEditorTest {
 
         assertFalse(result.documentChanged());
         assertEquals(serializer.serialize(figure, 1), clipboard.text);
-        assertEquals(figure, assertInstanceOf(FigureClipboardPayload.class, sidecar.snapshot().orElseThrow().payload()).figure());
+        assertEquals(figure, dev.rgcb.scholar.editor.TransferClipboardAssertions.root(dev.rgcb.scholar.document.FigureBlock.class, sidecar.snapshot().orElseThrow().payload()));
         assertEquals(new BlockSelection(1), session.current().selection());
         assertFalse(session.canUndo());
     }

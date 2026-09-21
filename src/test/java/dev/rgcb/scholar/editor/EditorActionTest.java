@@ -191,6 +191,7 @@ class EditorActionTest {
                 EditorActionId.INSERT_DIAGRAM,
                 EditorActionId.INSERT_CROSS_REFERENCE,
                 EditorActionId.INSERT_TABLE_OF_CONTENTS,
+                EditorActionId.INSERT_PAGE_BREAK,
                 EditorActionId.MATH_INSERT_FRACTION,
                 EditorActionId.MATH_INSERT_ROOT,
                 EditorActionId.MATH_INSERT_PARENTHESES_GROUP,
@@ -199,7 +200,20 @@ class EditorActionTest {
                 EditorActionId.MATH_INSERT_SUPERSCRIPT,
                 EditorActionId.MATH_INSERT_SUBSCRIPT,
                 EditorActionId.MATH_CONVERT_NAMED_OPERATOR,
-                EditorActionId.MATH_CONVERT_TEXT), actions.stream().map(EditorAction::id).toList());
+                EditorActionId.MATH_CONVERT_TEXT,
+                EditorActionId.INSERT_QUANTITY_METRE,
+                EditorActionId.INSERT_QUANTITY_CELSIUS,
+                EditorActionId.INSERT_QUANTITY_VOLT,
+                EditorActionId.INSERT_QUANTITY_MILLIAMPERE,
+                EditorActionId.INSERT_QUANTITY_KILOOHM,
+                EditorActionId.INSERT_QUANTITY_ACCELERATION,
+                EditorActionId.QUANTITY_CONVERT_METRE,
+                EditorActionId.QUANTITY_CONVERT_MILLIMETRE,
+                EditorActionId.QUANTITY_CONVERT_CELSIUS,
+                EditorActionId.QUANTITY_CONVERT_KELVIN,
+                EditorActionId.QUANTITY_FORMAT_DECIMAL,
+                EditorActionId.QUANTITY_FORMAT_SCIENTIFIC,
+                EditorActionId.QUANTITY_FORMAT_ENGINEERING), actions.stream().map(EditorAction::id).toList());
         assertEquals("Equation", actions.get(0).label());
         assertEquals("Table", actions.get(1).label());
         assertEquals("Plot", actions.get(2).label());
@@ -208,20 +222,21 @@ class EditorActionTest {
         assertEquals("Insert cross-reference", actions.get(4).tooltip());
         assertEquals("Table of Contents", actions.get(5).label());
         assertEquals("Insert table of contents", actions.get(5).tooltip());
-        assertEquals("Fraction", actions.get(6).label());
-        assertEquals("Insert fraction", actions.get(6).tooltip());
-        assertEquals("Root", actions.get(7).label());
-        assertEquals("Insert square root", actions.get(7).tooltip());
-        assertEquals("Parentheses", actions.get(8).label());
-        assertEquals("Insert parentheses group", actions.get(8).tooltip());
-        assertEquals("Brackets", actions.get(9).label());
-        assertEquals("Insert brackets group", actions.get(9).tooltip());
-        assertEquals("Braces", actions.get(10).label());
-        assertEquals("Insert braces group", actions.get(10).tooltip());
-        assertEquals("Superscript", actions.get(11).label());
-        assertEquals("Insert superscript", actions.get(11).tooltip());
-        assertEquals("Subscript", actions.get(12).label());
-        assertEquals("Insert subscript", actions.get(12).tooltip());
+        assertEquals("Page Break", actions.get(6).label());
+        assertEquals("Fraction", actions.get(7).label());
+        assertEquals("Insert fraction", actions.get(7).tooltip());
+        assertEquals("Root", actions.get(8).label());
+        assertEquals("Insert square root", actions.get(8).tooltip());
+        assertEquals("Parentheses", actions.get(9).label());
+        assertEquals("Insert parentheses group", actions.get(9).tooltip());
+        assertEquals("Brackets", actions.get(10).label());
+        assertEquals("Insert brackets group", actions.get(10).tooltip());
+        assertEquals("Braces", actions.get(11).label());
+        assertEquals("Insert braces group", actions.get(11).tooltip());
+        assertEquals("Superscript", actions.get(12).label());
+        assertEquals("Insert superscript", actions.get(12).tooltip());
+        assertEquals("Subscript", actions.get(13).label());
+        assertEquals("Insert subscript", actions.get(13).tooltip());
     }
 
     @Test
@@ -246,7 +261,19 @@ class EditorActionTest {
                 EditorActionId.HEADING_5,
                 EditorActionId.HEADING_6,
                 EditorActionId.BOLD,
-                EditorActionId.ITALIC), actions.stream().map(EditorAction::id).toList());
+                EditorActionId.ITALIC,
+                EditorActionId.UNDERLINE,
+                EditorActionId.TEXT_SUPERSCRIPT,
+                EditorActionId.TEXT_SUBSCRIPT,
+                EditorActionId.STYLE_BODY, EditorActionId.STYLE_TITLE, EditorActionId.STYLE_SUBTITLE,
+                EditorActionId.STYLE_AUTHOR, EditorActionId.STYLE_AFFILIATION, EditorActionId.STYLE_ABSTRACT,
+                EditorActionId.STYLE_KEYWORDS, EditorActionId.STYLE_REFERENCE,
+                EditorActionId.FONT_SIZE_10, EditorActionId.FONT_SIZE_12, EditorActionId.FONT_SIZE_14,
+                EditorActionId.FONT_SOURCE_SANS, EditorActionId.FONT_SCIENTIFIC_MATH,
+                EditorActionId.ALIGN_LEFT, EditorActionId.ALIGN_CENTER, EditorActionId.ALIGN_RIGHT,
+                EditorActionId.ALIGN_JUSTIFIED, EditorActionId.LINE_SPACING_SINGLE,
+                EditorActionId.LINE_SPACING_ONE_HALF, EditorActionId.INDENT_DECREASE,
+                EditorActionId.INDENT_INCREASE), actions.stream().map(EditorAction::id).toList());
         assertEquals("Ctrl+B", actions.get(7).shortcut().orElseThrow().displayText());
         assertEquals("Ctrl+I", actions.get(8).shortcut().orElseThrow().displayText());
     }
@@ -833,7 +860,7 @@ class EditorActionTest {
     }
 
     @Test
-    void textCopyClearsExistingMathSidecar() {
+    void textCopyReplacesExistingMathSidecarWithSemanticFragment() {
         var session = session("abcdef");
         var clipboard = new FakeClipboard();
         var sidecar = new ScholarClipboardService();
@@ -843,11 +870,11 @@ class EditorActionTest {
         BuiltInEditorActions.copy().execute(new EditorActionContext(session, clipboard, sidecar));
 
         assertEquals("bc", clipboard.text);
-        assertTrue(sidecar.snapshot().isEmpty());
+        TransferClipboardAssertions.inline(sidecar.snapshot().orElseThrow().payload());
     }
 
     @Test
-    void textCutClearsExistingMathSidecarAfterSuccessfulWrite() {
+    void textCutReplacesExistingMathSidecarAfterSuccessfulWrite() {
         var session = session("abcdef");
         var clipboard = new FakeClipboard();
         var sidecar = new ScholarClipboardService();
@@ -858,7 +885,7 @@ class EditorActionTest {
 
         assertEquals("bc", clipboard.text);
         assertEquals("adef", paragraphText(session.current().document()));
-        assertTrue(sidecar.snapshot().isEmpty());
+        TransferClipboardAssertions.inline(sidecar.snapshot().orElseThrow().payload());
     }
 
     @Test

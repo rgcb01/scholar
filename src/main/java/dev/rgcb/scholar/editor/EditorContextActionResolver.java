@@ -7,6 +7,15 @@ import dev.rgcb.scholar.document.Heading;
 import dev.rgcb.scholar.document.PlotBlock;
 import dev.rgcb.scholar.document.TableBlock;
 import dev.rgcb.scholar.document.TableOfContentsBlock;
+import dev.rgcb.scholar.diagram.DiagramNode;
+import dev.rgcb.scholar.electrical.ElectricalComponent;
+import dev.rgcb.scholar.electrical.ElectricalJunction;
+import dev.rgcb.scholar.mechanical.MechanicalAnnotation;
+import dev.rgcb.scholar.mechanical.MechanicalConstraint;
+import dev.rgcb.scholar.mechanical.MechanicalDimension;
+import dev.rgcb.scholar.mechanical.MechanicalPartReference;
+import dev.rgcb.scholar.mechanical.MechanicalPrimitive;
+import dev.rgcb.scholar.mechanical.MechanicalSymbol;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -74,7 +83,7 @@ public final class EditorContextActionResolver {
             return clean(entries);
         }
         if (state.isDiagramEditingSelection()) {
-            addDiagramActions(entries, actions, state.diagramEditingSelection().target());
+            addDiagramActions(entries, actions, state);
             return clean(entries);
         }
         if (state.isFigureCaptionSelection()) {
@@ -135,25 +144,52 @@ public final class EditorContextActionResolver {
         }
     }
 
-    private static void addDiagramActions(List<ContextMenuEntry> entries, Map<EditorActionId, EditorAction> actions, DiagramEditTarget target) {
-        if (target instanceof DiagramElementTarget) {
-            addActions(entries, actions,
-                    EditorActionId.DIAGRAM_ROTATE_CLOCKWISE,
-                    EditorActionId.DIAGRAM_ROTATE_COUNTERCLOCKWISE,
-                    EditorActionId.DIAGRAM_DELETE_ELECTRICAL_COMPONENT,
-                    EditorActionId.DIAGRAM_DELETE_JUNCTION,
-                    EditorActionId.DIAGRAM_DELETE_MECHANICAL_PRIMITIVE,
-                    EditorActionId.DIAGRAM_DELETE_MECHANICAL_DIMENSION,
-                    EditorActionId.DIAGRAM_DELETE_MECHANICAL_CONSTRAINT,
-                    EditorActionId.DIAGRAM_DELETE_MECHANICAL_SYMBOL,
-                    EditorActionId.DIAGRAM_DELETE_MECHANICAL_ANNOTATION,
-                    EditorActionId.DIAGRAM_DELETE_MECHANICAL_PART_REFERENCE,
-                    EditorActionId.DIAGRAM_DELETE_NODE);
-            addSeparator(entries);
-            addActions(entries, actions,
-                    EditorActionId.DIAGRAM_START_CONNECTION,
-                    EditorActionId.DIAGRAM_ADD_MECHANICAL_PART_REFERENCE,
-                    EditorActionId.DIAGRAM_GENERATE_MECHANICAL_BOM);
+    private static void addDiagramActions(List<ContextMenuEntry> entries, Map<EditorActionId, EditorAction> actions, EditorState state) {
+        var selection = state.diagramEditingSelection();
+        var target = selection.target();
+        var diagram = diagramAt(state, selection.blockIndex()).orElse(null);
+        if (diagram == null) {
+            return;
+        }
+        if (target instanceof DiagramElementTarget elementTarget) {
+            if (elementTarget.elementIndex() < 0
+                    || elementTarget.elementIndex() >= diagram.definition().elements().size()) {
+                return;
+            }
+            var element = diagram.definition().elements().get(elementTarget.elementIndex());
+            if (element instanceof ElectricalComponent) {
+                addActions(entries, actions,
+                        EditorActionId.DIAGRAM_ROTATE_CLOCKWISE,
+                        EditorActionId.DIAGRAM_ROTATE_COUNTERCLOCKWISE,
+                        EditorActionId.DIAGRAM_DELETE_ELECTRICAL_COMPONENT,
+                        EditorActionId.DIAGRAM_START_CONNECTION);
+            } else if (element instanceof ElectricalJunction) {
+                addActions(entries, actions,
+                        EditorActionId.DIAGRAM_DELETE_JUNCTION,
+                        EditorActionId.DIAGRAM_START_CONNECTION);
+            } else if (element instanceof MechanicalPrimitive) {
+                addActions(entries, actions,
+                        EditorActionId.DIAGRAM_DELETE_MECHANICAL_PRIMITIVE,
+                        EditorActionId.DIAGRAM_ADD_MECHANICAL_PART_REFERENCE,
+                        EditorActionId.DIAGRAM_GENERATE_MECHANICAL_BOM);
+            } else if (element instanceof MechanicalDimension) {
+                addActions(entries, actions, EditorActionId.DIAGRAM_DELETE_MECHANICAL_DIMENSION);
+            } else if (element instanceof MechanicalConstraint) {
+                addActions(entries, actions, EditorActionId.DIAGRAM_DELETE_MECHANICAL_CONSTRAINT);
+            } else if (element instanceof MechanicalSymbol) {
+                addActions(entries, actions,
+                        EditorActionId.DIAGRAM_DELETE_MECHANICAL_SYMBOL,
+                        EditorActionId.DIAGRAM_ADD_MECHANICAL_PART_REFERENCE,
+                        EditorActionId.DIAGRAM_GENERATE_MECHANICAL_BOM);
+            } else if (element instanceof MechanicalAnnotation) {
+                addActions(entries, actions, EditorActionId.DIAGRAM_DELETE_MECHANICAL_ANNOTATION);
+            } else if (element instanceof MechanicalPartReference) {
+                addActions(entries, actions,
+                        EditorActionId.DIAGRAM_DELETE_MECHANICAL_PART_REFERENCE,
+                        EditorActionId.DIAGRAM_GENERATE_MECHANICAL_BOM);
+            } else if (element instanceof DiagramNode) {
+                addActions(entries, actions, EditorActionId.DIAGRAM_DELETE_NODE, EditorActionId.DIAGRAM_START_CONNECTION);
+            }
             return;
         }
         if (target instanceof DiagramConnectionTarget || target instanceof DiagramPortTarget) {
@@ -164,22 +200,30 @@ public final class EditorContextActionResolver {
                     EditorActionId.DIAGRAM_DELETE_CONNECTION);
             return;
         }
-        addActions(entries, actions,
-                EditorActionId.DIAGRAM_ADD_NODE,
-                EditorActionId.DIAGRAM_ADD_RESISTOR,
-                EditorActionId.DIAGRAM_ADD_CAPACITOR,
-                EditorActionId.DIAGRAM_ADD_DC_VOLTAGE_SOURCE,
-                EditorActionId.DIAGRAM_ADD_GROUND,
-                EditorActionId.DIAGRAM_ADD_JUNCTION);
-        addSeparator(entries);
-        addActions(entries, actions,
-                EditorActionId.DIAGRAM_ADD_MECHANICAL_LINE,
-                EditorActionId.DIAGRAM_ADD_MECHANICAL_RECTANGLE,
-                EditorActionId.DIAGRAM_ADD_MECHANICAL_CIRCLE,
-                EditorActionId.DIAGRAM_ADD_MECHANICAL_DIMENSION_HORIZONTAL,
-                EditorActionId.DIAGRAM_ADD_MECHANICAL_DIMENSION_VERTICAL,
-                EditorActionId.DIAGRAM_ADD_MECHANICAL_SYMBOL_SHAFT,
-                EditorActionId.DIAGRAM_ADD_MECHANICAL_ANNOTATION_NOTE);
+        var hasElectrical = diagram.definition().elements().stream()
+                .anyMatch(element -> element instanceof ElectricalComponent || element instanceof ElectricalJunction);
+        var hasMechanical = diagram.definition().elements().stream().anyMatch(element ->
+                element instanceof MechanicalPrimitive || element instanceof MechanicalDimension
+                        || element instanceof MechanicalConstraint || element instanceof MechanicalSymbol
+                        || element instanceof MechanicalAnnotation || element instanceof MechanicalPartReference);
+        if (hasElectrical) {
+            addActions(entries, actions,
+                    EditorActionId.DIAGRAM_ADD_RESISTOR,
+                    EditorActionId.DIAGRAM_ADD_CAPACITOR,
+                    EditorActionId.DIAGRAM_ADD_DC_VOLTAGE_SOURCE,
+                    EditorActionId.DIAGRAM_ADD_GROUND,
+                    EditorActionId.DIAGRAM_ADD_JUNCTION);
+        } else if (hasMechanical) {
+            addActions(entries, actions,
+                    EditorActionId.DIAGRAM_ADD_MECHANICAL_LINE,
+                    EditorActionId.DIAGRAM_ADD_MECHANICAL_RECTANGLE,
+                    EditorActionId.DIAGRAM_ADD_MECHANICAL_CIRCLE,
+                    EditorActionId.DIAGRAM_ADD_MECHANICAL_DIMENSION_HORIZONTAL,
+                    EditorActionId.DIAGRAM_ADD_MECHANICAL_SYMBOL_SHAFT,
+                    EditorActionId.DIAGRAM_ADD_MECHANICAL_ANNOTATION_NOTE);
+        } else {
+            addActions(entries, actions, EditorActionId.DIAGRAM_ADD_NODE);
+        }
         addSeparator(entries);
         addActions(entries, actions,
                 EditorActionId.DIAGRAM_SCALE_SYMBOLS_DOWN,
@@ -187,6 +231,20 @@ public final class EditorContextActionResolver {
                 EditorActionId.DIAGRAM_WORKSPACE_SHORTER,
                 EditorActionId.DIAGRAM_WORKSPACE_TALLER,
                 EditorActionId.DIAGRAM_WORKSPACE_RESET_HEIGHT);
+    }
+
+    private static Optional<DiagramBlock> diagramAt(EditorState state, int blockIndex) {
+        if (blockIndex < 0 || blockIndex >= state.document().blocks().size()) {
+            return Optional.empty();
+        }
+        var block = state.document().blocks().get(blockIndex);
+        if (block instanceof DiagramBlock diagram) {
+            return Optional.of(diagram);
+        }
+        if (block instanceof FigureBlock figure && figure.content() instanceof DiagramBlock diagram) {
+            return Optional.of(diagram);
+        }
+        return Optional.empty();
     }
 
     private static void addClipboard(List<ContextMenuEntry> entries, Map<EditorActionId, EditorAction> actions, boolean includeCutCopy) {

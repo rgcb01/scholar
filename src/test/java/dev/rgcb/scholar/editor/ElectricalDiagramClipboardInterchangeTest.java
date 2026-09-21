@@ -93,7 +93,7 @@ class ElectricalDiagramClipboardInterchangeTest {
 
         assertFalse(result.documentChanged());
         assertEquals(serializer.serialize(diagram), clipboard.text);
-        assertEquals(diagram, assertInstanceOf(DiagramClipboardPayload.class, sidecar.snapshot().orElseThrow().payload()).diagram());
+        assertEquals(diagram, dev.rgcb.scholar.editor.TransferClipboardAssertions.root(dev.rgcb.scholar.document.DiagramBlock.class, sidecar.snapshot().orElseThrow().payload()));
         assertEquals(document, session.current().document());
         assertEquals(new BlockSelection(2), session.current().selection());
         assertFalse(session.canUndo());
@@ -157,7 +157,7 @@ class ElectricalDiagramClipboardInterchangeTest {
 
         assertTrue(result.documentChanged());
         assertEquals(serializer.serialize(diagram), clipboard.text);
-        assertEquals(diagram, assertInstanceOf(DiagramClipboardPayload.class, sidecar.snapshot().orElseThrow().payload()).diagram());
+        assertEquals(diagram, dev.rgcb.scholar.editor.TransferClipboardAssertions.root(dev.rgcb.scholar.document.DiagramBlock.class, sidecar.snapshot().orElseThrow().payload()));
         assertEquals(2, session.current().document().blocks().size());
         assertTrue(session.undo());
         assertEquals(document, session.current().document());

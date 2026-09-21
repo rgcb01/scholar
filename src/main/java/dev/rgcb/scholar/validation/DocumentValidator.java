@@ -21,6 +21,10 @@ import dev.rgcb.scholar.document.PlotBlock;
 import dev.rgcb.scholar.document.TableBlock;
 import dev.rgcb.scholar.document.TableCell;
 import dev.rgcb.scholar.document.Text;
+import dev.rgcb.scholar.document.QuantityInline;
+import dev.rgcb.scholar.quantity.UnitExpression;
+import dev.rgcb.scholar.quantity.UnitRegistry;
+import dev.rgcb.scholar.math.*;
 import dev.rgcb.scholar.mechanical.MechanicalConstraint;
 import dev.rgcb.scholar.mechanical.MechanicalPartReference;
 import dev.rgcb.scholar.plot.PlotSeries;
@@ -37,6 +41,7 @@ public final class DocumentValidator {
     private final List<DocumentDiagnostic> diagnostics = new ArrayList<>();
     private Document document;
     private Map<String, ScientificDataset> datasetsById;
+    private final UnitRegistry unitRegistry = UnitRegistry.builtIn();
 
     private DocumentValidator() {
     }
@@ -54,11 +59,28 @@ public final class DocumentValidator {
         document = candidate;
         datasetsById = datasetsById(candidate.datasets());
 
+        guard("document settings", this::validateSettings);
         guard("dataset resources", () -> validateDatasets(candidate.datasets()));
         guard("document blocks", this::validateBlocks);
         guard("cross references", this::validateCrossReferences);
 
         return result();
+    }
+
+    private void validateSettings() {
+        var settings = document.settings();
+        if (settings.pageWidth() <= 0 || settings.pageHeight() <= 0
+                || settings.contentWidth() <= 0 || settings.contentHeight() <= 0) {
+            diagnostics.add(DocumentDiagnostic.error(
+                    DocumentDiagnosticCode.INVALID_PAGE_CONFIGURATION,
+                    "Paper dimensions and margins must leave a positive content area."));
+        }
+        var totalGap = settings.columns().gap().logicalUnits() * (settings.columns().count() - 1);
+        if (settings.contentWidth() - totalGap < settings.columns().count()) {
+            diagnostics.add(DocumentDiagnostic.error(
+                    DocumentDiagnosticCode.INVALID_PAGE_CONFIGURATION,
+                    "Column count and gap must leave a positive width for every column."));
+        }
     }
 
     private void validateDatasets(List<ScientificDataset> datasets) {
@@ -77,6 +99,7 @@ public final class DocumentValidator {
                             DocumentDiagnosticCode.DUPLICATE_DATASET_COLUMN_ID,
                             "Dataset column id is duplicated inside dataset " + dataset.id() + ": " + column.id()));
                 }
+                column.unit().ifPresent(unit -> validateUnit(unit, dataset.id(), column.id()));
             }
 
             for (var rowIndex = 0; rowIndex < dataset.rows().size(); rowIndex++) {
@@ -112,10 +135,21 @@ public final class DocumentValidator {
                 if (equation.id().isPresent()) {
                     addDuplicateIfSeen(equationIds, equation.id().orElseThrow(), DocumentDiagnosticCode.DUPLICATE_EQUATION_ID, blockIndex, "equation");
                 }
+                validateMath(equation.expression(), blockIndex);
             } else if (block instanceof PlotBlock plot) {
                 validatePlot(blockIndex, plot);
             } else if (block instanceof DiagramBlock diagram) {
                 validateDiagram(blockIndex, diagram.definition());
+            } else if (block instanceof dev.rgcb.scholar.document.LayoutSectionBreak sectionBreak) {
+                var columns = sectionBreak.columnLayout();
+                var totalGap = columns.gap().logicalUnits() * (columns.count() - 1);
+                if (document.settings().contentWidth() - totalGap < columns.count()) {
+                    diagnostics.add(DocumentDiagnostic.error(
+                            DocumentDiagnosticCode.INVALID_PAGE_CONFIGURATION,
+                            "Layout section columns do not fit inside the document content width.",
+                            blockIndex,
+                            "layout section break"));
+                }
             }
         }
     }
@@ -216,6 +250,8 @@ public final class DocumentValidator {
         for (var seriesIndex = 0; seriesIndex < plot.definition().series().size(); seriesIndex++) {
             validatePlotSeriesBinding(blockIndex, seriesIndex, plot.definition().series().get(seriesIndex));
         }
+        validateAxisUnits(blockIndex, plot, true);
+        validateAxisUnits(blockIndex, plot, false);
     }
 
     private void validatePlotSeriesBinding(int blockIndex, int seriesIndex, PlotSeries series) {
@@ -226,6 +262,20 @@ public final class DocumentValidator {
             }
             validatePlotColumn(blockIndex, binding.xColumnId(), dataset, "plot series " + seriesIndex + " x column");
             validatePlotColumn(blockIndex, binding.yColumnId(), dataset, "plot series " + seriesIndex + " y column");
+            var xIndex = dataset.columnIndex(binding.xColumnId());
+            var yIndex = dataset.columnIndex(binding.yColumnId());
+            if (xIndex >= 0 && yIndex >= 0) {
+                for (var rowIndex = 0; rowIndex < dataset.rows().size(); rowIndex++) {
+                    var values = dataset.rows().get(rowIndex).values();
+                    if (values.get(xIndex).asDouble().filter(v -> !Double.isFinite(v)).isPresent()
+                            || values.get(yIndex).asDouble().filter(v -> !Double.isFinite(v)).isPresent()) {
+                        diagnostics.add(DocumentDiagnostic.warning(DocumentDiagnosticCode.UNREPRESENTABLE_PLOT_VALUE,
+                                "Dataset contains a value outside the finite plot coordinate range; affected points are omitted.",
+                                blockIndex, dataset.id(), "plot series " + seriesIndex + " row " + rowIndex));
+                        break;
+                    }
+                }
+            }
         });
     }
 
@@ -382,13 +432,72 @@ public final class DocumentValidator {
 
     private void validateInline(InlineContent content, int blockIndex, String context) {
         for (InlineNode node : content.nodes()) {
-            if (!(node instanceof Text) && !(node instanceof CrossReference)) {
+            if (!(node instanceof Text) && !(node instanceof CrossReference) && !(node instanceof QuantityInline)) {
                 diagnostics.add(DocumentDiagnostic.error(
                         DocumentDiagnosticCode.VALIDATION_FAILURE,
                         "Unsupported inline node type: " + node.getClass().getName(),
                         blockIndex,
                         context));
             }
+            if (node instanceof QuantityInline quantity) validateUnit(quantity.value().nominal().unit(), context);
+        }
+    }
+
+    private void validateAxisUnits(int blockIndex, PlotBlock plot, boolean xAxis) {
+        UnitExpression first = null;
+        for (var series : plot.definition().series()) {
+            if (series.datasetBinding().isEmpty()) continue;
+            var binding = series.datasetBinding().orElseThrow();
+            var dataset = datasetsById.get(binding.datasetId());
+            if (dataset == null) continue;
+            var column = dataset.column(xAxis ? binding.xColumnId() : binding.yColumnId());
+            if (column.isEmpty() || column.orElseThrow().unit().isEmpty()) continue;
+            var unit = column.orElseThrow().unit().orElseThrow();
+            if (!validateUnit(unit, "plot axis")) continue;
+            if (first == null) first = unit;
+            else if (!first.compatibleWith(unit, unitRegistry)) {
+                diagnostics.add(DocumentDiagnostic.error(DocumentDiagnosticCode.INCOMPATIBLE_PLOT_UNITS,
+                        "Dataset-backed plot series use incompatible " + (xAxis ? "x" : "y") + " dimensions.",
+                        blockIndex, "plot axis"));
+                return;
+            }
+        }
+        var display = (xAxis ? plot.definition().xAxis() : plot.definition().yAxis()).displayUnit();
+        if (display.isPresent() && validateUnit(display.orElseThrow(), "plot display unit")
+                && first != null && !first.compatibleWith(display.orElseThrow(), unitRegistry)) {
+            diagnostics.add(DocumentDiagnostic.error(DocumentDiagnosticCode.INCOMPATIBLE_PLOT_UNITS,
+                    "Plot display unit is incompatible with bound dataset columns.", blockIndex, "plot axis"));
+        }
+    }
+
+    private boolean validateUnit(UnitExpression unit, String... context) {
+        try {
+            unitRegistry.dimension(unit);
+            unitRegistry.scale(unit);
+            return true;
+        } catch (RuntimeException failure) {
+            var message = "Invalid unit expression: " + failure.getMessage();
+            diagnostics.add(context.length >= 2
+                    ? DocumentDiagnostic.error(DocumentDiagnosticCode.INVALID_UNIT, message, context[0], context[1])
+                    : DocumentDiagnostic.error(DocumentDiagnosticCode.INVALID_UNIT, message));
+            return false;
+        }
+    }
+
+    private void validateMath(MathExpression expression, int blockIndex) {
+        if (expression instanceof MathQuantity quantity) {
+            validateUnit(quantity.value().nominal().unit(), "equation");
+        } else if (expression instanceof MathSequence sequence) {
+            sequence.expressions().forEach(child -> validateMath(child, blockIndex));
+        } else if (expression instanceof MathFraction fraction) {
+            validateMath(fraction.numerator(), blockIndex); validateMath(fraction.denominator(), blockIndex);
+        } else if (expression instanceof MathScript script) {
+            validateMath(script.base(), blockIndex); script.subscript().ifPresent(child -> validateMath(child, blockIndex));
+            script.superscript().ifPresent(child -> validateMath(child, blockIndex));
+        } else if (expression instanceof MathRoot root) {
+            validateMath(root.radicand(), blockIndex); root.index().ifPresent(child -> validateMath(child, blockIndex));
+        } else if (expression instanceof MathGroup group) {
+            validateMath(group.content(), blockIndex);
         }
     }
 

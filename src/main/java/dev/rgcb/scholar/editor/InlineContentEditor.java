@@ -4,6 +4,7 @@ import dev.rgcb.scholar.document.InlineContent;
 import dev.rgcb.scholar.document.InlineNode;
 import dev.rgcb.scholar.document.Text;
 import dev.rgcb.scholar.document.CrossReference;
+import dev.rgcb.scholar.document.QuantityInline;
 import java.util.ArrayList;
 import java.util.Objects;
 
@@ -32,10 +33,10 @@ final class InlineContentEditor {
             } else if (node instanceof Text text) {
                 var splitOffset = logicalOffset - nodeStart;
                 if (splitOffset > 0) {
-                    left.add(new Text(TextBoundary.substring(text.content(), 0, splitOffset), text.marks()));
+                    left.add(new Text(TextBoundary.substring(text.content(), 0, splitOffset), text.marks(), text.format()));
                 }
                 if (splitOffset < nodeLength) {
-                    right.add(new Text(TextBoundary.substring(text.content(), splitOffset, nodeLength), text.marks()));
+                    right.add(new Text(TextBoundary.substring(text.content(), splitOffset, nodeLength), text.marks(), text.format()));
                 }
             } else {
                 throw new IllegalArgumentException("Cannot split through atomic inline node: " + node.getClass().getName());
@@ -76,7 +77,7 @@ final class InlineContentEditor {
         for (var node : content.nodes()) {
             if (node instanceof Text run) {
                 text.append(run.content());
-            } else if (node instanceof CrossReference) {
+            } else if (node instanceof CrossReference || node instanceof QuantityInline) {
                 text.append('\uFFFC');
             } else {
                 throw new IllegalArgumentException("Unsupported inline node: " + node.getClass().getName());
@@ -90,7 +91,7 @@ final class InlineContentEditor {
         if (node instanceof Text text) {
             return TextBoundary.characterCount(text.content());
         }
-        if (node instanceof CrossReference) {
+        if (node instanceof CrossReference || node instanceof QuantityInline) {
             return 1;
         }
         throw new IllegalArgumentException("Unsupported inline node: " + node.getClass().getName());

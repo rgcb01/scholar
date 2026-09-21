@@ -12,8 +12,10 @@ import java.util.Objects;
 public record FigureBlock(
         String id,
         BlockNode content,
-        InlineContent caption
+        InlineContent caption,
+        ContentSpan span
 ) implements BlockNode {
+    public FigureBlock(String id, BlockNode content, InlineContent caption) { this(id, content, caption, ContentSpan.COLUMN); }
     public FigureBlock {
         id = Objects.requireNonNull(id, "id").trim();
         if (id.isEmpty()) {
@@ -21,26 +23,29 @@ public record FigureBlock(
         }
         content = Objects.requireNonNull(content, "content");
         caption = Objects.requireNonNull(caption, "caption");
+        span = Objects.requireNonNull(span, "span");
         if (!supportsContent(content)) {
             throw new IllegalArgumentException("Figure content must be a supported scientific visual block.");
         }
     }
 
     public static FigureBlock emptyCaption(String id, BlockNode content) {
-        return new FigureBlock(id, content, new InlineContent(List.of()));
+        return new FigureBlock(id, content, new InlineContent(List.of()), ContentSpan.COLUMN);
     }
 
     public FigureBlock withContent(BlockNode replacement) {
-        return new FigureBlock(id, replacement, caption);
+        return new FigureBlock(id, replacement, caption, span);
     }
 
     public FigureBlock withCaption(InlineContent replacement) {
-        return new FigureBlock(id, content, replacement);
+        return new FigureBlock(id, content, replacement, span);
     }
 
     public FigureBlock withId(String replacement) {
-        return new FigureBlock(replacement, content, caption);
+        return new FigureBlock(replacement, content, caption, span);
     }
+
+    public FigureBlock withSpan(ContentSpan replacement) { return new FigureBlock(id, content, caption, replacement); }
 
     public static boolean supportsContent(BlockNode content) {
         return content instanceof DiagramBlock || content instanceof PlotBlock;

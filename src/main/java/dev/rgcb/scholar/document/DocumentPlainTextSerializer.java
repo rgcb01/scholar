@@ -36,6 +36,9 @@ public final class DocumentPlainTextSerializer {
         if (block instanceof TableBlock table) {
             return serializeTable(document, datasetTableResolver.resolve(document, table));
         }
+        if (block instanceof LayoutSectionBreak || block instanceof PageBreak) {
+            return "";
+        }
         return "";
     }
 

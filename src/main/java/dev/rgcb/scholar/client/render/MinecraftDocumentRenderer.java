@@ -74,11 +74,29 @@ public final class MinecraftDocumentRenderer {
             int scrollOffset
     ) {
         graphics.pose().pushPose();
-        graphics.fill(viewportX - 8, viewportY - 8, viewportX + viewportWidth + 8, viewportY + viewportHeight + 8, PAGE_COLOR);
-        graphics.renderOutline(viewportX - 8, viewportY - 8, viewportWidth + 16, viewportHeight + 16, BORDER_COLOR);
         graphics.enableScissor(viewportX, viewportY, viewportX + viewportWidth, viewportY + viewportHeight);
         try {
+            if (document.paginated()) {
+                for (var page : document.pages()) {
+                    var pageY = viewportY + page.y() - scrollOffset;
+                    if (pageY + page.height() < viewportY || pageY > viewportY + viewportHeight) continue;
+                    graphics.fill(viewportX + page.x(), pageY, viewportX + page.x() + page.width(), pageY + page.height(), PAGE_COLOR);
+                    graphics.renderOutline(viewportX + page.x(), pageY, page.width(), page.height(), BORDER_COLOR);
+                    if (!page.headerText().isEmpty()) graphics.drawCenteredString(typographyResolver.fontFor(dev.rgcb.scholar.typography.TypographyRole.BODY),
+                            page.headerText(), viewportX + page.x() + page.width() / 2, pageY + 8, 0xFF6B655D);
+                    var footer = page.footerText();
+                    if (page.pageNumberVisible()) footer = footer.isEmpty() ? Integer.toString(page.index() + 1) : footer + "  " + (page.index() + 1);
+                    if (!footer.isEmpty()) graphics.drawCenteredString(typographyResolver.fontFor(dev.rgcb.scholar.typography.TypographyRole.BODY),
+                            footer, viewportX + page.x() + page.width() / 2, pageY + page.height() - 14, 0xFF6B655D);
+                }
+            } else {
+                graphics.fill(viewportX - 8, viewportY - 8, viewportX + viewportWidth + 8, viewportY + viewportHeight + 8, PAGE_COLOR);
+                graphics.renderOutline(viewportX - 8, viewportY - 8, viewportWidth + 16, viewportHeight + 16, BORDER_COLOR);
+            }
             for (var block : document.blocks()) {
+                if (!block.intersectsVerticalViewport(scrollOffset, viewportHeight)) {
+                    continue;
+                }
                 if (block.math().isPresent()) {
                     var math = block.math().orElseThrow();
                     var baselineY = viewportY + block.y() + math.root().ascent() - scrollOffset;
@@ -99,14 +117,7 @@ public final class MinecraftDocumentRenderer {
                             var drawX = viewportX + run.x();
                             var drawY = viewportY + run.y() - scrollOffset;
                             if (drawY + line.height() >= viewportY && drawY <= viewportY + viewportHeight) {
-                                var resolved = typographyResolver.resolve(run.style());
-                                graphics.drawString(
-                                        typographyResolver.fontFor(resolved.role()),
-                                        typographyResolver.component(run.text(), resolved),
-                                        drawX,
-                                        drawY,
-                                        resolved.color(),
-                                        false);
+                                renderText(graphics, run, drawX, drawY);
                             }
                         }
                     }
@@ -142,14 +153,7 @@ public final class MinecraftDocumentRenderer {
                 var drawX = viewportX + run.x();
                 var drawY = viewportY + run.y() - scrollOffset;
                 if (drawY + line.height() >= viewportY && drawY <= viewportY + viewportHeight) {
-                    var resolved = typographyResolver.resolve(run.style());
-                    graphics.drawString(
-                            typographyResolver.fontFor(resolved.role()),
-                            typographyResolver.component(run.text(), resolved),
-                            drawX,
-                            drawY,
-                            resolved.color(),
-                            false);
+                    renderText(graphics, run, drawX, drawY);
                 }
             }
         }
@@ -184,14 +188,7 @@ public final class MinecraftDocumentRenderer {
                         var drawX = viewportX + run.x();
                         var drawY = viewportY + run.y() - scrollOffset;
                         if (drawY + line.height() >= viewportY && drawY <= viewportY + viewportHeight) {
-                            var resolved = typographyResolver.resolve(run.style());
-                            graphics.drawString(
-                                    typographyResolver.fontFor(resolved.role()),
-                                    typographyResolver.component(run.text(), resolved),
-                                    drawX,
-                                    drawY,
-                                    resolved.color(),
-                                    false);
+                            renderText(graphics, run, drawX, drawY);
                         }
                     }
                 }
@@ -208,6 +205,30 @@ public final class MinecraftDocumentRenderer {
                         TABLE_GRID_COLOR);
             }
         }
+    }
+
+    private void renderText(GuiGraphics graphics, LaidOutText run, int x, int y) {
+        var resolved = typographyResolver.resolve(run.style());
+        var scale = run.style().format().fontSizeHalfPoints().orElse(20) / 20.0f;
+        var baselineOffset = 0.0f;
+        if (run.style().marks().contains(dev.rgcb.scholar.document.TextMark.SUPERSCRIPT)) {
+            scale *= 0.75f;
+            baselineOffset = -3.0f;
+        } else if (run.style().marks().contains(dev.rgcb.scholar.document.TextMark.SUBSCRIPT)) {
+            scale *= 0.75f;
+            baselineOffset = 3.0f;
+        }
+        graphics.pose().pushPose();
+        graphics.pose().translate(x, y + baselineOffset, 0);
+        graphics.pose().scale(scale, scale, 1.0f);
+        graphics.drawString(
+                typographyResolver.fontFor(resolved.role()),
+                typographyResolver.component(run.text(), resolved, run.style()),
+                0,
+                0,
+                resolved.color(),
+                false);
+        graphics.pose().popPose();
     }
 
     private void renderDiagram(

@@ -83,8 +83,14 @@ public final class CrossReferenceResolver {
         for (var node : content.nodes()) {
             if (node instanceof Text run) {
                 text.append(run.content());
+            } else if (node instanceof QuantityInline quantity) {
+                text.append(new dev.rgcb.scholar.quantity.ScientificNumberFormatter()
+                        .format(quantity.value(), quantity.notation(), true));
             } else if (node instanceof CrossReference reference) {
                 text.append(resolve(document, reference).displayText());
+            } else if (node instanceof QuantityInline quantity) {
+                text.append(new dev.rgcb.scholar.quantity.ScientificNumberFormatter()
+                        .format(quantity.value(), quantity.notation(), false));
             } else {
                 throw new IllegalArgumentException("Unsupported inline node: " + node.getClass().getName());
             }
@@ -113,6 +119,9 @@ public final class CrossReferenceResolver {
                 text.append(run.content());
             } else if (node instanceof CrossReference) {
                 text.append("[Reference]");
+            } else if (node instanceof QuantityInline quantity) {
+                text.append(new dev.rgcb.scholar.quantity.ScientificNumberFormatter()
+                        .format(quantity.value(), quantity.notation(), true));
             }
         }
         return text.toString();

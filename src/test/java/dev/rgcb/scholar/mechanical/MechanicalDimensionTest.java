@@ -46,6 +46,39 @@ class MechanicalDimensionTest {
         assertFalse(layout.mechanicalDimensions().get(0).label().text().isBlank());
     }
 
+    @Test void dimensionLabelsKeepClearOfPrimaryDimensionLines() {
+        for (var kind : List.of(
+                MechanicalDimensionKind.HORIZONTAL,
+                MechanicalDimensionKind.VERTICAL,
+                MechanicalDimensionKind.RADIUS,
+                MechanicalDimensionKind.DIAMETER,
+                MechanicalDimensionKind.ANGLE)) {
+            var dimension = new MechanicalDimension(
+                    new DiagramElementId("dimension"), new DiagramBounds(36, 24, 40, 30), kind);
+            var block = new DiagramBlock(new DiagramDefinition(
+                    "Dimension clearance", new DiagramCanvas(140, 90), List.of(dimension), List.of()));
+            var laidOut = new DiagramLayoutEngine().layout(block, 0, 0, 0, 320, new FixedMeasurer())
+                    .mechanicalDimensions().get(0);
+            var rect = laidOut.bounds();
+            var label = laidOut.label();
+
+            switch (kind) {
+                case HORIZONTAL -> assertTrue(label.y()
+                        >= rect.y() + Math.max(3, rect.height() / 3)
+                        + DiagramLayoutEngine.MECHANICAL_DIMENSION_LABEL_CLEARANCE);
+                case VERTICAL -> assertTrue(label.x()
+                        >= rect.x() + Math.max(3, rect.width() / 3)
+                        + DiagramLayoutEngine.MECHANICAL_DIMENSION_LABEL_CLEARANCE);
+                case RADIUS, DIAMETER -> assertTrue(label.y()
+                        >= rect.y() + rect.height() / 2
+                        + DiagramLayoutEngine.MECHANICAL_DIMENSION_LABEL_CLEARANCE);
+                case ANGLE -> assertTrue(label.x()
+                        >= rect.right() + DiagramLayoutEngine.MECHANICAL_DIMENSION_LABEL_CLEARANCE);
+                default -> throw new AssertionError("Unexpected kind: " + kind);
+            }
+        }
+    }
+
     @Test void deletionIsUndoFriendlyImmutableReplacement() {
         var added=editor.addDimension(emptyBlock(),new DiagramPropertyTarget(DiagramProperty.TITLE),MechanicalDimensionKind.DIAMETER);
         var target=assertInstanceOf(DiagramElementTarget.class,added.target());

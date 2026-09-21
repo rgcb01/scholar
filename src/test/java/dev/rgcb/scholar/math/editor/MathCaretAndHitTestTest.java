@@ -3,6 +3,8 @@ package dev.rgcb.scholar.math.editor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import dev.rgcb.scholar.math.MathFraction;
+import dev.rgcb.scholar.math.MathDelimiter;
+import dev.rgcb.scholar.math.MathGroup;
 import dev.rgcb.scholar.math.MathIdentifier;
 import dev.rgcb.scholar.math.MathNumber;
 import dev.rgcb.scholar.math.MathSequence;
@@ -79,6 +81,18 @@ class MathCaretAndHitTestTest {
         assertEquals(new MathSequencePosition(denominatorPath, 0), hitTester.hit(math, denominator.x(), denominator.baselineY(), measurer));
         assertEquals(new MathSequencePosition(MathPath.ROOT, 0), hitTester.hit(math, -1, 0, measurer));
         assertEquals(new MathSequencePosition(MathPath.ROOT, 1), hitTester.hit(math, math.width() + 1, 0, measurer));
+    }
+
+    @Test
+    void nestedStructuralNodeInsideVirtualGroupSequenceResolvesEveryCaretPosition() {
+        var expression = new MathSequence(List.of(new MathGroup(
+                new MathFraction(new MathIdentifier("x"), new MathIdentifier("y")),
+                MathDelimiter.PARENTHESES)));
+        var math = layoutEngine.layout(expression, measurer);
+
+        for (var position : new MathExpressionEditor().positions(expression)) {
+            caretResolver.resolve(position, math, measurer);
+        }
     }
 
     private static final class FixedMathTextMeasurer implements MathTextMeasurer {

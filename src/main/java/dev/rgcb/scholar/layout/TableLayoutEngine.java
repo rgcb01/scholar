@@ -10,11 +10,50 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.text.BreakIterator;
+import java.util.Locale;
 
 public final class TableLayoutEngine {
     public static final int BORDER_THICKNESS = 1;
     public static final int CELL_PADDING_X = 6;
     public static final int CELL_PADDING_Y = 4;
+
+    /**
+     * Returns the narrowest table width that can keep every whitespace-delimited
+     * token intact at the authored typography size.
+     */
+    public int minimumReadableWidth(TableBlock table, TextMeasurer textMeasurer) {
+        Objects.requireNonNull(table, "table");
+        Objects.requireNonNull(textMeasurer, "textMeasurer");
+        var columnMinimums = new int[table.columnCount()];
+        for (var rowIndex = 0; rowIndex < table.rows().size(); rowIndex++) {
+            var header = rowIndex < table.headerRowCount();
+            for (var columnIndex = 0; columnIndex < table.columnCount(); columnIndex++) {
+                var minimum = CELL_PADDING_X * 2 + 1;
+                for (var node : table.rows().get(rowIndex).cells().get(columnIndex).content().content().nodes()) {
+                    if (!(node instanceof Text text)) {
+                        if (node instanceof dev.rgcb.scholar.document.QuantityInline quantity) {
+                            var style = TextStyle.paragraph(header ? Set.of(TextMark.BOLD) : Set.of());
+                            minimum = Math.max(minimum, CELL_PADDING_X * 2 + textMeasurer.measureWidth(
+                                    new dev.rgcb.scholar.quantity.ScientificNumberFormatter()
+                                            .format(quantity.value(), quantity.notation(), true), style));
+                        }
+                        continue;
+                    }
+                    var style = TextStyle.paragraph(header ? headerMarks(text.marks()) : text.marks())
+                            .withFormat(text.format());
+                    for (var token : text.content().split("\\s+")) {
+                        if (!token.isEmpty()) {
+                            minimum = Math.max(minimum,
+                                    CELL_PADDING_X * 2 + textMeasurer.measureWidth(token, style));
+                        }
+                    }
+                }
+                columnMinimums[columnIndex] = Math.max(columnMinimums[columnIndex], minimum);
+            }
+        }
+        return java.util.Arrays.stream(columnMinimums).sum();
+    }
 
     public LaidOutTable layout(TableBlock table, int sourceBlockIndex, int x, int y, int width, TextMeasurer textMeasurer) {
         Objects.requireNonNull(table, "table");
@@ -100,9 +139,15 @@ public final class TableLayoutEngine {
         var sourceOffset = 0;
         for (InlineNode node : cell.content().content().nodes()) {
             if (node instanceof Text text) {
-                var style = TextStyle.paragraph(header ? headerMarks(text.marks()) : text.marks());
+                var style = TextStyle.paragraph(header ? headerMarks(text.marks()) : text.marks())
+                        .withFormat(text.format());
                 builder.append(text.content(), style, sourceBlockIndex, sourceOffset);
                 sourceOffset += TextBoundary.characterCount(text.content());
+            } else if (node instanceof dev.rgcb.scholar.document.QuantityInline quantity) {
+                var style = TextStyle.paragraph(header ? Set.of(TextMark.BOLD) : Set.of());
+                builder.append(new dev.rgcb.scholar.quantity.ScientificNumberFormatter()
+                        .format(quantity.value(), quantity.notation(), true), style, sourceBlockIndex, sourceOffset);
+                sourceOffset += 1;
             } else {
                 throw new IllegalArgumentException("Unsupported inline node in table cell: " + node.getClass().getName());
             }
@@ -219,8 +264,11 @@ public final class TableLayoutEngine {
                 return text.length();
             }
 
-            var length = 1;
-            for (var next = 2; next <= text.length(); next++) {
+            var iterator = BreakIterator.getCharacterInstance(Locale.ROOT);
+            iterator.setText(text);
+            iterator.first();
+            var length = iterator.next();
+            for (var next = iterator.next(); next != BreakIterator.DONE; next = iterator.next()) {
                 if (x + textMeasurer.measureWidth(text.substring(0, next), style) > contentWidth) {
                     break;
                 }
@@ -277,17 +325,20 @@ public final class TableLayoutEngine {
             var whitespace = false;
             var tokenStart = 0;
             var sourceOffset = 0;
-            for (var index = 0; index < text.length(); index++) {
-                var character = text.charAt(index);
-                var characterWhitespace = Character.isWhitespace(character);
+            var iterator = BreakIterator.getCharacterInstance(Locale.ROOT);
+            iterator.setText(text);
+            var index = iterator.first();
+            for (var next = iterator.next(); next != BreakIterator.DONE; next = iterator.next()) {
+                var characterWhitespace = Character.isWhitespace(text.codePointAt(index));
                 if (!current.isEmpty() && characterWhitespace != whitespace) {
                     tokens.add(new SourceToken(current.toString(), tokenStart, sourceOffset));
                     current.setLength(0);
                     tokenStart = sourceOffset;
                 }
-                current.append(character);
+                current.append(text, index, next);
                 whitespace = characterWhitespace;
-                sourceOffset += TextBoundary.characterCount(String.valueOf(character));
+                sourceOffset++;
+                index = next;
             }
             if (!current.isEmpty()) {
                 tokens.add(new SourceToken(current.toString(), tokenStart, sourceOffset));

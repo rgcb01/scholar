@@ -81,8 +81,8 @@ class TableClipboardTest {
 
         assertFalse(result.documentChanged());
         assertEquals("Quantity\tValue\tUnit\ncafé\t\tΩ", clipboard.text);
-        var payload = assertInstanceOf(TableClipboardPayload.class, sidecar.snapshot().orElseThrow().payload());
-        assertEquals(table, payload.table());
+        var payload = dev.rgcb.scholar.editor.TransferClipboardAssertions.root(dev.rgcb.scholar.document.TableBlock.class, sidecar.snapshot().orElseThrow().payload());
+        assertEquals(table, payload);
         assertEquals(new BlockSelection(1), session.current().selection());
         assertFalse(session.canUndo());
     }
@@ -116,7 +116,7 @@ class TableClipboardTest {
 
         assertTrue(result.documentChanged());
         assertEquals("Quantity\tValue\tUnit\ncafé\t\tΩ", clipboard.text);
-        assertInstanceOf(TableClipboardPayload.class, sidecar.snapshot().orElseThrow().payload());
+        dev.rgcb.scholar.editor.TransferClipboardAssertions.root(dev.rgcb.scholar.document.TableBlock.class, sidecar.snapshot().orElseThrow().payload());
         assertEquals(2, session.current().document().blocks().size());
         assertTrue(session.undo());
         assertEquals(document, session.current().document());

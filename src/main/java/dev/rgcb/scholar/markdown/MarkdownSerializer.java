@@ -52,6 +52,9 @@ public final class MarkdownSerializer {
                 throw new IllegalArgumentException("Markdown diagram serialization is not supported.");
             } else if (block instanceof FigureBlock) {
                 throw new IllegalArgumentException("Markdown figure serialization is not supported.");
+            } else if (block instanceof dev.rgcb.scholar.document.LayoutSectionBreak
+                    || block instanceof dev.rgcb.scholar.document.PageBreak) {
+                // Markdown has no Scholar page-flow semantics; omit structural layout markers.
             } else {
                 throw new IllegalArgumentException("Unsupported block node: " + block.getClass().getName());
             }
@@ -114,6 +117,10 @@ public final class MarkdownSerializer {
         }
         if (node instanceof CrossReference reference) {
             return escape(referenceResolver.resolve(document, reference).displayText());
+        }
+        if (node instanceof dev.rgcb.scholar.document.QuantityInline quantity) {
+            return escape(new dev.rgcb.scholar.quantity.ScientificNumberFormatter()
+                    .format(quantity.value(), quantity.notation(), false));
         }
         throw new IllegalArgumentException("Unsupported inline node: " + node.getClass().getName());
     }

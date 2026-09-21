@@ -40,11 +40,11 @@ public record ScholarTypography(
         var styles = new EnumMap<TypographyRole, TypographyRoleStyle>(TypographyRole.class);
         styles.put(TypographyRole.BODY, new TypographyRoleStyle(false, false, 0, PARAGRAPH_COLOR));
         styles.put(TypographyRole.HEADING_1, new TypographyRoleStyle(true, false, 2, H1_COLOR));
-        styles.put(TypographyRole.HEADING_2, new TypographyRoleStyle(true, false, 0, H2_COLOR));
-        styles.put(TypographyRole.HEADING_3, new TypographyRoleStyle(false, false, 0, HEADING_COLOR));
+        styles.put(TypographyRole.HEADING_2, new TypographyRoleStyle(true, false, 1, H2_COLOR));
+        styles.put(TypographyRole.HEADING_3, new TypographyRoleStyle(true, false, 0, HEADING_COLOR));
         styles.put(TypographyRole.HEADING_4, new TypographyRoleStyle(false, false, 0, HEADING_COLOR));
-        styles.put(TypographyRole.HEADING_5, new TypographyRoleStyle(false, false, 0, HEADING_COLOR));
-        styles.put(TypographyRole.HEADING_6, new TypographyRoleStyle(false, false, 0, HEADING_COLOR));
+        styles.put(TypographyRole.HEADING_5, new TypographyRoleStyle(false, true, 0, HEADING_COLOR));
+        styles.put(TypographyRole.HEADING_6, new TypographyRoleStyle(false, true, -1, HEADING_COLOR));
         styles.put(TypographyRole.MATH, new TypographyRoleStyle(false, false, 0, PARAGRAPH_COLOR));
         return new ScholarTypography(styles, 10, 6, 8, 6, 10, 24, 360, 1);
     }

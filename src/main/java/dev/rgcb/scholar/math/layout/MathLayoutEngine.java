@@ -13,6 +13,8 @@ import dev.rgcb.scholar.math.MathSequence;
 import dev.rgcb.scholar.math.MathSymbol;
 import dev.rgcb.scholar.math.MathText;
 import dev.rgcb.scholar.math.MathExpression;
+import dev.rgcb.scholar.math.MathQuantity;
+import dev.rgcb.scholar.quantity.ScientificNumberFormatter;
 import dev.rgcb.scholar.math.editor.FractionDenominator;
 import dev.rgcb.scholar.math.editor.FractionNumerator;
 import dev.rgcb.scholar.math.editor.GroupContent;
@@ -65,6 +67,10 @@ public final class MathLayoutEngine {
         }
         if (expression instanceof MathText text) {
             return layoutGlyph(text.content(), MathTextKind.TEXT, measurer, path);
+        }
+        if (expression instanceof MathQuantity quantity) {
+            return layoutGlyph(new ScientificNumberFormatter().format(quantity.value(), quantity.notation(), true),
+                    MathTextKind.TEXT, measurer, path);
         }
         if (expression instanceof MathSymbol symbol) {
             return layoutGlyph(symbol.symbol(), MathTextKind.SYMBOL, measurer, path);

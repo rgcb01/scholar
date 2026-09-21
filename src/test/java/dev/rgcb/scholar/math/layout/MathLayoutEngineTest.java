@@ -75,6 +75,22 @@ class MathLayoutEngineTest {
     }
 
     @Test
+    void completeGroupKeepsRelationSpacingInComplexExpression() {
+        var group = new MathGroup(new MathFraction(
+                new MathSequence(List.of(new MathIdentifier("x"), new MathOperator("+", MathOperatorRole.BINARY), new MathNumber("1"))),
+                new MathRoot(new MathIdentifier("z"), Optional.of(new MathNumber("3")))), MathDelimiter.PARENTHESES);
+        var layout = layoutEngine.layout(new MathSequence(List.of(
+                new MathRoot(group, Optional.empty()),
+                new MathOperator("=", MathOperatorRole.RELATION),
+                new MathScript(new MathIdentifier("r"), Optional.empty(), Optional.of(new MathNumber("2"))))), measurer);
+
+        var root = layout.root();
+        var left = root.children().get(0);
+        var relation = root.children().get(1);
+        assertEquals(left.x() + left.box().width() + 6, relation.x());
+    }
+
+    @Test
     void preservesCompactOrdinaryIdentifierAndNumberAdjacency() {
         var identifiers = layoutEngine.layout(new MathSequence(List.of(
                 new MathIdentifier("x"),

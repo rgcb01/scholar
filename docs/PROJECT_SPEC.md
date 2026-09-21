@@ -4,6 +4,60 @@ Scholar is a scientific document engine for Minecraft. It should eventually supp
 
 This document captures approved high-level scope for the current project. It should be revised as decisions become concrete.
 
+## Current Milestone Status
+
+M18-M29 are complete and accepted, including user-confirmed final manual Minecraft QA.
+M30 Scientific Document Typesetting is technically complete and awaiting final Minecraft visual/manual
+acceptance. [M25A_TRANSFER_ARCHITECTURE_CONTRACT.md](M25A_TRANSFER_ARCHITECTURE_CONTRACT.md)
+remains the authoritative transfer contract. See
+[M30_SCIENTIFIC_DOCUMENT_TYPESETTING.md](M30_SCIENTIFIC_DOCUMENT_TYPESETTING.md).
+
+M25B-A/B/C remain historical implementation checkpoints. The final report [M25B_TRANSFER_IMPLEMENTATION.md](M25B_TRANSFER_IMPLEMENTATION.md) describes the complete pipeline, nested-editor boundaries, plain-text interoperability, history and manual acceptance procedure.
+
+The persistence foundation remains [M26_DOCUMENT_PERSISTENCE.md](M26_DOCUMENT_PERSISTENCE.md).
+M30 evolves canonical writes to Scholar JSON V2 for page and formatting semantics while retaining
+strict V1 reads with deterministic defaults. All current semantic blocks, inline marks/references,
+math, datasets/shared bindings and diagram-local graphs round trip exactly. Save/load preserves IDs
+rather than applying transfer remapping. Generated labels/structure, paginated layout, zoom,
+selection, history, clipboard and runtime provenance are not stored. Each loaded session gets a fresh
+runtime owner.
+
+M27 preserves persistence V1 and semantic source ownership. Unicode wrapping and derived
+atomic reference geometry, dataset-bound Figure layout, viewport rendering, stable tall-object
+scroll visibility, transient menu/resize ownership and finite dataset-plot conversion are
+hardened without introducing incremental layout, async mutation, a second transfer pipeline
+or an extension framework. Foundation V2 manual acceptance is complete.
+
+M28 keeps the same semantic contracts while productizing the shell and authoring defaults.
+Development commands are registered only when NeoForge reports a non-production runtime;
+rich QA fixtures remain development-only entry points. Shortcut labels and host matching share
+one platform-neutral descriptor. Plain-text transfer covers equations and resolved dataset-backed
+plots/Figures.
+
+M29 adds the production Home, repository/workspace lifecycle, template entry point, and data-driven
+ribbon shell. M30 adds semantic page settings, deterministic logical-unit pagination, scientific
+typography/paragraph styles, templates, Layout/View commands, and distinct page rendering while
+keeping semantic state, physical layout, viewport rendering, and zoom separate.
+
+## Current Typesetting Slice
+
+- `DocumentSettings` owns physical paper, orientation, margins, columns, minimal page decoration,
+  and template identity; compatibility constructors use deterministic Blank defaults.
+- Physical values use integer micrometres and stable logical document units, never screen pixels.
+- Automatic page/column assignment is derived layout. `PageBreak` alone is a semantic boundary.
+- Paragraph lines may cross automatic page/column boundaries without splitting semantic selections.
+- Equations, tables, plots, diagrams, and figures are atomic paginated scientific content.
+- Figure/Table spans support current column or full page width; arbitrary floating layout is excluded.
+- Text supports controlled font family/size, bold, italic, underline, superscript, and subscript.
+- Paragraphs support semantic style, alignment/justification, line/paragraph spacing, and indentation.
+- Style resolution layers template defaults, semantic style, then explicit local overrides.
+- Production templates are Blank Document and IEEE-style Scientific Paper; the latter is an
+  architecture preset and not a universal venue-compliance claim.
+- Production rendering consumes `LaidOutPage`/`LaidOutColumn` results and shows distinct clipped sheets.
+- Zoom, Fit, scroll, and ribbon presentation are transient workspace state and not semantic history.
+- Scholar JSON V2 stores M30 semantics; strict V1 documents remain readable with default M30 settings.
+- M25 transfer carries local formatting, PageBreak, and spans but not source document page settings.
+
 ## Approved Principles
 
 - Scholar represents knowledge-oriented documents inside Minecraft.
@@ -11,7 +65,7 @@ This document captures approved high-level scope for the current project. It sho
 - Scholar uses a dedicated semantic document model as its source of truth.
 - The initial document model uses explicit document, block, and inline node categories.
 - The core document model is immutable value data.
-- The initial semantic model does not include persistent node IDs.
+- The initial model omitted stable IDs; current referenceable headings, equations, tables, figures, and datasets carry semantic stable IDs in scoped namespaces. These are not persisted document-origin IDs or a native file schema.
 - Inline text is represented by text content plus semantic text marks.
 - Read-only rendering uses a Minecraft-independent layout model before Minecraft-specific rendering.
 - Layout uses a small text measurement abstraction rather than depending directly on Minecraft fonts.
@@ -270,9 +324,19 @@ M18A-M18G are accepted and manually validated. M18H final electrical visual poli
 - M24G classifies current invariants as model-enforced, validator-enforced, editor-state-enforced, history-enforced, interaction-enforced, or documented-only in `M24G_FOUNDATION_AUDIT.md`.
 - No M24G ADRs were added because this milestone consolidates M24A-M24F decisions rather than making new architecture decisions.
 
+## Current Application Workspace
+
+- `/scholar` opens the production Scholar Home rather than a development fixture.
+- Scholar supports multiple independently identified user documents through an application repository layered over Scholar JSON V1 persistence.
+- Application IDs, display names, recency metadata, and disposable previews remain outside the scientific Document AST.
+- Every open creates a fresh editor session, history, selection, focus state, and runtime transfer token.
+- New/Open/Save/Save As/Rename/Close are application lifecycle operations and do not become semantic history transactions.
+- `/scholar` is the only user-facing Scholar entry point and opens the production Home/workspace flow.
+- Visual QA documents and stress profiles are test fixtures, not alternate runtime applications or commands.
+
 ## Non-Goals For The Current Milestone
 
-- M24G is the current implementation slice. It adds final foundation-level regression coverage, documentation, and manual QA fixtures only; document-wide multi-object selection, repair workflows, persistence migration, validation UI, schema serialization, and automatic fixes remain deferred.
+- M26 adds persistence for current built-in semantic content and local editor lifecycle only. Document-wide multi-object selection, repair/diagnostic UI, future schema migrations, recovery journals, cloud/autosave, new scientific features and public extension frameworks remain deferred. Transfer values are not native persistence or stable public API contracts.
 - M23 adds reusable dataset resources and first dataset-backed table/plot views only; units, formulas, spreadsheet semantics, dataset persistence format design, dataset manager UI, dynamic data sources, and dataset-backed Markdown syntax remain deferred.
 - Electrical simulation, PCB/breadboard/perfboard physical layout, arbitrary-angle rotation/mirroring, user-defined symbols, netlist import/export, and automatic net inference remain outside the initial M18 scope.
 - Node resizing, port creation/deletion/repositioning, snapping, multi-selection, and partial element clipboard remain deferred unless later diagram-domain evidence requires them.
@@ -288,7 +352,7 @@ M18A-M18G are accepted and manually validated. M18H final electrical visual poli
 
 ## Unresolved Design Decisions
 
-- Serialization format for the internal document model.
+- Future native schema evolution/migrations beyond the explicit Scholar JSON V1 format.
 - Supported Markdown subset.
 - Mathematical notation subset and rendering approach.
 - Rendering strategy inside Minecraft.

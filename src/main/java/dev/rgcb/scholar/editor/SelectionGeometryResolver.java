@@ -85,6 +85,10 @@ public final class SelectionGeometryResolver {
                 if (start >= end) {
                     continue;
                 }
+                if (run.atomic()) {
+                    rects.add(new SelectionRect(run.x(), line.y(), run.width(), line.height()));
+                    continue;
+                }
                 var prefix = TextBoundary.substring(run.text(), 0, start - run.sourceStart());
                 var selected = TextBoundary.substring(run.text(), start - run.sourceStart(), end - run.sourceStart());
                 var x = line.x() + run.x() + textMeasurer.measureWidth(prefix, run.style());

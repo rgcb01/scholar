@@ -11,6 +11,11 @@ import dev.rgcb.scholar.mechanical.MechanicalConstraintKind;
 import dev.rgcb.scholar.math.editor.ScriptSlot;
 import dev.rgcb.scholar.math.editor.SemanticMathTokenKind;
 import dev.rgcb.scholar.plot.PlotSeriesKind;
+import dev.rgcb.scholar.quantity.NumberNotation;
+import dev.rgcb.scholar.quantity.Quantity;
+import dev.rgcb.scholar.quantity.UnitExpression;
+import dev.rgcb.scholar.quantity.UnitParser;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -31,6 +36,7 @@ public final class BuiltInEditorActions {
                 insertDiagram(),
                 insertCrossReference(),
                 insertTableOfContents(),
+                insertPageBreak(),
                 insertFraction(),
                 insertRoot(),
                 insertParenthesesGroup(),
@@ -39,7 +45,20 @@ public final class BuiltInEditorActions {
                 insertSuperscript(),
                 insertSubscript(),
                 convertToNamedOperator(),
-                convertToMathText());
+                convertToMathText(),
+                insertQuantity(EditorActionId.INSERT_QUANTITY_METRE, "Length: 1 m", "m"),
+                insertQuantity(EditorActionId.INSERT_QUANTITY_CELSIUS, "Temperature: 25 °C", "°C", "25"),
+                insertQuantity(EditorActionId.INSERT_QUANTITY_VOLT, "Voltage: 5 V", "V", "5"),
+                insertQuantity(EditorActionId.INSERT_QUANTITY_MILLIAMPERE, "Current: 1 mA", "mA"),
+                insertQuantity(EditorActionId.INSERT_QUANTITY_KILOOHM, "Resistance: 1 kΩ", "kΩ"),
+                insertQuantity(EditorActionId.INSERT_QUANTITY_ACCELERATION, "Acceleration: 9.81 m/s²", "m/s²", "9.81"),
+                convertQuantity(EditorActionId.QUANTITY_CONVERT_METRE, "Convert to m", "m"),
+                convertQuantity(EditorActionId.QUANTITY_CONVERT_MILLIMETRE, "Convert to mm", "mm"),
+                convertQuantity(EditorActionId.QUANTITY_CONVERT_CELSIUS, "Convert to °C", "°C"),
+                convertQuantity(EditorActionId.QUANTITY_CONVERT_KELVIN, "Convert to K", "K"),
+                quantityNotation(EditorActionId.QUANTITY_FORMAT_DECIMAL, "Decimal", NumberNotation.DECIMAL),
+                quantityNotation(EditorActionId.QUANTITY_FORMAT_SCIENTIFIC, "Scientific", NumberNotation.SCIENTIFIC),
+                quantityNotation(EditorActionId.QUANTITY_FORMAT_ENGINEERING, "Engineering", NumberNotation.ENGINEERING));
     }
 
     public static List<EditorAction> formatMenuActions() {
@@ -52,7 +71,40 @@ public final class BuiltInEditorActions {
                 heading(5),
                 heading(6),
                 bold(),
-                italic());
+                italic(), underline(), textSuperscript(), textSubscript(),
+                semanticStyle(EditorActionId.STYLE_BODY, "Body Text", dev.rgcb.scholar.document.SemanticStyle.BODY_TEXT),
+                semanticStyle(EditorActionId.STYLE_TITLE, "Title", dev.rgcb.scholar.document.SemanticStyle.TITLE),
+                semanticStyle(EditorActionId.STYLE_SUBTITLE, "Subtitle", dev.rgcb.scholar.document.SemanticStyle.SUBTITLE),
+                semanticStyle(EditorActionId.STYLE_AUTHOR, "Author", dev.rgcb.scholar.document.SemanticStyle.AUTHOR),
+                semanticStyle(EditorActionId.STYLE_AFFILIATION, "Affiliation", dev.rgcb.scholar.document.SemanticStyle.AFFILIATION),
+                semanticStyle(EditorActionId.STYLE_ABSTRACT, "Abstract", dev.rgcb.scholar.document.SemanticStyle.ABSTRACT),
+                semanticStyle(EditorActionId.STYLE_KEYWORDS, "Keywords", dev.rgcb.scholar.document.SemanticStyle.KEYWORDS),
+                semanticStyle(EditorActionId.STYLE_REFERENCE, "Reference", dev.rgcb.scholar.document.SemanticStyle.REFERENCE),
+                fontSize(EditorActionId.FONT_SIZE_10, "10 pt", 20), fontSize(EditorActionId.FONT_SIZE_12, "12 pt", 24), fontSize(EditorActionId.FONT_SIZE_14, "14 pt", 28),
+                fontFamily(EditorActionId.FONT_SOURCE_SANS, "Source Sans 3", dev.rgcb.scholar.document.ScholarFontFamily.SOURCE_SANS_3),
+                fontFamily(EditorActionId.FONT_SCIENTIFIC_MATH, "Scientific Math", dev.rgcb.scholar.document.ScholarFontFamily.SCIENTIFIC_MATH),
+                alignment(EditorActionId.ALIGN_LEFT, "Align Left", dev.rgcb.scholar.document.ParagraphAlignment.LEFT),
+                alignment(EditorActionId.ALIGN_CENTER, "Center", dev.rgcb.scholar.document.ParagraphAlignment.CENTER),
+                alignment(EditorActionId.ALIGN_RIGHT, "Align Right", dev.rgcb.scholar.document.ParagraphAlignment.RIGHT),
+                alignment(EditorActionId.ALIGN_JUSTIFIED, "Justify", dev.rgcb.scholar.document.ParagraphAlignment.JUSTIFIED),
+                paragraphCommand(EditorActionId.LINE_SPACING_SINGLE, "Single Spacing", s -> s.setParagraphLineSpacing(1000)),
+                paragraphCommand(EditorActionId.LINE_SPACING_ONE_HALF, "1.5 Spacing", s -> s.setParagraphLineSpacing(1500)),
+                paragraphCommand(EditorActionId.INDENT_DECREASE, "Decrease Indent", s -> s.adjustParagraphLeftIndent(-8)),
+                paragraphCommand(EditorActionId.INDENT_INCREASE, "Increase Indent", s -> s.adjustParagraphLeftIndent(8)));
+    }
+
+    public static List<EditorAction> layoutMenuActions() {
+        return List.of(
+                settings(EditorActionId.LAYOUT_MARGIN_NORMAL, "Normal Margins", s -> new dev.rgcb.scholar.document.DocumentSettings(s.template(), s.paper(), s.orientation(), dev.rgcb.scholar.document.PageMargins.normal(), s.columns(), s.decoration())),
+                settings(EditorActionId.LAYOUT_MARGIN_NARROW, "Narrow Margins", s -> new dev.rgcb.scholar.document.DocumentSettings(s.template(), s.paper(), s.orientation(), dev.rgcb.scholar.document.PageMargins.narrow(), s.columns(), s.decoration())),
+                settings(EditorActionId.LAYOUT_PORTRAIT, "Portrait", s -> new dev.rgcb.scholar.document.DocumentSettings(s.template(), s.paper(), dev.rgcb.scholar.document.PageOrientation.PORTRAIT, s.margins(), s.columns(), s.decoration())),
+                settings(EditorActionId.LAYOUT_LANDSCAPE, "Landscape", s -> new dev.rgcb.scholar.document.DocumentSettings(s.template(), s.paper(), dev.rgcb.scholar.document.PageOrientation.LANDSCAPE, s.margins(), s.columns(), s.decoration())),
+                settings(EditorActionId.LAYOUT_SIZE_LETTER, "Letter", s -> new dev.rgcb.scholar.document.DocumentSettings(s.template(), dev.rgcb.scholar.document.PaperSize.letter(), s.orientation(), s.margins(), s.columns(), s.decoration())),
+                settings(EditorActionId.LAYOUT_SIZE_A4, "A4", s -> new dev.rgcb.scholar.document.DocumentSettings(s.template(), dev.rgcb.scholar.document.PaperSize.a4(), s.orientation(), s.margins(), s.columns(), s.decoration())),
+                settings(EditorActionId.LAYOUT_SIZE_LEGAL, "Legal", s -> new dev.rgcb.scholar.document.DocumentSettings(s.template(), dev.rgcb.scholar.document.PaperSize.legal(), s.orientation(), s.margins(), s.columns(), s.decoration())),
+                settings(EditorActionId.LAYOUT_ONE_COLUMN, "One Column", s -> s.withColumns(dev.rgcb.scholar.document.ColumnLayout.one())),
+                settings(EditorActionId.LAYOUT_TWO_COLUMNS, "Two Columns", s -> s.withColumns(dev.rgcb.scholar.document.ColumnLayout.two())),
+                insertPageBreak());
     }
 
     public static List<EditorAction> tableMenuActions() {
@@ -75,7 +127,14 @@ public final class BuiltInEditorActions {
                 setPlotSeriesScatter(),
                 addPlotPoint(),
                 deletePlotPoint(),
-                deletePlotSeries());
+                deletePlotSeries(),
+                plotAxisUnit(EditorActionId.PLOT_X_UNIT_AUTO, "Automatic X Unit", true, Optional.empty()),
+                plotAxisUnit(EditorActionId.PLOT_X_UNIT_SECOND, "X Axis: s", true, Optional.of(unit("s"))),
+                plotAxisUnit(EditorActionId.PLOT_X_UNIT_METRE, "X Axis: m", true, Optional.of(unit("m"))),
+                plotAxisUnit(EditorActionId.PLOT_Y_UNIT_AUTO, "Automatic Y Unit", false, Optional.empty()),
+                plotAxisUnit(EditorActionId.PLOT_Y_UNIT_CELSIUS, "Y Axis: °C", false, Optional.of(unit("°C"))),
+                plotAxisUnit(EditorActionId.PLOT_Y_UNIT_KELVIN, "Y Axis: K", false, Optional.of(unit("K"))),
+                plotAxisUnit(EditorActionId.PLOT_Y_UNIT_VOLT, "Y Axis: V", false, Optional.of(unit("V"))));
     }
 
     public static List<EditorAction> diagramMenuActions() {
@@ -156,7 +215,59 @@ public final class BuiltInEditorActions {
     }
 
     public static List<EditorAction> dataMenuActions() {
-        return List.of(newDataset(), insertDatasetTable(), bindPlotToDataset());
+        return List.of(newDataset(), insertDatasetTable(), bindPlotToDataset(),
+                datasetColumnUnit(EditorActionId.DATA_COLUMN_UNIT_NONE, "Unitless", Optional.empty()),
+                datasetColumnUnit(EditorActionId.DATA_COLUMN_UNIT_METRE, "Metre (m)", Optional.of(unit("m"))),
+                datasetColumnUnit(EditorActionId.DATA_COLUMN_UNIT_SECOND, "Second (s)", Optional.of(unit("s"))),
+                datasetColumnUnit(EditorActionId.DATA_COLUMN_UNIT_CELSIUS, "Celsius (°C)", Optional.of(unit("°C"))),
+                datasetColumnUnit(EditorActionId.DATA_COLUMN_UNIT_KELVIN, "Kelvin (K)", Optional.of(unit("K"))),
+                datasetColumnUnit(EditorActionId.DATA_COLUMN_UNIT_VOLT, "Volt (V)", Optional.of(unit("V"))),
+                datasetColumnUnit(EditorActionId.DATA_COLUMN_UNIT_AMPERE, "Ampere (A)", Optional.of(unit("A"))),
+                datasetColumnUnit(EditorActionId.DATA_COLUMN_UNIT_OHM, "Ohm (Ω)", Optional.of(unit("Ω"))));
+    }
+
+    private static EditorAction insertQuantity(EditorActionId id, String label, String unit) {
+        return insertQuantity(id, label, unit, "1");
+    }
+
+    private static EditorAction insertQuantity(EditorActionId id, String label, String unit, String value) {
+        return new SimpleAction(id, label, "Insert a semantic scientific quantity", null,
+                context -> context.session().supportsInsertQuantity(),
+                context -> context.session().insertQuantity(new Quantity(new BigDecimal(value), unit(unit)), NumberNotation.DECIMAL)
+                        ? EditorActionResult.DOCUMENT_CHANGED : EditorActionResult.NONE);
+    }
+
+    private static EditorAction datasetColumnUnit(EditorActionId id, String label, Optional<UnitExpression> unit) {
+        return new SimpleAction(id, label, "Set the selected numeric dataset column unit", null,
+                context -> context.session().supportsSetSelectedDatasetColumnUnit(),
+                context -> context.session().setSelectedDatasetColumnUnit(unit)
+                        ? EditorActionResult.DOCUMENT_CHANGED : EditorActionResult.NONE);
+    }
+
+    private static EditorAction convertQuantity(EditorActionId id, String label, String target) {
+        var unit = unit(target);
+        return new SimpleAction(id, label, "Convert the semantic quantity at the caret", null,
+                context -> context.session().supportsConvertQuantityAtCaret(unit),
+                context -> context.session().convertQuantityAtCaret(unit)
+                        ? EditorActionResult.DOCUMENT_CHANGED : EditorActionResult.NONE);
+    }
+
+    private static EditorAction quantityNotation(EditorActionId id, String label, NumberNotation notation) {
+        return new SimpleAction(id, label, "Set quantity number presentation", null,
+                context -> context.session().supportsEditQuantityAtCaret(),
+                context -> context.session().setQuantityNotationAtCaret(notation)
+                        ? EditorActionResult.DOCUMENT_CHANGED : EditorActionResult.NONE);
+    }
+
+    private static EditorAction plotAxisUnit(EditorActionId id, String label, boolean xAxis, Optional<UnitExpression> unit) {
+        return new SimpleAction(id, label, "Set the selected plot " + (xAxis ? "X" : "Y") + "-axis display unit", null,
+                context -> context.session().supportsSetSelectedPlotAxisDisplayUnit(),
+                context -> context.session().setSelectedPlotAxisDisplayUnit(xAxis, unit)
+                        ? EditorActionResult.DOCUMENT_CHANGED : EditorActionResult.NONE);
+    }
+
+    private static UnitExpression unit(String symbol) {
+        return new UnitParser().parseRequired(symbol);
     }
 
     public static EditorAction wrapPlotInFigure() {
@@ -217,7 +328,7 @@ public final class BuiltInEditorActions {
         return new SimpleAction(
                 EditorActionId.DATA_NEW_DATASET,
                 "New Dataset",
-                "Create sample dataset",
+                "Create an empty dataset",
                 null,
                 context -> context.session().supportsDatasetDocumentAction(),
                 context -> context.session().createDefaultDataset()
@@ -280,7 +391,7 @@ public final class BuiltInEditorActions {
         return new SimpleAction(
                 EditorActionId.UNDO,
                 "Undo",
-                new ActionShortcut("Ctrl+Z"),
+                ActionShortcut.ctrl(ActionShortcut.Key.Z),
                 context -> context.session().canUndo(),
                 context -> context.session().undo() ? EditorActionResult.DOCUMENT_CHANGED : EditorActionResult.NONE);
     }
@@ -289,7 +400,9 @@ public final class BuiltInEditorActions {
         return new SimpleAction(
                 EditorActionId.REDO,
                 "Redo",
-                new ActionShortcut("Ctrl+Y"),
+                ActionShortcut.of(
+                        new ActionShortcut.Stroke(ActionShortcut.Key.Y, true, false),
+                        new ActionShortcut.Stroke(ActionShortcut.Key.Z, true, true)),
                 context -> context.session().canRedo(),
                 context -> context.session().redo() ? EditorActionResult.DOCUMENT_CHANGED : EditorActionResult.NONE);
     }
@@ -298,7 +411,7 @@ public final class BuiltInEditorActions {
         return new SimpleAction(
                 EditorActionId.CUT,
                 "Cut",
-                new ActionShortcut("Ctrl+X"),
+                ActionShortcut.ctrl(ActionShortcut.Key.X),
                 context -> context.session().canCutForClipboard(),
                 context -> {
                     var cut = context.session().cutForClipboard();
@@ -320,7 +433,7 @@ public final class BuiltInEditorActions {
         return new SimpleAction(
                 EditorActionId.COPY,
                 "Copy",
-                new ActionShortcut("Ctrl+C"),
+                ActionShortcut.ctrl(ActionShortcut.Key.C),
                 context -> context.session().canCopyForClipboard(),
                 context -> {
                     var copy = context.session().copyForClipboard();
@@ -342,7 +455,7 @@ public final class BuiltInEditorActions {
         return new SimpleAction(
                 EditorActionId.PASTE,
                 "Paste",
-                new ActionShortcut("Ctrl+V"),
+                ActionShortcut.ctrl(ActionShortcut.Key.V),
                 context -> {
                     var text = context.clipboard().getText();
                     var payload = context.scholarClipboard().matchingPayload(text);
@@ -361,7 +474,7 @@ public final class BuiltInEditorActions {
         return new SimpleAction(
                 EditorActionId.DELETE,
                 "Delete",
-                new ActionShortcut("Del"),
+                ActionShortcut.plain(ActionShortcut.Key.DELETE),
                 context -> context.session().current().isBlockSelection()
                         || context.session().current().hasSelection()
                         || context.session().current().isTableEditingSelection()
@@ -477,11 +590,67 @@ public final class BuiltInEditorActions {
     }
 
     public static EditorAction bold() {
-        return formatAction(EditorActionId.BOLD, "Bold", new ActionShortcut("Ctrl+B"), TextMark.BOLD);
+        return formatAction(EditorActionId.BOLD, "Bold", ActionShortcut.ctrl(ActionShortcut.Key.B), TextMark.BOLD);
     }
 
     public static EditorAction italic() {
-        return formatAction(EditorActionId.ITALIC, "Italic", new ActionShortcut("Ctrl+I"), TextMark.ITALIC);
+        return formatAction(EditorActionId.ITALIC, "Italic", ActionShortcut.ctrl(ActionShortcut.Key.I), TextMark.ITALIC);
+    }
+
+    public static EditorAction underline() {
+        return formatAction(EditorActionId.UNDERLINE, "Underline", null, TextMark.UNDERLINE);
+    }
+
+    public static EditorAction textSuperscript() {
+        return formatAction(EditorActionId.TEXT_SUPERSCRIPT, "Superscript", null, TextMark.SUPERSCRIPT);
+    }
+
+    public static EditorAction textSubscript() {
+        return formatAction(EditorActionId.TEXT_SUBSCRIPT, "Subscript", null, TextMark.SUBSCRIPT);
+    }
+
+    public static EditorAction insertPageBreak() {
+        return new SimpleAction(EditorActionId.INSERT_PAGE_BREAK, "Page Break", null,
+                context -> context.session().current().isTextSelection() || context.session().current().isBlockSelection(),
+                context -> context.session().insertPageBreak() ? EditorActionResult.DOCUMENT_CHANGED : EditorActionResult.NONE);
+    }
+
+    private static EditorAction semanticStyle(EditorActionId id, String label, dev.rgcb.scholar.document.SemanticStyle style) {
+        return new SimpleAction(id, label, null,
+                context -> context.session().current().isTextSelection()
+                        && context.session().current().document().blocks().get(context.session().current().active().blockIndex()) instanceof dev.rgcb.scholar.document.Paragraph,
+                context -> context.session().setParagraphStyle(style) ? EditorActionResult.DOCUMENT_CHANGED : EditorActionResult.NONE);
+    }
+
+    private static EditorAction fontSize(EditorActionId id, String label, int halfPoints) {
+        return new SimpleAction(id, label, null,
+                context -> context.session().supportsInlineFormatting() && context.session().current().hasSelection(),
+                context -> context.session().setTextFormat(new dev.rgcb.scholar.document.TextFormat(java.util.Optional.empty(), java.util.Optional.of(halfPoints)))
+                        ? EditorActionResult.DOCUMENT_CHANGED : EditorActionResult.NONE);
+    }
+
+    private static EditorAction fontFamily(EditorActionId id, String label, dev.rgcb.scholar.document.ScholarFontFamily family) {
+        return new SimpleAction(id, label, null,
+                context -> context.session().supportsInlineFormatting() && context.session().current().hasSelection(),
+                context -> context.session().setTextFormat(new dev.rgcb.scholar.document.TextFormat(java.util.Optional.of(family), java.util.Optional.empty()))
+                        ? EditorActionResult.DOCUMENT_CHANGED : EditorActionResult.NONE);
+    }
+
+    private static EditorAction alignment(EditorActionId id, String label, dev.rgcb.scholar.document.ParagraphAlignment alignment) {
+        return new SimpleAction(id, label, null,
+                context -> context.session().current().isTextSelection(),
+                context -> context.session().setParagraphAlignment(alignment) ? EditorActionResult.DOCUMENT_CHANGED : EditorActionResult.NONE);
+    }
+
+    private static EditorAction paragraphCommand(EditorActionId id, String label, java.util.function.Predicate<EditorSession> command) {
+        return new SimpleAction(id, label, null, context -> context.session().current().isTextSelection(),
+                context -> command.test(context.session()) ? EditorActionResult.DOCUMENT_CHANGED : EditorActionResult.NONE);
+    }
+
+    private static EditorAction settings(EditorActionId id, String label,
+                                         java.util.function.UnaryOperator<dev.rgcb.scholar.document.DocumentSettings> update) {
+        return new SimpleAction(id, label, null, context -> true,
+                context -> context.session().updateDocumentSettings(update) ? EditorActionResult.DOCUMENT_CHANGED : EditorActionResult.NONE);
     }
 
     public static EditorAction insertTableRowAbove() {

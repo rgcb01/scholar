@@ -10,8 +10,14 @@ public record LaidOutText(
         int width,
         int sourceBlockIndex,
         int sourceStart,
-        int sourceEnd
+        int sourceEnd,
+        boolean atomic
 ) {
+    public LaidOutText(String text, TextStyle style, int x, int y, int width,
+            int sourceBlockIndex, int sourceStart, int sourceEnd) {
+        this(text, style, x, y, width, sourceBlockIndex, sourceStart, sourceEnd, false);
+    }
+
     public LaidOutText(String text, TextStyle style, int x, int y, int width) {
         this(text, style, x, y, width, -1, 0, 0);
     }

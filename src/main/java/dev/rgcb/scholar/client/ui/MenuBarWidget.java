@@ -25,6 +25,9 @@ public final class MenuBarWidget {
     private final List<MenuDefinition> menus;
     private int openMenuIndex = -1;
     private int viewportHeight = Integer.MAX_VALUE;
+    private int viewportWidth = Integer.MAX_VALUE;
+    private int keyboardEntry = -1;
+    private int titleScroll;
     private int scrollRow;
 
     public MenuBarWidget(ScholarEditorController controller, List<MenuDefinition> menus) {
@@ -33,14 +36,18 @@ public final class MenuBarWidget {
     }
 
     public void render(GuiGraphics graphics, Font font, int width, int height, int mouseX, int mouseY) {
-        viewportHeight = Math.max(MENU_Y + ROW_HEIGHT, height);
-        clampScrollRow();
+        setViewportSize(width, height);
         ScholarShellRenderer.drawRaisedPanel(graphics, 0, 0, width, HEIGHT, ScholarShellStyle.PANEL);
         graphics.fill(0, HEIGHT - 2, width, HEIGHT - 1, ScholarShellStyle.SHADOW);
         graphics.fill(0, HEIGHT - 1, width, HEIGHT, ScholarShellStyle.DEEP_SHADOW);
 
-        for (var index = 0; index < menus.size(); index++) {
-            renderTitle(graphics, font, index, mouseX, mouseY);
+        graphics.enableScissor(0, 0, width, HEIGHT);
+        try {
+            for (var index = 0; index < menus.size(); index++) {
+                renderTitle(graphics, font, index, mouseX, mouseY);
+            }
+        } finally {
+            graphics.disableScissor();
         }
 
         if (openMenuIndex >= 0) {
@@ -54,6 +61,7 @@ public final class MenuBarWidget {
             var next = openMenuIndex == titleIndex ? -1 : titleIndex;
             if (next != openMenuIndex) {
                 scrollRow = 0;
+                keyboardEntry = -1;
             }
             openMenuIndex = next;
             return true;
@@ -81,6 +89,11 @@ public final class MenuBarWidget {
     }
 
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollY) {
+        if (mouseX >= 0 && mouseX < viewportWidth && mouseY >= 0 && mouseY < HEIGHT && scrollY != 0.0) {
+            var old = titleScroll;
+            titleScroll = Math.max(0, Math.min(maxTitleScroll(), titleScroll - (int) Math.signum(scrollY) * 24));
+            return old != titleScroll || maxTitleScroll() > 0;
+        }
         if (openMenuIndex < 0 || scrollY == 0.0) {
             return false;
         }
@@ -97,11 +110,55 @@ public final class MenuBarWidget {
     }
 
     public boolean keyPressed(int keyCode) {
+        if (openMenuIndex < 0) { return false; }
         if (keyCode == GLFW.GLFW_KEY_ESCAPE && openMenuIndex >= 0) {
-            openMenuIndex = -1;
+            close();
             return true;
         }
-        return false;
+        if (keyCode == GLFW.GLFW_KEY_LEFT || keyCode == GLFW.GLFW_KEY_RIGHT) {
+            openMenuIndex = Math.floorMod(openMenuIndex + (keyCode == GLFW.GLFW_KEY_RIGHT ? 1 : -1), menus.size());
+            keyboardEntry = -1;
+            scrollRow = 0;
+            var x = titleX(openMenuIndex);
+            if (x < 0) { titleScroll += x; }
+            else if (x + titleWidth(openMenu()) > viewportWidth) { titleScroll += x + titleWidth(openMenu()) - viewportWidth; }
+            titleScroll = Math.max(0, Math.min(titleScroll, maxTitleScroll()));
+        } else if (keyCode == GLFW.GLFW_KEY_DOWN || keyCode == GLFW.GLFW_KEY_UP) {
+            selectKeyboardEntry(keyCode == GLFW.GLFW_KEY_DOWN ? 1 : -1);
+        } else if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+            if (keyboardEntry < 0) { selectKeyboardEntry(1); }
+            if (keyboardEntry >= 0) {
+                var action = openMenu().entries().get(keyboardEntry).action().orElseThrow();
+                if (controller.isEnabled(action)) {
+                    close();
+                    controller.execute(action);
+                }
+            }
+        }
+        return true;
+    }
+
+    public void setViewportSize(int width, int height) {
+        viewportWidth = Math.max(1, width);
+        viewportHeight = Math.max(MENU_Y + ROW_HEIGHT, height);
+        titleScroll = Math.max(0, Math.min(titleScroll, maxTitleScroll()));
+        clampScrollRow();
+    }
+
+    private void selectKeyboardEntry(int direction) {
+        var entries = openMenu().entries();
+        var index = keyboardEntry < 0 ? (direction > 0 ? -1 : 0) : keyboardEntry;
+        for (var i = 0; i < entries.size(); i++) {
+            index = Math.floorMod(index + direction, entries.size());
+            var entry = entries.get(index);
+            if (entry.action().isPresent() && controller.isEnabled(entry.action().orElseThrow())) {
+                keyboardEntry = index;
+                if (index < scrollRow) { scrollRow = index; }
+                if (index >= scrollRow + visibleRowCount()) { scrollRow = index - visibleRowCount() + 1; }
+                clampScrollRow();
+                return;
+            }
+        }
     }
 
     public boolean isOpen() {
@@ -111,6 +168,7 @@ public final class MenuBarWidget {
     public void close() {
         openMenuIndex = -1;
         scrollRow = 0;
+        keyboardEntry = -1;
     }
 
     private void renderDropdown(GuiGraphics graphics, Font font, int mouseX, int mouseY) {
@@ -131,7 +189,7 @@ public final class MenuBarWidget {
 
             var action = entry.action().orElseThrow();
             var enabled = controller.isEnabled(action);
-            if (itemIndexAt(mouseX, mouseY) == index && enabled) {
+            if ((itemIndexAt(mouseX, mouseY) == index || keyboardEntry == index) && enabled) {
                 renderHoveredRow(graphics, menuX, y);
             }
             renderActionState(graphics, menuX, y, controller.selectionState(action));
@@ -254,15 +312,19 @@ public final class MenuBarWidget {
     }
 
     private int menuX(int index) {
-        return titleX(index);
+        return Math.max(0, Math.min(titleX(index), viewportWidth - MENU_WIDTH));
     }
 
     private int titleX(int index) {
-        var x = TITLE_X;
+        var x = TITLE_X - titleScroll;
         for (var current = 0; current < index; current++) {
             x += titleWidth(menus.get(current)) + TITLE_GAP;
         }
         return x;
+    }
+
+    private int maxTitleScroll() {
+        return Math.max(0, TITLE_X + menus.stream().mapToInt(menu -> titleWidth(menu) + TITLE_GAP).sum() - viewportWidth);
     }
 
     private static int titleWidth(MenuDefinition menu) {
