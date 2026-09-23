@@ -2,8 +2,8 @@
 
 ## Status
 
-Technically complete. Final Minecraft visual/manual acceptance is pending. M30 does not claim
-publication compliance for a specific IEEE venue, and no later milestone has started.
+M30 is complete and manually accepted. Earlier implementation checkpoints awaited Minecraft
+visual QA. M30 does not claim publication compliance for a specific IEEE venue.
 
 ## Architecture Decision
 

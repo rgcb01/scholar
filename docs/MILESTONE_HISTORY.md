@@ -1,6 +1,7 @@
 # Scholar Milestone History
 
-This file is a compact checkpoint log for the work imported from `MinecraftSTEMDev_M19F_new.zip`.
+This file is a compact checkpoint and acceptance log. M16-M19 began with the imported
+`MinecraftSTEMDev_M19F_new.zip` baseline; later milestones were developed in this repository.
 
 Detailed architecture remains in the specs and ADRs. Detailed implementation notes remain in the milestone report files linked below.
 
@@ -609,3 +610,67 @@ Status: technically complete; final Minecraft manual QA pending.
 
 Report: [M30_SCIENTIFIC_DOCUMENT_TYPESETTING.md](M30_SCIENTIFIC_DOCUMENT_TYPESETTING.md).
 No commit/push or manual Minecraft acceptance is claimed by this implementation checkpoint.
+
+## M30 Acceptance Before M31
+
+M30 was manually accepted after the semantic LayoutSectionBreak and ContentSpan.AUTO
+extensions and final layout QA. The checkpoint status above is historical.
+
+## M31 - Scientific Units & Quantities
+
+Status: complete and manually accepted.
+
+- Added a structured M31 unit registry, quantity value/semantics, conversion and number formatting.
+- Preserved the distinction between absolute temperature and temperature difference, including
+  `°C` versus `Δ°C` and `K` versus `ΔK`.
+- Integrated quantities with inline/math presentation, dataset units, plots, transfer, and V2
+  persistence without storing derived conversions as independent document truth.
+- Final scientific/engineering formatting omits redundant `×10^0`.
+
+The M31 model is documented alongside the [temperature semantics follow-up](PRE_M32_TEMPERATURE_QUANTITY_SEMANTICS.md).
+
+## M32 - Scientific Variables & Computed Content
+
+Status: complete and manually accepted.
+
+- Added stable-ID `VariableDefinition` and authored `ComputedResult` expressions with name-to-ID
+  binding, derived BigDecimal evaluation, diagnostics, and snapshot-safe history.
+- Preserved quantity temperature semantics and added dependency-aware M25 transfer; unproven
+  cross-document dependencies reject rather than silently bind by name or coincidental ID.
+- V2 persistence stores authored variables/expressions and IDs, never cached results.
+- Production unit authoring uses the M31 registry-backed picker; caret geometry after atomic
+  computation blocks was corrected and manually checked.
+
+Report: [M32_SCIENTIFIC_COMPUTATION.md](M32_SCIENTIFIC_COMPUTATION.md).
+
+## M33 - Scientific Data Analysis
+
+Status: complete and manually accepted.
+
+- Added authored `DatasetAnalysisBlock` and stable-ID fit overlays on plot series.
+- Derived descriptive statistics and bounded line/quadratic/cubic regression from document-owned
+  datasets without persisting results or generated curve samples.
+- Integrated analysis dependency diagnostics, editor transactions, resource closure, transfer,
+  V2 persistence, and plot rendering. Column links remain ID-based through rename.
+
+Report: [M33_SCIENTIFIC_DATA_ANALYSIS.md](M33_SCIENTIFIC_DATA_ANALYSIS.md).
+
+## M34 - High-Fidelity Document Rendering
+
+Status: complete and manually accepted, including final Minecraft visual QA.
+
+- Improved the document-only text profiles and scientific stroke rendering without changing
+  Minecraft shell fonts or semantic layout state.
+- Added shared `DocumentViewTransform` geometry for zoom, clipping, mouse coordinates and the
+  screen-space caret; corrected selection and cross-column paragraph bounds/hit testing.
+- Added transient status-bar page/word-count/zoom controls, a production M34 Readability Sample,
+  and guarded Home document deletion. Caret optical metrics and blink were visually refined.
+- Automated tests and build passed at the accepted implementation checkpoint; this pre-M35
+  consolidation reruns the complete verification and records the current test count.
+
+Report: [M34_HIGH_FIDELITY_RENDERING.md](M34_HIGH_FIDELITY_RENDERING.md).
+
+## Next
+
+M35 Scholar API & Addon Framework is planned, not started. The current implementation packages
+are not a stable external API.

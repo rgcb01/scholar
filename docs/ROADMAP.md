@@ -31,10 +31,19 @@ The repository has advanced substantially beyond the original early-milestone ou
 - M26 Document Persistence is COMPLETE / ACCEPTED, including user-confirmed manual Minecraft QA. Explicit Scholar JSON V1 and local editor lifecycle are integrated; its report preserves the historical automated checkpoint.
 - M27 Editor Hardening & Foundation V2 is complete and accepted, including final manual Minecraft QA. One milestone covers stress fixtures, Unicode/atomic reference geometry, Figure dataset layout, viewport culling, scroll/input/resize hardening, large persistence/transfer and long-session regression. See [M27_EDITOR_HARDENING.md](M27_EDITOR_HARDENING.md).
 - M28 Productization & Visual Polish is complete and manually accepted. It resolves the accepted productization findings, gates development commands, removes demo insertion defaults, unifies shortcut authority, improves contextual menus and visual hierarchy, and preserves V1 persistence and M24-M27 contracts.
-- M29 Application Architecture & Workspace is technically complete with final Minecraft manual QA pending: `/scholar` opens a production Home, user documents have independent application identities, M26 persistence is repository-owned, and each open creates an isolated editor session.
+- M29 Application Architecture & Workspace is complete and manually accepted: `/scholar` opens a production Home, user documents have independent application identities, M26 persistence is repository-owned, and each open creates an isolated editor session.
+- M30 Scientific Document Typesetting is complete and manually accepted: semantic page settings and styles, derived pagination, templates, and Scholar JSON V2.
+- M31 Scientific Units & Quantities is complete and manually accepted: structured units, quantity semantics, conversion, and scientific-number presentation.
+- M32 Scientific Variables & Computed Content is complete and manually accepted: stable variable identity, authored expressions, derived computation, transfer and persistence.
+- M33 Scientific Data Analysis is complete and manually accepted: authored analysis definitions and fit links with derived statistics, regression, and plot overlays.
+- M34 High-Fidelity Document Rendering is complete and manually accepted: document-only higher-resolution typography, shared view transform, refined strokes and caret geometry, status bar, and production readability sample.
 
 
 ## Current Forward Milestone Plan
+
+M35 Scholar API & Addon Framework is next and **not started**. The proposed sequence after it is M36 Import / Export & Interchange, M37 Authoring UX & Document Workflow, M38 V1 Product Hardening, M39 V1 Release Candidate, then Scholar 1.0. These are plans, not implemented capabilities or accepted public contracts.
+
+The M25-M30 entries below are retained as historical plans and implementation checkpoints. For current acceptance, use the status list above and [MILESTONE_HISTORY.md](MILESTONE_HISTORY.md).
 
 ### M25A - Document Transfer & Identity Closure Architecture - Complete
 
@@ -69,13 +78,13 @@ round trips and exact 100-transaction history are implemented. Full suite: 1456 
 tests; build passes. Persistence V1 and M24/M25 semantic contracts remain unchanged.
 Final Minecraft QA is user-confirmed. The historical procedure remains in [M27_EDITOR_HARDENING.md](M27_EDITOR_HARDENING.md).
 
-### M28 - Productization & Visual Polish - Technical Complete / Manual QA Pending
+### M28 - Productization & Visual Polish - Complete / Accepted
 
 M28 resolves the ten accepted FIX NOW findings and the concrete visual QA defects without
 changing semantic ASTs, transfer policy, persistence V1, or introducing extension frameworks.
 The implementation report and concise manual procedure are in
 [M28_PRODUCTIZATION_AND_VISUAL_POLISH.md](M28_PRODUCTIZATION_AND_VISUAL_POLISH.md).
-No M29 feature milestone starts before manual acceptance.
+M29 followed final manual acceptance.
 
 ### M17 - Scientific Diagram Foundation — Complete
 
@@ -111,9 +120,8 @@ M18 models schematic diagrams only. Physical Minecraft components on breadboards
 - M19C Geometric constraints/relationships: horizontal, vertical, coincident, parallel, perpendicular, and concentric — complete/manual QA accepted.
 - M19D Mechanical symbols: shaft, gear, bearing, spring, piston, and bolt — complete/manual QA accepted.
 - M19E/E.1 Mechanical labels, notes, leader callouts, and annotation visual polish — complete/manual QA accepted.
-- M19F Mechanical Assembly & Part References: semantic item balloons linked by stable element IDs plus generated BOM tables — implemented/manual QA pending.
-- M19G Hardening — planned.
-- M19H Visual polish — planned.
+- M19F Mechanical Assembly & Part References: semantic item balloons linked by stable element IDs plus generated BOM tables — complete/manual QA accepted.
+- M19G and M19H were historical proposed splits; M19 acceptance is recorded above.
 
 M19 remains schematic/technical-drawing authoring rather than physical simulation. M19C uses a bounded deterministic relationship reconciler, not a general CAD solver.
 
@@ -263,7 +271,7 @@ Report: [M29_APPLICATION_ARCHITECTURE_AND_WORKSPACE.md](M29_APPLICATION_ARCHITEC
 
 ## Milestone 30 - Scientific Document Typesetting
 
-Status: technically complete; final Minecraft manual QA pending.
+Status: complete and manually accepted.
 
 - Adds deterministic physical paper, margins, orientation, one/two-column flow, automatic pagination,
   semantic PageBreak, and Figure/Table column/full-page spans.

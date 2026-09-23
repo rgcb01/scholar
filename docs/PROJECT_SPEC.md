@@ -6,18 +6,18 @@ This document captures approved high-level scope for the current project. It sho
 
 ## Current Milestone Status
 
-M18-M29 are complete and accepted, including user-confirmed final manual Minecraft QA.
-M30 Scientific Document Typesetting is technically complete and awaiting final Minecraft visual/manual
-acceptance. [M25A_TRANSFER_ARCHITECTURE_CONTRACT.md](M25A_TRANSFER_ARCHITECTURE_CONTRACT.md)
-remains the authoritative transfer contract. See
-[M30_SCIENTIFIC_DOCUMENT_TYPESETTING.md](M30_SCIENTIFIC_DOCUMENT_TYPESETTING.md).
+M18-M34 are complete and manually accepted. M35 Scholar API & Addon Framework is next,
+not implemented. [ARCHITECTURE.md](ARCHITECTURE.md) maps current ownership boundaries;
+[MILESTONE_HISTORY.md](MILESTONE_HISTORY.md) records acceptance separately from older
+implementation checkpoints. [M25A_TRANSFER_ARCHITECTURE_CONTRACT.md](M25A_TRANSFER_ARCHITECTURE_CONTRACT.md)
+remains the authoritative transfer contract.
 
 M25B-A/B/C remain historical implementation checkpoints. The final report [M25B_TRANSFER_IMPLEMENTATION.md](M25B_TRANSFER_IMPLEMENTATION.md) describes the complete pipeline, nested-editor boundaries, plain-text interoperability, history and manual acceptance procedure.
 
 The persistence foundation remains [M26_DOCUMENT_PERSISTENCE.md](M26_DOCUMENT_PERSISTENCE.md).
 M30 evolves canonical writes to Scholar JSON V2 for page and formatting semantics while retaining
-strict V1 reads with deterministic defaults. All current semantic blocks, inline marks/references,
-math, datasets/shared bindings and diagram-local graphs round trip exactly. Save/load preserves IDs
+strict V1 reads with deterministic defaults. M32 variables/computations and M33 analysis definitions
+are additive authored V2 content; their evaluated results and fit samples are not stored. Save/load preserves IDs
 rather than applying transfer remapping. Generated labels/structure, paginated layout, zoom,
 selection, history, clipboard and runtime provenance are not stored. Each loaded session gets a fresh
 runtime owner.
@@ -38,6 +38,10 @@ M29 adds the production Home, repository/workspace lifecycle, template entry poi
 ribbon shell. M30 adds semantic page settings, deterministic logical-unit pagination, scientific
 typography/paragraph styles, templates, Layout/View commands, and distinct page rendering while
 keeping semantic state, physical layout, viewport rendering, and zoom separate.
+M31 adds structured units and quantities. M32 adds variable definitions and authored computed
+expressions; M33 adds dataset analysis definitions and derived fit overlays. M34 improves the
+document-only typography/stroke path, shared view transform, caret/selection geometry, and
+production readability sample. None of these milestones creates the public addon API.
 
 ## Current Typesetting Slice
 
@@ -115,15 +119,13 @@ keeping semantic state, physical layout, viewport rendering, and zoom separate.
 - Copy is not history; cut and paste are history when they mutate the document.
 - Derived labels, TOC/outline entries, dataset-backed views, diagram layout, and electrical nets are recomputed from restored document snapshots.
 
-## Long-Term Goals
+## Long-Term Direction
 
-- Provide a structured document model suitable for scientific and educational content.
-- Support a small, explicit Markdown interchange format for import and export.
-- Render read-only documents inside Minecraft.
-- Support a carefully scoped mathematical notation subset.
-- Enable WYSIWYG editing against the document model rather than raw Markdown.
-- Support tables, plots, diagrams, and extension APIs after the core model is stable.
-- Allow other mods to contribute document elements or integrations through stable APIs.
+- The structured document model, scoped Markdown interchange, in-game rendering/editing,
+  mathematical notation, tables, plots and diagrams are already implemented in supported subsets.
+- Continue improving authoring and import/export without making Markdown the source of truth.
+- Define a reviewed public integration boundary for other mods in M35; current internal packages
+  are not a stable addon API.
 
 ## Current Table Slice
 
