@@ -70,6 +70,7 @@ import dev.rgcb.scholar.quantity.Quantity;
 import dev.rgcb.scholar.quantity.MeasuredQuantity;
 import dev.rgcb.scholar.quantity.NumberNotation;
 import dev.rgcb.scholar.quantity.UnitExpression;
+import dev.rgcb.scholar.validation.DocumentValidator;
 import dev.rgcb.scholar.diagram.DiagramCanvas;
 import dev.rgcb.scholar.electrical.ElectricalComponent;
 import dev.rgcb.scholar.electrical.ElectricalComponentKind;
@@ -93,6 +94,16 @@ import java.util.Optional;
 import java.util.Set;
 
 public final class EditorSession {
+    /** Commits one already assembled semantic change without exposing editor history to callers. */
+    public boolean applyExternalDocumentEdit(Document replacement) {
+        Objects.requireNonNull(replacement, "replacement");
+        if (replacement.equals(current().document())) return false;
+        if (!DocumentValidator.validate(replacement).isValid()) {
+            throw new IllegalArgumentException("Invalid external document edit.");
+        }
+        return history.applyEdit(new EditResult(replacement, current().selection(),
+                current().explicitTypingMarks(), true));
+    }
     private final ComputationEngine computationEngine = new ComputationEngine();
 
     public boolean supportsInsertAnalysis() { return supportsInsertComputation() && !current().document().datasets().isEmpty(); }
@@ -283,6 +294,11 @@ public final class EditorSession {
     private final DatasetTableResolver datasetTableResolver;
     private final PlainTextClipboard clipboard;
     private final EditorHistory history;
+
+    /** Observes committed semantic state, including undo/redo, but not caret-only movement. */
+    public void onDocumentChange(java.util.function.Consumer<Document> listener) {
+        history.onDocumentChange(listener);
+    }
     private final RuntimeDocumentToken documentToken = RuntimeDocumentToken.create();
     private List<TransferDiagnostic> transferDiagnostics = List.of();
     private final CaretGeometryResolver caretGeometryResolver = new CaretGeometryResolver();

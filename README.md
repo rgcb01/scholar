@@ -41,7 +41,11 @@ Enter a Minecraft world and run `/scholar`. Home lets you create a blank or temp
 
 The semantic `Document` and its resources are canonical. Validation and editor transactions preserve invariants; layout derives pages, columns, geometry and labels; the Minecraft client renders that layout. Transfer and versioned persistence are separate boundaries, neither of which serializes transient view state. See [Architecture](docs/ARCHITECTURE.md) for the current layer map and ownership rules.
 
-There is **no stable public addon API yet**. M35 is intended to define that boundary; current internal Java packages should not be treated as extension contracts.
+M35 adds a deliberately small client-side addon API for documents, datasets, measurements, units, variables, analyses, and dataset-backed visuals. Only `dev.rgcb.scholar.api` and its documented subpackages are supported integration contracts; see [Scholar Addon API](docs/M35_SCHOLAR_API.md).
+
+## Developing Scholar Addons
+
+Depend on the Scholar mod artifact and call `ScholarApi.get()` on the Minecraft client thread. Author normal Scholar content through `ScholarDocument.edit`, which validates and commits one history transaction. `examples/reference-addon` is a separate example mod; run it with `.\gradlew.bat runReferenceClient` and invoke `/scholar_reference_demo` in a world. The API is still under M35 manual review and does not offer arbitrary custom blocks or server-side document editing.
 
 ## File Format
 
@@ -49,7 +53,7 @@ Scholar saves local `.scholar.json` files using its versioned semantic JSON code
 
 ## Development Status
 
-Scholar is pre-1.0. M18-M34 are implemented and manually accepted. The next planned milestone is M35, **Scholar API & Addon Framework**; it has not begun. The concise forward plan is M36 Import / Export & Interchange, M37 Authoring UX & Document Workflow, M38 V1 Product Hardening, M39 V1 Release Candidate, then Scholar 1.0. See the [Roadmap](docs/ROADMAP.md) and [Milestone History](docs/MILESTONE_HISTORY.md); plans remain subject to review.
+Scholar is pre-1.0. M18-M34 are implemented and manually accepted. M35, **Scholar API & Addon Framework**, is technically implemented on its development branch and awaits manual acceptance. The concise forward plan is M36 Import / Export & Interchange, M37 Authoring UX & Document Workflow, M38 V1 Product Hardening, M39 V1 Release Candidate, then Scholar 1.0. See the [Roadmap](docs/ROADMAP.md) and [Milestone History](docs/MILESTONE_HISTORY.md); plans remain subject to review.
 
 ## Contributing
 

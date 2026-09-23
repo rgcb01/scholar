@@ -1,6 +1,6 @@
 package dev.rgcb.scholar.client.screen;
 
-import dev.rgcb.scholar.application.FileScholarDocumentRepository;
+import dev.rgcb.scholar.integration.ScholarApiRuntime;
 import dev.rgcb.scholar.application.ScholarApplication;
 import dev.rgcb.scholar.application.ScholarDocumentDescriptor;
 import dev.rgcb.scholar.application.ScholarDocumentId;
@@ -39,8 +39,7 @@ public final class ScholarHomeScreen extends Screen {
     }
 
     public static ScholarHomeScreen create() {
-        var root = Minecraft.getInstance().gameDirectory.toPath().resolve("scholar");
-        return new ScholarHomeScreen(new ScholarApplication(new FileScholarDocumentRepository(root)));
+        return new ScholarHomeScreen(ScholarApiRuntime.application());
     }
 
     static ScholarHomeScreen forApplication(ScholarApplication application) {
@@ -287,7 +286,7 @@ public final class ScholarHomeScreen extends Screen {
     }
 
     private void open(ScholarDocumentDescriptor descriptor) {
-        var result = application.openDocument(descriptor.id());
+        var result = application.openActiveDocument(descriptor.id());
         if (result instanceof PersistenceResult.Success<dev.rgcb.scholar.application.ApplicationDocumentWorkspace> success) {
             minecraft.setScreen(ScholarEditorScreen.forApplication(application, success.value()));
         } else message = result.diagnostics().getFirst().message();

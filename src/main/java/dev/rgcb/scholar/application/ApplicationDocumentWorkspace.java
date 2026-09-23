@@ -11,6 +11,7 @@ import dev.rgcb.scholar.persistence.PersistenceResult;
 import dev.rgcb.scholar.validation.DocumentValidator;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 /** One open application document and its clean baseline; never shared across opens. */
 public final class ApplicationDocumentWorkspace implements EditorDocumentWorkspace {
@@ -18,12 +19,21 @@ public final class ApplicationDocumentWorkspace implements EditorDocumentWorkspa
     private ScholarDocumentDescriptor descriptor;
     private Document savedDocument;
     private final EditorSession session;
+    private final Consumer<ScholarApplication.Event> events;
 
     ApplicationDocumentWorkspace(ScholarDocumentRepository repository, OpenedScholarDocument opened) {
+        this(repository, opened, ignored -> {});
+    }
+
+    ApplicationDocumentWorkspace(ScholarDocumentRepository repository, OpenedScholarDocument opened,
+                                 Consumer<ScholarApplication.Event> events) {
         this.repository = Objects.requireNonNull(repository);
+        this.events = Objects.requireNonNull(events);
         this.descriptor = opened.descriptor();
         this.savedDocument = opened.document();
         this.session = sessionFor(opened.document());
+        this.session.onDocumentChange(ignored -> this.events.accept(
+                new ScholarApplication.Event(ScholarApplication.EventKind.DOCUMENT_CHANGED, id())));
     }
 
     public ScholarDocumentDescriptor descriptor() { return descriptor; }
@@ -38,6 +48,7 @@ public final class ApplicationDocumentWorkspace implements EditorDocumentWorkspa
         var result = repository.saveDocument(id(), snapshot);
         if (result instanceof PersistenceResult.Success<ScholarDocumentDescriptor> success) {
             descriptor = success.value(); savedDocument = snapshot;
+            events.accept(new ScholarApplication.Event(ScholarApplication.EventKind.DOCUMENT_SAVED, id()));
             return new PersistenceResult.Success<>(displayName(), success.diagnostics());
         }
         return new PersistenceResult.Failure<>(result.diagnostics());
@@ -48,6 +59,7 @@ public final class ApplicationDocumentWorkspace implements EditorDocumentWorkspa
         var result = repository.saveAs(displayName, snapshot);
         if (result instanceof PersistenceResult.Success<OpenedScholarDocument> success) {
             descriptor = success.value().descriptor(); savedDocument = snapshot;
+            events.accept(new ScholarApplication.Event(ScholarApplication.EventKind.DOCUMENT_SAVED, id()));
             return new PersistenceResult.Success<>(this.displayName(), success.diagnostics());
         }
         return new PersistenceResult.Failure<>(result.diagnostics());

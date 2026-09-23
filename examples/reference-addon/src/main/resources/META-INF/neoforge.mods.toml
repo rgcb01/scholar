@@ -1,0 +1,16 @@
+modLoader="javafml"
+loaderVersion="[1,)"
+license="All Rights Reserved"
+
+[[mods]]
+modId="scholar_reference_addon"
+version="1.0.0"
+displayName="Scholar Reference Addon"
+description="Development-only consumer of the Scholar public API"
+
+[[dependencies.scholar_reference_addon]]
+modId="scholar"
+type="required"
+versionRange="[0.1.0,)"
+ordering="AFTER"
+side="CLIENT"

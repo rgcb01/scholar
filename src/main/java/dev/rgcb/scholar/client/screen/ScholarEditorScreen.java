@@ -310,6 +310,7 @@ public final class ScholarEditorScreen extends Screen {
     private int diagramPanBlockIndex = -1;
     private ScholarShellLayout shellLayout = ScholarShellLayout.compute(0, 0);
     private LaidOutDocument laidOutDocument;
+    private Document laidOutSource;
     private MinecraftTextMeasurer textMeasurer;
     private MinecraftMathTextMeasurer mathTextMeasurer;
     private MinecraftTypographyResolver typographyResolver;
@@ -484,6 +485,7 @@ public final class ScholarEditorScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        if (laidOutDocument != null && laidOutSource != editorState().document()) relayout();
         if (application == null) refreshContextualToolbar();
         caretVisible = caretBlink.visible(Util.getMillis(), minecraft != null && minecraft.screen == this
                         && minecraft.isWindowActive() && !anyModalPopupOpen() && contextMenu == null
@@ -1448,6 +1450,7 @@ public final class ScholarEditorScreen extends Screen {
                 textMeasurer,
                 mathTextMeasurer,
                 this::diagramViewportFor);
+        laidOutSource = editorState().document();
         viewportWidth = Math.min(laidOutDocument.width(), Math.max(80, width - horizontalMargin * 2));
         viewportX = (width - viewportWidth) / 2;
         scrollOffset = clampScroll(scrollOffset);
@@ -1466,6 +1469,7 @@ public final class ScholarEditorScreen extends Screen {
         }
         laidOutDocument = layoutEngine.layoutPaginated(
                 document, textMeasurer, mathTextMeasurer, this::diagramViewportFor);
+        laidOutSource = editorState().document();
         scrollOffset = clampScroll(scrollOffset);
     }
 

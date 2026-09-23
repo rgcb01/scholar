@@ -3,6 +3,8 @@ package dev.rgcb.scholar.editor;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Objects;
+import java.util.function.Consumer;
+import dev.rgcb.scholar.document.Document;
 
 public final class EditorHistory {
     public static final int DEFAULT_CAPACITY = 100;
@@ -11,6 +13,11 @@ public final class EditorHistory {
     private final Deque<EditorState> undo = new ArrayDeque<>();
     private final Deque<EditorState> redo = new ArrayDeque<>();
     private EditorState current;
+    private Consumer<Document> documentChange = ignored -> {};
+
+    public void onDocumentChange(Consumer<Document> listener) {
+        documentChange = Objects.requireNonNull(listener);
+    }
     private boolean typingGroupOpen;
     private EditorSelection typingGroupEnd;
 
@@ -63,6 +70,7 @@ public final class EditorHistory {
             return false;
         }
 
+        var priorDocument = current.document();
         var resultState = result.editorState();
         if (canCoalesceTyping(resultState, insertedText)) {
             current = resultState;
@@ -75,6 +83,7 @@ public final class EditorHistory {
             typingGroupEnd = typingGroupOpen ? resultState.selection() : null;
         }
         redo.clear();
+        notifyDocumentChange(priorDocument);
         return true;
     }
 
@@ -84,9 +93,11 @@ public final class EditorHistory {
         if (!result.changed()) {
             return false;
         }
+        var priorDocument = current.document();
         pushUndo(current);
         current = result.editorState();
         redo.clear();
+        notifyDocumentChange(priorDocument);
         return true;
     }
 
@@ -95,8 +106,10 @@ public final class EditorHistory {
         if (undo.isEmpty()) {
             return false;
         }
+        var priorDocument = current.document();
         redo.addLast(current);
         current = undo.removeLast();
+        notifyDocumentChange(priorDocument);
         return true;
     }
 
@@ -105,9 +118,15 @@ public final class EditorHistory {
         if (redo.isEmpty()) {
             return false;
         }
+        var priorDocument = current.document();
         pushUndo(current);
         current = redo.removeLast();
+        notifyDocumentChange(priorDocument);
         return true;
+    }
+
+    private void notifyDocumentChange(Document prior) {
+        if (!prior.equals(current.document())) documentChange.accept(current.document());
     }
 
     public void closeTypingTransaction() {

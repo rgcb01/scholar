@@ -15,11 +15,25 @@ java {
     toolchain.languageVersion = JavaLanguageVersion.of(21)
 }
 
+sourceSets {
+    referenceAddon {
+        java.srcDir 'examples/reference-addon/src/main/java'
+        resources.srcDir 'examples/reference-addon/src/main/resources'
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+
 neoForge {
     version = project.neo_version
+    addModdingDependenciesTo sourceSets.referenceAddon
 
     runs {
         client {
+            client()
+        }
+
+        referenceClient {
             client()
         }
 
@@ -38,7 +52,12 @@ neoForge {
         "${mod_id}" {
             sourceSet(sourceSets.main)
         }
+        scholar_reference_addon {
+            sourceSet(sourceSets.referenceAddon)
+        }
     }
+    runs.client.loadedMods = [mods."${mod_id}"]
+    runs.referenceClient.loadedMods = [mods."${mod_id}", mods.scholar_reference_addon]
 }
 
 repositories {
@@ -79,6 +98,10 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.named('test', Test).configure {
     useJUnitPlatform()
+}
+
+tasks.named('check').configure {
+    dependsOn tasks.named('compileReferenceAddonJava')
 }
 
 tasks.named('wrapper', Wrapper).configure {
