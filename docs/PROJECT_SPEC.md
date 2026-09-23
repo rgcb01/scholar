@@ -161,6 +161,7 @@ production readability sample. None of these milestones creates the public addon
 - `PlotLayoutEngine` is pure Java and computes plot bounds, label placement, resolved linear ranges, deterministic nice-number ticks, tick-label gutters, and a data-to-plot coordinate transform.
 - Automatic XY ranges inspect all authored static series, do not force zero, add deterministic five-percent padding, use `[0, 1]` for empty axes, and expand constant values into a non-zero span. Explicit ranges take precedence.
 - Linear ticks use deterministic 1/2/5 × 10^n steps and formatted labels that avoid ordinary floating-point noise. M16G hardening keeps subnormal finite ranges representable and falls back to finite endpoint ticks when a nice step cannot be represented.
+- Regular generated tick labels use the decimal representation of the nice step times its integer index; axis values remain `double`. This avoids exposing binary multiplication artifacts without changing endpoint fallback labels.
 - `PlotCoordinateTransform` maps X left-to-right and scientific Y bottom-to-top in pure Java.
 - Plot tick density is layout-responsive: narrow plot areas request fewer semantic ticks and overlapping laid-out tick labels are deterministically thinned rather than rendered on top of one another.
 - M16D derives visible LINE/SCATTER geometry in pure Java from the resolved ranges and coordinate transform. Scatter points outside explicit ranges are omitted; line segments crossing a resolved range are clipped to the plot area while preserving authored point order.
@@ -221,7 +222,7 @@ M17 is complete through M17G and manually accepted. The governing design remains
 
 ## Current Electrical Diagram Design
 
-M18A-M18G are accepted and manually validated. M18H final electrical visual polish is implemented and pending authoritative Gradle/manual QA. The electrical editor now spans bounded schematic symbols, full component authoring, explicit junctions and derived semantic nets, workspace zoom/pan/canvas scaling, lossless whole-diagram clipboard/interchange regression, and hardened edge-case behavior. The governing design remains `ELECTRICAL_DIAGRAM_SPEC.md` plus ADRs 0194-0219.
+M18A-M18H.1 are complete and manually accepted. The electrical editor spans bounded schematic symbols, full component authoring, explicit junctions and derived semantic nets, workspace zoom/pan/canvas scaling, lossless whole-diagram clipboard/interchange regression, and hardened edge-case behavior. The governing design remains `ELECTRICAL_DIAGRAM_SPEC.md` plus ADRs 0194-0219.
 
 - M18 extends the existing `DiagramBlock(DiagramDefinition)` rather than creating a separate electrical document block.
 - The domain element is immutable `ElectricalComponent implements DiagramElement`, carrying semantic kind, logical bounds, quarter-turn orientation, reference designator, and value annotation.
@@ -323,7 +324,7 @@ M18A-M18G are accepted and manually validated. M18H final electrical visual poli
 - M24G closes the current editor-foundation pass without adding a new feature surface.
 - The accepted foundation is documented in `M24_EDITOR_FOUNDATION_V1.md`.
 - The foundation regression suite now includes canonical mixed-document coverage across prose, math, authored and dataset-backed tables, authored and dataset-backed plots, diagrams, electrical/mechanical vocabularies, figures, captions, cross-references, TOC, datasets, validation, context actions, focus, clipboard, and history.
-- M24G classifies current invariants as model-enforced, validator-enforced, editor-state-enforced, history-enforced, interaction-enforced, or documented-only in `M24G_FOUNDATION_AUDIT.md`.
+- M24G tested model, validator, editor-state, history and interaction invariants as one [accepted foundation](M24_EDITOR_FOUNDATION_V1.md).
 - No M24G ADRs were added because this milestone consolidates M24A-M24F decisions rather than making new architecture decisions.
 
 ## Current Application Workspace

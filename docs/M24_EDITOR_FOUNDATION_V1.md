@@ -1,6 +1,7 @@
 # M24 Editor Foundation v1
 
-Status: accepted implementation baseline after M24G.
+Status: accepted M24 implementation baseline. The limits below describe that checkpoint;
+later milestones added persistence and further capabilities without changing these editor contracts.
 
 Scholar's editor foundation v1 is the integrated baseline formed by M24A-M24G. It defines how the current editor keeps semantic document data, transient selections, validation, context actions, input focus, and history coherent across mixed scientific content.
 
@@ -31,7 +32,7 @@ Scholar's editor foundation v1 is the integrated baseline formed by M24A-M24G. I
 ## Current Limits
 
 - Validation diagnostics are not yet exposed through a user-facing repair workflow.
-- Persistence/schema migration is still deferred.
+- Native persistence was deferred at M24 and arrived in M26; it is not part of this editor contract.
 - Whole-document multi-object selection is not implemented.
 - Dataset editing remains intentionally small.
 - Markdown import/export does not cover every semantic block.

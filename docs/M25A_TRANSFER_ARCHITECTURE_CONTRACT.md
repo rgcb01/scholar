@@ -1,6 +1,7 @@
 # M25A Transfer Architecture Contract
 
-Status: M25A architecture complete. M25B is next, not started. Documentation-only consolidation (ROM-11).
+Status: accepted M25A architecture. M25B was subsequently implemented and manually accepted;
+the design-time status below is retained as historical context for ROM-11.
 
 This is the authoritative M25A contract for M25B. Earlier M25A issue documents remain evidence and rationale; this contract supersedes their conflicting, tentative, or deferred wording. Architecture completion is not implementation completion, native-format stabilization, or public API publication.
 
@@ -15,8 +16,8 @@ Authority order: the final accepted clarifications supplied for consolidation, a
 | `M25A_RESOURCE_CLOSURE_POLICY.md` (ROM-8) | Minimal whole-dataset closure rationale; provisional destination/provenance rules superseded below. |
 | `M25A_IDENTITY_REFERENCE_POLICY.md` (ROM-9) | Accepted namespace/remap policy and corrected external-reference Text degradation. |
 | `M25A_COMPOSITE_CONTENT_TRANSFER_POLICY.md` (ROM-10) | Accepted owned-content rules; remaining consolidation questions resolved here. |
-| `M24_EDITOR_FOUNDATION_V1.md`, M24B/C/D/E/F contracts and M24G audit | Frozen selection/action/structural/history/input foundation. |
-| `POST_M24_ARCHITECTURE_AUDIT.md`, `POST_M24_ARCHITECTURE_MAP.md`, `POST_M24_TECHNICAL_DEBT.md`, `POST_M24_ROADMAP_PROPOSAL.md` | Strategic evidence; proposals do not override accepted contracts. |
+| `M24_EDITOR_FOUNDATION_V1.md` and M24B/C/D/E/F contracts | Frozen selection/action/structural/history/input foundation. |
+| `ARCHITECTURE.md` | Current layer map; earlier post-M24 planning audits remain in Git history and do not override accepted contracts. |
 | `PROJECT_SPEC.md`, `ROADMAP.md`, `MILESTONE_HISTORY.md` | Project scope and status; updated for architecture completion only. |
 | `adr/README.md` and relevant existing ADRs | Decision index and historical scope: 0024/0026/0027/0031/0034; 0053/0054/0056/0059/0060; 0090/0091/0095/0102; 0179/0182/0214/0215; 0225/0229; 0246; 0252-0275. |
 

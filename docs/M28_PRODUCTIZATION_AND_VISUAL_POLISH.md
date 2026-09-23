@@ -1,6 +1,7 @@
 # M28 - Productization & Visual Polish
 
-Status: technically complete; final Minecraft visual QA pending.
+Status: complete and manually accepted. The implementation sections below retain their
+pre-acceptance checkpoint framing.
 
 M28 resolves the accepted technical audit findings and the concrete M28 visual observations.
 It does not change the Document/Math AST, transfer semantics, persistence V1, history model,

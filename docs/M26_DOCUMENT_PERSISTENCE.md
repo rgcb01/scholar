@@ -1,8 +1,8 @@
 # M26 - Document Persistence
 
-Status: technically COMPLETE after automated acceptance. Manual Minecraft acceptance
-is pending. M26 is one milestone; codec/schema/storage/editor integration are internal
-components, not M26A/B/C roadmap milestones. M27 is not started. No commit or push.
+Status: complete and manually accepted. This report was written at the automated
+checkpoint before Minecraft QA and M27. M26 is one milestone; codec/schema/storage/editor
+integration are internal components, not M26A/B/C roadmap milestones.
 
 The user accepted M25, including its manual Minecraft QA, before this milestone.
 M25 transfer is an input contract, not the native file format.

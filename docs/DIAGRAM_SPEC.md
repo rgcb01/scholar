@@ -299,7 +299,7 @@ M17C hardens diagram connectivity geometry without changing the semantic AST:
 - Exit points and all derived route vertices are constrained to the laid-out canvas. Obstacle avoidance remains deliberately deferred.
 - Perimeter ports are mapped directly from authored logical bounds + normalized port offset before integer rounding, avoiding accumulated node-size rounding drift.
 - `LaidOutDiagramPort` exposes a bounded hit region, while `LaidOutDiagramConnection` exposes derived path bounds.
-- Connection labels use the most useful routed segment and are kept inside the canvas when their measured size permits.
+- Connection labels use the longest routed segment, preferring a horizontal segment on ties, and are centered on it; layout keeps them inside the canvas when their measured size permits.
 - `DiagramHitTester` operates only on `LaidOutDiagram` geometry and returns typed semantic targets for title/canvas, elements, ports, or connections.
 - Overlap priority is `port > element > connection > canvas`; connections use a bounded line-distance tolerance and their labels hit the owning connection.
 
@@ -319,7 +319,7 @@ M17D still does not add structural creation/deletion, label editing, connection 
 
 ### M17E - Structural Editing
 
-Status: implemented; pending full Gradle + manual Minecraft validation.
+Status: implemented and accepted as part of the completed M17 foundation.
 
 M17E adds explicit generic node/connection operations and plain-string label editing while preserving endpoint validity and global history behavior:
 
@@ -357,7 +357,7 @@ Implemented final foundation hardening focuses on failure-resistant derived geom
 - empty diagrams remain layoutable down to the minimum positive document width;
 - targeted regressions cover degenerate connections, narrow geometry, edge labels, empty diagrams, and semantic stability across responsive reflow.
 
-M17G intentionally does not add obstacle avoidance, node resizing, snapping, multi-select, domain symbols, partial clipboard, or a new interchange format. Full Gradle and manual GUI-scale/resize regression remain the acceptance gate before M17 is declared closed.
+M17G intentionally does not add obstacle avoidance, node resizing, snapping, multi-select, domain symbols, partial clipboard, or a new interchange format. Full Gradle and manual GUI-scale/resize regression were completed before M17 acceptance.
 
 ## Explicitly Deferred
 
@@ -415,3 +415,7 @@ tolerances, GD&T, or physical mechanics/simulation.
 M19E adds semantic technical annotations to mechanical diagrams. `MechanicalAnnotation` stores an annotation kind and editable text; its visible box/leader geometry is derived at layout/render time.
 
 Supported v1 kinds are `PART_LABEL`, `NOTE`, and `LEADER`. Annotation text uses the existing diagram text-edit popup, participates in selection/hit testing, movement, delete, undo/redo, native clipboard, and plain-text fallback. M19E remains technical drawing authoring and does not introduce CAD manufacturing semantics such as GD&T or tolerances.
+
+## Mechanical assembly references (M19F)
+
+`MechanicalPartReference` stores a stable target element ID plus authored item number, part name, quantity, and description. Its balloon and leader are derived geometry. Deleting the target removes dependent references; no display name or visual position acts as the relationship key. Generate BOM inserts an ordinary `TableBlock` immediately after the diagram in one undoable history edit. The table is a generated snapshot, not a live view or a persisted diagram cache. Diagram command surfaces must resolve their actions through the registered `EditorAction` set; M19F exposed a missing-registration runtime failure that was corrected without changing part semantics.

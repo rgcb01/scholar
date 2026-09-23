@@ -53,8 +53,6 @@ ROM-6 through ROM-11 audit and consolidate scoped semantic fragments, whole-data
 
 Implemented the internal fragment/transfer contract, typed closure/remap/reference handling, structural staging and rich clipboard integration under [M25A_TRANSFER_ARCHITECTURE_CONTRACT.md](M25A_TRANSFER_ARCHITECTURE_CONTRACT.md). Automated and manual QA are accepted. M25 does not define persistence, new selection modes, Figure generalization, graph framework or public plugin API; M26 supplies a separate native schema.
 
-Historical implementation checkpoints: [M25B_A_CORE_FRAGMENT_MODEL.md](M25B_A_CORE_FRAGMENT_MODEL.md), [M25B_B_FRAGMENT_EXTRACTION.md](M25B_B_FRAGMENT_EXTRACTION.md), [M25B_C_TRANSFER_PLANNING.md](M25B_C_TRANSFER_PLANNING.md).
-
 The externally meaningful milestone is M25B Transfer Implementation, not additional D/E/F/G milestones. The final report [M25B_TRANSFER_IMPLEMENTATION.md](M25B_TRANSFER_IMPLEMENTATION.md) supersedes checkpoint deferral/status wording for current implementation.
 
 ### M26 - Document Persistence - Complete / Accepted

@@ -1,9 +1,10 @@
 # M25B - Semantic Document Transfer Implementation
 
-Status: COMPLETE (automated implementation acceptance). Manual Minecraft QA is pending;
-no manual acceptance or runtime visual verification is claimed. M26 is not started.
+Status: complete and manually accepted. Earlier automated implementation checkpoints
+predated the final Minecraft QA and M26.
 Authority: [M25A_TRANSFER_ARCHITECTURE_CONTRACT.md](M25A_TRANSFER_ARCHITECTURE_CONTRACT.md).
-A/B/C reports remain historical implementation checkpoints, not additional roadmap milestones.
+A/B/C were implementation checkpoints, not additional roadmap milestones; their full reports
+remain in Git history.
 
 ## Final Pipeline
 

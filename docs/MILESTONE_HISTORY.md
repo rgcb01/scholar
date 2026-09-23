@@ -3,7 +3,8 @@
 This file is a compact checkpoint and acceptance log. M16-M19 began with the imported
 `MinecraftSTEMDev_M19F_new.zip` baseline; later milestones were developed in this repository.
 
-Detailed architecture remains in the specs and ADRs. Detailed implementation notes remain in the milestone report files linked below.
+Detailed architecture remains in the specs and ADRs. Historical completion reports removed
+from the current tree remain available in Git history.
 
 ## M16 - Scientific Plots
 
@@ -21,12 +22,7 @@ M16 introduced native Scholar scientific plots:
 - native whole-plot clipboard payload plus readable plain-text fallback;
 - hardening for extreme finite ranges, responsive layout, clipping, hidden/out-of-range points, and tick label determinism.
 
-Key references:
-
-- `docs/ROADMAP.md`
-- `docs/PROJECT_SPEC.md`
-- `M16G_HOTFIX_NOTE.md`
-- ADRs 0155-0177
+Design references: [Project Specification](PROJECT_SPEC.md) and ADRs 0155-0177.
 
 ## M17 - Scientific Diagram Foundation
 
@@ -44,21 +40,7 @@ M17 introduced the reusable, domain-neutral diagram foundation:
 - native whole-diagram clipboard payload plus readable structural fallback text;
 - responsive and edge-case hardening without adding electrical or mechanical meaning.
 
-Key reports:
-
-- `M17A_ARCHITECTURE_REPORT.md`
-- `M17B_IMPLEMENTATION_REPORT.md`
-- `M17B_CONNECTION_LABEL_FIX.md`
-- `M17C_IMPLEMENTATION_REPORT.md`
-- `M17D_IMPLEMENTATION_REPORT.md`
-- `M17E_IMPLEMENTATION_REPORT.md`
-- `M17F_IMPLEMENTATION_REPORT.md`
-- `M17G_IMPLEMENTATION_REPORT.md`
-
-Key specs/ADRs:
-
-- `docs/DIAGRAM_SPEC.md`
-- ADRs 0178-0193
+Design references: [Diagram Specification](DIAGRAM_SPEC.md) and ADRs 0178-0193.
 
 ## M18 - Electrical Diagrams
 
@@ -78,31 +60,12 @@ M18 built electrical schematic authoring on top of the M17 diagram foundation:
 - whole-diagram clipboard/interchange regression for mixed generic/electrical diagrams;
 - responsive hardening and final terminal/wire visual polish.
 
-Key reports:
-
-- `M18A_ARCHITECTURE_REPORT.md`
-- `M18B_IMPLEMENTATION_REPORT.md`
-- `M18B_TEST_FIX_REPORT.md`
-- `M18B_VISUAL_POLISH_REPORT.md`
-- `M18C_IMPLEMENTATION_REPORT.md`
-- `M18C_VISUAL_POLISH_REPORT.md`
-- `M18C_LED_POLISH_REPORT.md`
-- `M18D_IMPLEMENTATION_REPORT.md`
-- `M18E_IMPLEMENTATION_REPORT.md`
-- `M18E5_IMPLEMENTATION_REPORT.md`
-- `M18F_IMPLEMENTATION_REPORT.md`
-- `M18G_IMPLEMENTATION_REPORT.md`
-- `M18H_IMPLEMENTATION_REPORT.md`
-- `M18H1_IMPLEMENTATION_REPORT.md`
-
-Key specs/ADRs:
-
-- `docs/ELECTRICAL_DIAGRAM_SPEC.md`
-- ADRs 0194-0219
+Design references: [Electrical Diagram Specification](ELECTRICAL_DIAGRAM_SPEC.md)
+and ADRs 0194-0219.
 
 ## M19 - Mechanical Diagrams
 
-Status: implemented through M19F, with M19F manual QA still pending according to the imported roadmap.
+Status: complete and manually accepted through M19F.
 
 M19 adds mechanical technical-drawing features on top of the M17 diagram foundation:
 
@@ -114,23 +77,12 @@ M19 adds mechanical technical-drawing features on top of the M17 diagram foundat
 - mechanical labels, notes, leader callouts, and annotation visual polish;
 - assembly part references using semantic item balloons linked by stable element IDs;
 - generated BOM tables derived from authored part references;
-- runtime fix for M19F part-reference/BOM behavior.
+- a corrected M19F Diagram action registration, preserving the shared `EditorAction` dispatch path.
 
-Key reports:
-
-- `docs/M19A_IMPLEMENTATION_REPORT.md`
-- `M19B_IMPLEMENTATION_REPORT.md`
-- `M19B1_IMPLEMENTATION_REPORT.md`
-- `M19C_IMPLEMENTATION_REPORT.md`
-- `M19D_IMPLEMENTATION_REPORT.md`
-- `M19E_IMPLEMENTATION_REPORT.md`
-- `M19E1_IMPLEMENTATION_REPORT.md`
-- `M19F_IMPLEMENTATION_REPORT.md`
-- `M19F_RUNTIME_FIX_REPORT.md`
-
-Key ADRs:
-
-- ADRs 0220-0224
+Mechanical constraints reference stable primitive IDs and reconcile a bounded set of
+relationships; they are not a general CAD solver. Part balloons reference stable target
+element IDs. Generate BOM inserts an ordinary table as one history transaction rather than
+persisting a derived diagram cache. See [Diagram Specification](DIAGRAM_SPEC.md) and ADRs 0220-0224.
 
 ## M20 - Figures & Scientific Media
 
@@ -197,13 +149,9 @@ Key ADRs:
 
 - ADRs 0235-0240
 
-Key reports:
-
-- `docs/M22_IMPLEMENTATION_REPORT.md`
-
 ## M23 - Scientific Data And Datasets
 
-Status: implemented; automated validation complete, manual Minecraft QA pending.
+Status: complete and manually accepted.
 
 M23 adds first-class reusable scientific datasets:
 
@@ -219,19 +167,9 @@ M23 adds first-class reusable scientific datasets:
 - bounded CSV/TSV import helper for simple tabular datasets;
 - development fixtures for shared dataset-backed table/plot views, column subsets, broken bindings, and mixed values.
 
-Key reports:
-
-- `docs/M23_IMPLEMENTATION_REPORT.md`
-
 Key ADRs:
 
 - ADRs 0241-0246
-
-## Current Imported Baseline
-
-The imported tree has now been extended through M23. It includes Plot, Diagram, Electrical, Mechanical, Figure, Cross-Reference, Document Structure/Navigation, and Scientific Dataset source/test coverage, updated project specs, roadmap updates, and milestone implementation reports.
-
-Before treating M23 as complete in manual QA, run dataset-backed table/plot and dataset editing checks in Minecraft.
 
 ## M24A - Document Model Invariants And Validation Foundation
 
@@ -246,10 +184,6 @@ M24A adds the first central document validation layer:
 - warnings for broken cross-references and missing dataset bindings/columns;
 - diagram checks for duplicate ports, endpoints, canvas bounds, and mechanical semantic references;
 - tests for complex valid documents, degraded documents, constructor-enforced invariants, determinism, and immutability.
-
-Key reports:
-
-- `docs/M24A_IMPLEMENTATION_REPORT.md`
 
 Key ADRs:
 
@@ -272,10 +206,7 @@ M24B adds the first explicit editor selection/caret contract:
 - `/scholar_dev_editor` includes explicit M24B navigation fixtures;
 - deterministic golden and randomized navigation tests verify mixed-document selection validity.
 
-Key reports:
-
-- `docs/M24B_IMPLEMENTATION_REPORT.md`
-- `docs/M24B_SELECTION_CARET_CONTRACT.md`
+Contract: [M24B Selection And Caret](M24B_SELECTION_CARET_CONTRACT.md).
 
 Key ADRs:
 
@@ -295,10 +226,7 @@ M24C adds the first editor-wide right-click context menu foundation:
 - context menus close incompatible shell state and never bypass action enable guards;
 - missing action registrations are skipped without crashing menu construction.
 
-Key reports:
-
-- `docs/M24C_IMPLEMENTATION_REPORT.md`
-- `docs/M24C_CONTEXT_MENU_CONTRACT.md`
+Contract: [M24C Context Menu](M24C_CONTEXT_MENU_CONTRACT.md).
 
 Key ADRs:
 
@@ -319,10 +247,7 @@ M24D makes current structural document editing explicit and heavily tested:
 - golden and seeded randomized structural edit sequences assert document and selection validity after every step;
 - `/scholar_dev_editor` includes an explicit M24D structural-editing fixture.
 
-Key reports:
-
-- `docs/M24D_IMPLEMENTATION_REPORT.md`
-- `docs/M24D_STRUCTURAL_EDITING_CONTRACT.md`
+Contract: [M24D Structural Editing](M24D_STRUCTURAL_EDITING_CONTRACT.md).
 
 Key ADRs:
 
@@ -341,10 +266,7 @@ M24E makes Scholar's history model explicit and regression-tested:
 - text, equation, table, plot, diagram, figure, dataset, clipboard, context-menu, stable-ID, reference, golden-sequence, and seeded randomized history regressions are covered;
 - `/scholar_dev_editor` includes an explicit M24E manual history fixture.
 
-Key reports:
-
-- `docs/M24E_IMPLEMENTATION_REPORT.md`
-- `docs/M24E_HISTORY_TRANSACTION_CONTRACT.md`
+Contract: [M24E History Transactions](M24E_HISTORY_TRANSACTION_CONTRACT.md).
 
 Key ADRs:
 
@@ -364,10 +286,7 @@ M24F makes the editor input/focus contract explicit:
 - tests cover focus-owner derivation, nested entry/exit, scoped text input, active-scope `Ctrl+A`, table Tab traversal, undo/redo focus recovery, transient diagram drag clearing, and a golden input-like sequence;
 - `/scholar_dev_editor` includes an explicit M24F manual input/focus fixture.
 
-Key reports:
-
-- `docs/M24F_IMPLEMENTATION_REPORT.md`
-- `docs/M24F_INPUT_FOCUS_CONTRACT.md`
+Contract: [M24F Input And Focus](M24F_INPUT_FOCUS_CONTRACT.md).
 
 Key ADRs:
 
@@ -383,13 +302,7 @@ M24G closes the M24 editor-foundation hardening pass:
 - integration tests verify valid selections, zero-error validation, context-menu/delete parity, clipboard preservation, derived-view recomputation, degraded warning stability, atomic boundary policies, full undo/redo replay, and a large-document smoke path;
 - a seeded cross-subsystem replay test exercises deterministic operations across current editor domains;
 - `/scholar_dev_editor` includes an explicit M24G manual foundation fixture;
-- `docs/M24_EDITOR_FOUNDATION_V1.md` and `docs/M24G_FOUNDATION_AUDIT.md` summarize the accepted foundation contract and invariant classification.
-
-Key reports:
-
-- `docs/M24G_IMPLEMENTATION_REPORT.md`
-- `docs/M24G_FOUNDATION_AUDIT.md`
-- `docs/M24_EDITOR_FOUNDATION_V1.md`
+- [M24 Editor Foundation V1](M24_EDITOR_FOUNDATION_V1.md) summarizes the accepted foundation contract.
 
 Key ADRs:
 
@@ -432,7 +345,7 @@ Status: complete. M25B Semantic Document Transfer Implementation remains IN PROG
 - Added 54 focused value-model/boundary tests. Full suite: 1190 tests, zero failures/errors/skips. `gradlew.bat test` and `gradlew.bat build` pass.
 - No existing production types, clipboard behavior, editor/history semantics, UI, or tests were migrated. Extraction, closure discovery, remap planning, insertion and clipboard integration are deferred. No new ADR is needed for implementing the accepted contract.
 
-Contract/report: [M25B_A_CORE_FRAGMENT_MODEL.md](M25B_A_CORE_FRAGMENT_MODEL.md). No manual Minecraft behavior change is claimed by this value-model-only subphase; full M25B acceptance still requires manual QA.
+This was a value-model-only checkpoint; [the final M25B report](M25B_TRANSFER_IMPLEMENTATION.md) governs the completed pipeline.
 
 ## M25B-B - Transfer Context + Fragment Extraction
 
@@ -446,7 +359,7 @@ Status: complete. M25B remains IN PROGRESS; M25B-C is not started.
 - Added 53 focused test executions plus a 75-case deterministic mixed extraction replay. Full test suite: 1243 tests, zero failures/errors/skips; test/build pass.
 - Existing EditorSession, clipboard/action paths, model types, UI and tests remain unmigrated. Destination ID allocation/remapping/resource reuse/insertion/history/persistence are deferred. No new ADR is required.
 
-Report: [M25B_B_FRAGMENT_EXTRACTION.md](M25B_B_FRAGMENT_EXTRACTION.md). No commit/push or manual Minecraft behavior acceptance is claimed by this additive subphase.
+This was an additive extraction checkpoint, not independent manual acceptance.
 
 ## M25B-C - Resource Closure + Identity Remap Planning
 
@@ -461,7 +374,7 @@ Status: complete. M25B remains IN PROGRESS; M25B-D is not started.
 - Added 41 test executions, including a 75-case fixed-seed collision replay. Full suite: 1284 tests, zero failures/errors/skips. Test/build and diff checks pass.
 - No AST materialization, insertion, clipboard migration, history integration, UI, persistence or new ADR. No commit/push or manual Minecraft acceptance claimed.
 
-Report: [M25B_C_TRANSFER_PLANNING.md](M25B_C_TRANSFER_PLANNING.md).
+This was a planning checkpoint, not an additional roadmap milestone.
 
 ## M25B - Semantic Document Transfer Implementation
 

@@ -4,9 +4,9 @@ This document captures the approved M18A architecture for Scholar's electrical-d
 
 ## Implementation Status
 
-M18A-M18F are accepted and manually validated/closed. The established electrical stack now includes the bounded symbol vocabulary, quarter-turn terminal placement, authoring, explicit semantic junctions, derived connectivity/nets, named-net annotations, independent workspace scaling with transient zoom/pan, and lossless whole-diagram clipboard with a readable one-way plain-text fallback.
+M18A-M18H.1 are complete and manually accepted. The established electrical stack includes the bounded symbol vocabulary, quarter-turn terminal placement, authoring, explicit semantic junctions, derived connectivity/nets, named-net annotations, independent workspace scaling with transient zoom/pan, and lossless whole-diagram clipboard with a readable one-way plain-text fallback.
 
-M18H is the current implementation slice. M18G responsive/edge-case hardening has been manually accepted. M18H is the final presentation-only closeout: electrical terminal exits are compact and adaptive so routed wires do not create visible out-and-back spikes beyond terminal connection points. Logical anchors, stable terminal ids, hit targets, snapping, connection endpoints, and derived net semantics remain unchanged. M18H awaits authoritative Gradle plus manual in-game QA before M18 is closed.
+M18H presentation polish made electrical terminal exits compact and adaptive so routed wires do not create visible out-and-back spikes beyond terminal connection points. Logical anchors, stable terminal IDs, hit targets, snapping, connection endpoints, and derived net semantics remain unchanged.
 
 ## Scope
 

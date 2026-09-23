@@ -2,7 +2,7 @@
 
 ## Status
 
-Technically implemented. Final Minecraft manual acceptance is pending. M30 has not started.
+Complete and manually accepted. This report's implementation notes were written before M30.
 
 ## Architecture Audit
 
