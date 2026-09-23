@@ -36,5 +36,12 @@ public final class HomeDocumentCardLayout {
     }
 
     public record Result(ShellRect newDocumentCard, List<ShellRect> documentCards, int documentsPerPage,
-                         int page, int maxPage, int columns) { }
+                         int page, int maxPage, int columns) {
+        public int documentIndexAt(double x, double y) {
+            for (var index = 0; index < documentCards.size(); index++) {
+                if (documentCards.get(index).contains(x, y)) return page * documentsPerPage + index;
+            }
+            return -1;
+        }
+    }
 }

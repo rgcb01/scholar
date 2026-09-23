@@ -57,6 +57,22 @@ public final class TransferMaterializer {
 
     private static BlockNode block(BlockNode source, String path, TransferPlan plan,
                                    Map<String, ReferenceDispositionPlan.Decision> references) {
+        if (source instanceof ComputationTransferBlock computation) {
+            var defined = computation.definedVariableId().map(id -> destination(plan, StableIdentityKind.VARIABLE, id));
+            var dependencies = new ArrayList<VariableDependencyReference>();
+            for (var i = 0; i < computation.variableDependencies().size(); i++) {
+                var location = path + ".variableDependencies[" + i + "]";
+                var decision = plan.variableDependencies().decisions().stream()
+                        .filter(candidate -> candidate.location().equals(location)).findFirst()
+                        .orElseThrow(() -> new IllegalArgumentException("Missing variable dependency decision."));
+                dependencies.add(new VariableDependencyReference(decision.destination().id()));
+            }
+            var result = computation.withVariableTransferIds(defined, dependencies);
+            if (!result.definedVariableId().equals(defined) || !result.variableDependencies().equals(dependencies)) {
+                throw new IllegalArgumentException("Computation block did not apply planned variable identities.");
+            }
+            return result;
+        }
         if (source instanceof Paragraph paragraph) { return new Paragraph(inline(paragraph.content(), path + ".content", references), paragraph.style(), paragraph.format()); }
         if (source instanceof Heading heading) {
             return new Heading(heading.level(), inline(heading.content(), path + ".content", references),
@@ -64,6 +80,11 @@ public final class TransferMaterializer {
         }
         if (source instanceof EquationBlock equation) {
             return new EquationBlock(equation.expression(), equation.id().map(id -> destination(plan, StableIdentityKind.EQUATION, id)));
+        }
+        if (source instanceof DatasetAnalysisBlock analysis) {
+            return new DatasetAnalysisBlock(destination(plan, StableIdentityKind.ANALYSIS, analysis.id()),
+                    destination(plan, StableIdentityKind.DATASET, analysis.datasetId()), analysis.kind(),
+                    analysis.xColumnId(), analysis.yColumnId(), analysis.displayUnit(), analysis.notation());
         }
         if (source instanceof TableBlock table) {
             var rows = new ArrayList<TableRow>();
@@ -80,8 +101,17 @@ public final class TransferMaterializer {
         }
         if (source instanceof PlotBlock plot) {
             var definition = plot.definition();
-            var series = definition.series().stream().map(s -> new PlotSeries(s.name(), s.kind(), s.points(),
-                    s.datasetBinding().map(b -> new DatasetPlotBinding(destination(plan, StableIdentityKind.DATASET, b.datasetId()), b.xColumnId(), b.yColumnId())))).toList();
+            var series = new ArrayList<PlotSeries>();
+            for (var i = 0; i < definition.series().size(); i++) {
+                var s = definition.series().get(i);
+                var location = path + ".series[" + i + "].fitAnalysis";
+                var fitId = s.fitAnalysisId().map(id -> plan.analysisDependencies().decisions().stream()
+                        .filter(decision -> decision.location().equals(location) && decision.sourceId().equals(id))
+                        .findFirst().orElseThrow(() -> new IllegalArgumentException("Missing fit dependency decision."))
+                        .destination().id());
+                series.add(new PlotSeries(s.name(), s.kind(), s.points(),
+                        s.datasetBinding().map(b -> new DatasetPlotBinding(destination(plan, StableIdentityKind.DATASET, b.datasetId()), b.xColumnId(), b.yColumnId())), fitId));
+            }
             return new PlotBlock(new PlotDefinition(definition.title(), definition.xAxis(), definition.yAxis(), series,
                     definition.legendVisible(), definition.gridVisible(), definition.height()));
         }

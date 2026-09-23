@@ -5,6 +5,7 @@ import dev.rgcb.scholar.application.ScholarApplication;
 import dev.rgcb.scholar.client.editor.MinecraftClipboardAdapter;
 import dev.rgcb.scholar.client.editor.ScholarEditorController;
 import dev.rgcb.scholar.client.render.MinecraftDocumentRenderer;
+import dev.rgcb.scholar.client.render.DocumentViewTransform;
 import dev.rgcb.scholar.client.render.MinecraftMathTextMeasurer;
 import dev.rgcb.scholar.client.render.MinecraftTextMeasurer;
 import dev.rgcb.scholar.client.render.MinecraftTypographyResolver;
@@ -16,6 +17,10 @@ import dev.rgcb.scholar.client.ui.MenuDefinition;
 import dev.rgcb.scholar.client.ui.MenuEntry;
 import dev.rgcb.scholar.client.ui.MinecraftShortcutMatcher;
 import dev.rgcb.scholar.client.ui.ScholarShellLayout;
+import dev.rgcb.scholar.client.ui.ScholarStatusBarLayout;
+import dev.rgcb.scholar.client.ui.CaretBlink;
+import dev.rgcb.scholar.client.ui.DocumentStatus;
+import dev.rgcb.scholar.client.ui.ScholarIcons;
 import dev.rgcb.scholar.client.ui.ScholarShellRenderer;
 import dev.rgcb.scholar.client.ui.ScholarShellModel;
 import dev.rgcb.scholar.client.ui.ScholarShellStyle;
@@ -83,6 +88,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import net.minecraft.client.Minecraft;
+import net.minecraft.Util;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -139,6 +145,10 @@ public final class ScholarEditorScreen extends Screen {
             action(editActions, EditorActionId.PASTE),
             action(editActions, EditorActionId.DELETE),
             action(insertActions, EditorActionId.INSERT_EQUATION),
+            action(insertActions, EditorActionId.INSERT_VARIABLE),
+            action(insertActions, EditorActionId.INSERT_COMPUTED_RESULT),
+            action(insertActions, EditorActionId.EDIT_VARIABLE),
+            action(insertActions, EditorActionId.EDIT_COMPUTED_RESULT),
             action(insertActions, EditorActionId.INSERT_TABLE),
             action(insertActions, EditorActionId.INSERT_PLOT),
             action(insertActions, EditorActionId.INSERT_DIAGRAM),
@@ -148,6 +158,9 @@ public final class ScholarEditorScreen extends Screen {
             action(dataActions, EditorActionId.DATA_NEW_DATASET),
             action(dataActions, EditorActionId.DATA_INSERT_DATASET_TABLE),
             action(dataActions, EditorActionId.DATA_BIND_PLOT_TO_DATASET),
+            action(dataActions, EditorActionId.DATA_INSERT_ANALYSIS),
+            action(dataActions, EditorActionId.DATA_EDIT_ANALYSIS),
+            action(dataActions, EditorActionId.DATA_ADD_FIT_OVERLAY),
             action(figureActions, EditorActionId.FIGURE_WRAP_PLOT),
             action(figureActions, EditorActionId.FIGURE_WRAP_DIAGRAM),
             action(figureActions, EditorActionId.FIGURE_EDIT_CAPTION),
@@ -306,6 +319,11 @@ public final class ScholarEditorScreen extends Screen {
     private int viewportHeight;
     private int scrollOffset;
     private float zoom = 1.0f;
+    private final CaretBlink caretBlink = new CaretBlink();
+    private boolean caretVisible;
+    private boolean zoomSliderDragging;
+    private Document statusWordDocument;
+    private int statusWordCount;
     private boolean dragging;
     private MathPosition mathDragAnchor;
     private TableCellTextSelection tableDragAnchor;
@@ -386,6 +404,7 @@ public final class ScholarEditorScreen extends Screen {
     private void openCreatedDocument() {
         var result = application.createDocument();
         if (result instanceof dev.rgcb.scholar.persistence.PersistenceResult.Success<ApplicationDocumentWorkspace> success) {
+            application.closeWorkspace((ApplicationDocumentWorkspace) workspace);
             minecraft.setScreen(forApplication(application, success.value()));
         } else minecraft.setScreen(ScholarFileDialog.error(this, workspace, result));
     }
@@ -396,6 +415,7 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void returnFromEditor() {
+        if (application != null) application.closeWorkspace((ApplicationDocumentWorkspace) workspace);
         minecraft.setScreen(application == null ? null : ScholarHomeScreen.forApplication(application));
     }
 
@@ -428,7 +448,11 @@ public final class ScholarEditorScreen extends Screen {
                     () -> textMeasurer,
                     this::openSemanticTokenPopup,
                     this::openCrossReferencePopup,
-                    this::toggleOutline);
+                    this::toggleOutline,
+                    kind -> minecraft.setScreen(switch (kind) {
+                        case INSERT_ANALYSIS, EDIT_ANALYSIS, ADD_FIT_OVERLAY -> new ScholarAnalysisDialog(this, session, kind);
+                        default -> new ScholarComputationDialog(this, session, kind);
+                    }));
             menuBar = new MenuBarWidget(controller, menuDefinitions());
             if (application == null) {
                 refreshContextualToolbar();
@@ -461,29 +485,43 @@ public final class ScholarEditorScreen extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         if (application == null) refreshContextualToolbar();
+        caretVisible = caretBlink.visible(Util.getMillis(), minecraft != null && minecraft.screen == this
+                        && minecraft.isWindowActive() && !anyModalPopupOpen() && contextMenu == null
+                        && (menuBar == null || !menuBar.isOpen())
+                        && (toolbar == null || !toolbar.isPopupOpen())
+                        && (ribbon == null || !ribbon.isPopupOpen()),
+                editorState().document(), editorState().selection());
         graphics.fill(0, 0, width, height, BACKGROUND_COLOR);
-        if (laidOutDocument != null && typographyResolver != null && textMeasurer != null) {
+        if (laidOutDocument != null && typographyResolver != null && textMeasurer != null
+                && viewportWidth > 0 && viewportHeight > 0) {
+            graphics.enableScissor(viewportX, viewportY, viewportX + viewportWidth, viewportY + viewportHeight);
             graphics.pose().pushPose();
-            graphics.pose().translate(viewportX, viewportY, 0);
-            graphics.pose().scale(zoom, zoom, 1.0f);
-            graphics.pose().translate(-viewportX, -viewportY, 0);
-            new MinecraftDocumentRenderer(typographyResolver).render(
-                    graphics,
-                    laidOutDocument,
-                    viewportX,
-                    viewportY,
-                    viewportWidth,
-                    logicalViewportHeight(),
-                    scrollOffset);
-            renderSelection(graphics);
-            renderObjectSelection(graphics);
-            renderCaret(graphics);
-            renderEquationEditing(graphics);
-            renderTableEditing(graphics);
-            renderPlotEditing(graphics);
-            renderDiagramEditing(graphics);
-            graphics.pose().popPose();
+            try {
+                documentViewTransform().apply(graphics.pose());
+                new MinecraftDocumentRenderer(typographyResolver, documentViewTransform()).render(
+                        graphics,
+                        laidOutDocument,
+                        viewportX,
+                        viewportY,
+                        logicalViewportWidth(),
+                        logicalViewportHeight(),
+                        scrollOffset);
+                renderSelection(graphics);
+                renderObjectSelection(graphics);
+                renderEquationEditing(graphics);
+                renderTableEditing(graphics);
+                renderPlotEditing(graphics);
+                renderDiagramEditing(graphics);
+            } finally {
+                graphics.pose().popPose();
+                try {
+                    renderCaret(graphics);
+                } finally {
+                    graphics.disableScissor();
+                }
+            }
         }
+        renderStatusBar(graphics, mouseX, mouseY);
         if (toolbar != null) {
             toolbar.render(graphics, font, mouseX, mouseY);
         }
@@ -938,6 +976,10 @@ public final class ScholarEditorScreen extends Screen {
                 return true;
             }
         }
+        if (shellLayout.statusBarBounds().contains(mouseX, mouseY)) {
+            if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) statusBarClicked(mouseX, mouseY);
+            return true;
+        }
         if (outlineOpen && contains(outlinePanelRect(), mouseX, mouseY)) {
             return outlinePanelClicked(mouseX, mouseY);
         }
@@ -1070,6 +1112,11 @@ public final class ScholarEditorScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (zoomSliderDragging && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+            setZoom(ScholarStatusBarLayout.zoomAt(
+                    ScholarStatusBarLayout.compute(shellLayout.statusBarBounds()).slider(), mouseX));
+            return true;
+        }
         if (contextMenu != null) {
             return true;
         }
@@ -1135,6 +1182,10 @@ public final class ScholarEditorScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (zoomSliderDragging && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+            zoomSliderDragging = false;
+            return true;
+        }
         if (button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE && diagramPanning) {
             diagramPanning = false;
             diagramPanBlockIndex = -1;
@@ -1385,9 +1436,10 @@ public final class ScholarEditorScreen extends Screen {
             ribbon.setViewportHeight(height);
         }
         var horizontalMargin = Math.max(typography.minPageMargin(), width / 12);
-        viewportHeight = Math.max(60, shellLayout.documentWorkspaceBounds().height() - typography.minPageMargin() * 2);
         viewportY = shellLayout.documentWorkspaceBounds().y() + typography.minPageMargin();
-        typographyResolver = new MinecraftTypographyResolver(font, typography);
+        viewportHeight = Math.max(0, shellLayout.documentWorkspaceBounds().bottom()
+                - viewportY - typography.minPageMargin());
+        typographyResolver = new MinecraftTypographyResolver(font, typography).highResolution();
         textMeasurer = new MinecraftTextMeasurer(typographyResolver);
         mathTextMeasurer = new MinecraftMathTextMeasurer(typographyResolver);
         diagramViewports.reconcile(editorState().document());
@@ -1404,6 +1456,10 @@ public final class ScholarEditorScreen extends Screen {
         }
     }
 
+    void refreshComputationLayout() {
+        relayout();
+    }
+
     private void relayoutPreview(Document document) {
         if (document == null || textMeasurer == null || mathTextMeasurer == null || viewportWidth <= 0) {
             return;
@@ -1414,21 +1470,90 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void renderCaret(GuiGraphics graphics) {
-        if (!editorState().isTextSelection()) {
+        if (!caretVisible || !editorState().isTextSelection() || editorState().hasSelection()) {
             return;
         }
         var caret = caretGeometryResolver.resolve(editorState().caret(), laidOutDocument, textMeasurer);
-        var x = viewportX + caret.x();
-        var y = viewportY + caret.y() - scrollOffset;
-        if (y + caret.height() < viewportY || y > viewportY + viewportHeight) {
+        var rect = documentViewTransform().caretRect(caret, viewportX, viewportY, scrollOffset);
+        if (rect.bottom() < viewportY || rect.top() > viewportY + viewportHeight) {
             return;
         }
-        graphics.enableScissor(viewportX, viewportY, viewportX + viewportWidth, viewportY + viewportHeight);
-        try {
-            graphics.fill(x, y, x + 1, y + Math.max(1, caret.height()), CARET_COLOR);
-        } finally {
-            graphics.disableScissor();
+        graphics.fill(rect.left(), rect.top(), rect.right(), rect.bottom(), CARET_COLOR);
+    }
+
+    private void renderStatusBar(GuiGraphics graphics, int mouseX, int mouseY) {
+        var bar = shellLayout.statusBarBounds();
+        if (bar.height() < 18) return;
+        ScholarShellRenderer.drawRaisedPanel(graphics, bar.x(), bar.y(), bar.width(), bar.height(), ScholarShellStyle.PANEL);
+        var slots = ScholarStatusBarLayout.compute(bar);
+        if (laidOutDocument != null) {
+            int pageY = scrollOffset + logicalViewportHeight() / 2;
+            if (editorState().isTextSelection() && textMeasurer != null) {
+                pageY = caretGeometryResolver.resolve(editorState().caret(), laidOutDocument, textMeasurer).y();
+            } else if (editorState().isBlockSelection()) {
+                pageY = laidOutDocument.blocks().get(editorState().blockSelection().blockIndex()).y();
+            }
+            drawStatusText(graphics, slots.page(), "Page " + DocumentStatus.pageAt(laidOutDocument, pageY)
+                    + " of " + laidOutDocument.pages().size());
         }
+        var document = editorState().document();
+        if (statusWordDocument != document) {
+            statusWordDocument = document;
+            statusWordCount = DocumentStatus.wordCount(document);
+        }
+        drawStatusText(graphics, slots.words(), statusWordCount + " words");
+        drawStatusIcon(graphics, slots.fitPage(), ScholarIcons.FIT_PAGE, mouseX, mouseY);
+        drawStatusIcon(graphics, slots.fitWidth(), ScholarIcons.FIT_WIDTH, mouseX, mouseY);
+        drawStatusIcon(graphics, slots.zoomOut(), ScholarIcons.ZOOM_OUT, mouseX, mouseY);
+        if (slots.slider().width() > 0) {
+            var slot = slots.slider();
+            int trackY = slot.y() + slot.height() / 2;
+            graphics.fill(slot.x(), trackY, slot.right(), trackY + 2, ScholarShellStyle.SEPARATOR_DARK);
+            int thumbX = ScholarStatusBarLayout.thumbX(slot, zoom);
+            ScholarShellRenderer.drawRaisedPanel(graphics, thumbX - 3, slot.y() + 2, 7, 14,
+                    ScholarShellStyle.HIGHLIGHT);
+        }
+        drawStatusIcon(graphics, slots.zoomIn(), ScholarIcons.ZOOM_IN, mouseX, mouseY);
+        drawStatusText(graphics, slots.percentage(), Math.round(zoom * 100) + "%");
+        String tooltip = slots.fitPage().contains(mouseX, mouseY) ? "Fit Page"
+                : slots.fitWidth().contains(mouseX, mouseY) ? "Fit Width"
+                : slots.zoomOut().contains(mouseX, mouseY) ? "Zoom Out"
+                : slots.zoomIn().contains(mouseX, mouseY) ? "Zoom In"
+                : slots.slider().contains(mouseX, mouseY) ? "Zoom" : null;
+        if (tooltip != null) {
+            int tipWidth = font.width(tooltip) + 10;
+            int tipX = Math.max(2, Math.min(mouseX, width - tipWidth - 2));
+            graphics.fill(tipX, bar.y() - 18, tipX + tipWidth, bar.y() - 2, ScholarShellStyle.PANEL_RECESSED);
+            graphics.drawString(font, tooltip, tipX + 5, bar.y() - 14, ScholarShellStyle.TEXT, false);
+        }
+    }
+
+    private void drawStatusText(GuiGraphics graphics, ShellRect slot, String text) {
+        if (slot.width() > 0) graphics.drawString(font, text, slot.x(), slot.y() + 5, ScholarShellStyle.TEXT, false);
+    }
+
+    private void drawStatusIcon(GuiGraphics graphics, ShellRect slot, dev.rgcb.scholar.client.ui.ScholarIcon icon,
+                                int mouseX, int mouseY) {
+        if (slot.width() == 0) return;
+        if (slot.contains(mouseX, mouseY)) graphics.fill(slot.x(), slot.y(), slot.right(), slot.bottom(), ScholarShellStyle.HOVER);
+        icon.render(graphics, slot.x() + (slot.width() - icon.width()) / 2,
+                slot.y() + (slot.height() - icon.height()) / 2, 1, ScholarShellStyle.TEXT);
+    }
+
+    private void statusBarClicked(double mouseX, double mouseY) {
+        var slots = ScholarStatusBarLayout.compute(shellLayout.statusBarBounds());
+        if (slots.fitPage().contains(mouseX, mouseY)) executeViewportAction(EditorActionId.VIEW_FIT_PAGE);
+        else if (slots.fitWidth().contains(mouseX, mouseY)) executeViewportAction(EditorActionId.VIEW_FIT_WIDTH);
+        else if (slots.zoomOut().contains(mouseX, mouseY)) executeViewportAction(EditorActionId.VIEW_ZOOM_OUT);
+        else if (slots.zoomIn().contains(mouseX, mouseY)) executeViewportAction(EditorActionId.VIEW_ZOOM_IN);
+        else if (slots.slider().contains(mouseX, mouseY)) {
+            zoomSliderDragging = true;
+            setZoom(ScholarStatusBarLayout.zoomAt(slots.slider(), mouseX));
+        }
+    }
+
+    private void executeViewportAction(EditorActionId id) {
+        viewportActions.stream().filter(action -> action.id() == id).findFirst().ifPresent(controller::execute);
     }
 
     private void renderSelection(GuiGraphics graphics) {
@@ -1437,7 +1562,7 @@ public final class ScholarEditorScreen extends Screen {
         }
 
         var rects = selectionGeometryResolver.resolve(editorState().selectionRange(), laidOutDocument, textMeasurer);
-        graphics.enableScissor(viewportX, viewportY, viewportX + viewportWidth, viewportY + viewportHeight);
+        enableViewportScissor(graphics);
         try {
             for (var rect : rects) {
                 var x = viewportX + rect.x();
@@ -1466,7 +1591,7 @@ public final class ScholarEditorScreen extends Screen {
         if (y + height < viewportY || y > viewportY + viewportHeight) {
             return;
         }
-        graphics.enableScissor(viewportX, viewportY, viewportX + viewportWidth, viewportY + viewportHeight);
+        enableViewportScissor(graphics);
         try {
             graphics.fill(x, y, x + width, y + height, OBJECT_SELECTION_FILL);
             graphics.renderOutline(x, y, width, height, OBJECT_SELECTION_BORDER);
@@ -1499,7 +1624,7 @@ public final class ScholarEditorScreen extends Screen {
         if (focusY + focusHeight < viewportY || focusY > viewportY + viewportHeight) {
             return;
         }
-        graphics.enableScissor(viewportX, viewportY, viewportX + viewportWidth, viewportY + viewportHeight);
+        enableViewportScissor(graphics);
         try {
             graphics.renderOutline(focusX, focusY, focusWidth, focusHeight, EQUATION_FOCUS_BORDER);
             var selection = editorState().equationEditingSelection().selection();
@@ -1514,7 +1639,7 @@ public final class ScholarEditorScreen extends Screen {
                 var caret = mathCaretGeometryResolver.resolve(caretSelection.caret(), math, mathTextMeasurer);
                 var caretX = viewportX + mathX + caret.x();
                 var caretY = viewportY + mathBaselineY + caret.y() - scrollOffset;
-                if ((System.currentTimeMillis() / 500) % 2 == 0) {
+                if (caretVisible) {
                     graphics.fill(caretX, caretY, caretX + 1, caretY + caret.height(), EQUATION_CARET_COLOR);
                 }
             }
@@ -1537,7 +1662,7 @@ public final class ScholarEditorScreen extends Screen {
         if (focusY + cell.height() < viewportY || focusY > viewportY + viewportHeight) {
             return;
         }
-        graphics.enableScissor(viewportX, viewportY, viewportX + viewportWidth, viewportY + viewportHeight);
+        enableViewportScissor(graphics);
         try {
             graphics.renderOutline(focusX, focusY, Math.max(1, cell.width()), Math.max(1, cell.height()), TABLE_FOCUS_BORDER);
             for (var rect : tableSelectionGeometryResolver.resolve(cell, tableSelection.selection(), textMeasurer)) {
@@ -1545,7 +1670,7 @@ public final class ScholarEditorScreen extends Screen {
                 var y = viewportY + rect.y() - scrollOffset;
                 graphics.fill(x, y, x + rect.width(), y + rect.height(), SELECTION_COLOR);
             }
-            if (tableSelection.selection().isCaret() && (System.currentTimeMillis() / 500) % 2 == 0) {
+            if (tableSelection.selection().isCaret() && caretVisible) {
                 var caret = tableCaretGeometryResolver.resolve(cell, tableSelection.selection().activeOffset(), textMeasurer);
                 var x = viewportX + caret.x();
                 var y = viewportY + caret.y() - scrollOffset;
@@ -1576,7 +1701,7 @@ public final class ScholarEditorScreen extends Screen {
         if (focusY + focusHeight < viewportY || focusY > viewportY + viewportHeight) {
             return;
         }
-        graphics.enableScissor(viewportX, viewportY, viewportX + viewportWidth, viewportY + viewportHeight);
+        enableViewportScissor(graphics);
         try {
             graphics.renderOutline(focusX, focusY, focusWidth, focusHeight, PLOT_FOCUS_BORDER);
             renderPlotTarget(graphics, plot, selection.target());
@@ -1605,7 +1730,7 @@ public final class ScholarEditorScreen extends Screen {
         if (focusY + focusHeight < viewportY || focusY > viewportY + viewportHeight) {
             return;
         }
-        graphics.enableScissor(viewportX, viewportY, viewportX + viewportWidth, viewportY + viewportHeight);
+        enableViewportScissor(graphics);
         try {
             graphics.renderOutline(focusX, focusY, focusWidth, focusHeight, DIAGRAM_FOCUS_BORDER);
             var titleTarget = selection.target() instanceof DiagramPropertyTarget propertyTarget
@@ -1615,7 +1740,7 @@ public final class ScholarEditorScreen extends Screen {
             } else {
                 var workspaceX = viewportX + diagram.workspaceX();
                 var workspaceY = viewportY + diagram.workspaceY() - scrollOffset;
-                graphics.enableScissor(
+                enableDocumentScissor(graphics,
                         workspaceX, workspaceY,
                         workspaceX + diagram.workspaceWidth(), workspaceY + diagram.workspaceHeight());
                 try {
@@ -2255,15 +2380,32 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private int documentLocalX(double mouseX) {
-        return (int) Math.round((mouseX - viewportX) / zoom);
+        return (int) Math.round(documentViewTransform().logicalX(mouseX) - viewportX);
     }
 
     private int documentLocalY(double mouseY) {
-        return (int) Math.round((mouseY - viewportY) / zoom) + scrollOffset;
+        return (int) Math.round(documentViewTransform().logicalY(mouseY) - viewportY) + scrollOffset;
+    }
+
+    private DocumentViewTransform documentViewTransform() {
+        return new DocumentViewTransform(viewportX, viewportY, zoom);
+    }
+
+    private void enableViewportScissor(GuiGraphics graphics) {
+        graphics.enableScissor(viewportX, viewportY, viewportX + viewportWidth, viewportY + viewportHeight);
+    }
+
+    private void enableDocumentScissor(GuiGraphics graphics, int left, int top, int right, int bottom) {
+        var clip = documentViewTransform().clip(left, top, right, bottom);
+        graphics.enableScissor(clip.left(), clip.top(), clip.right(), clip.bottom());
     }
 
     private int logicalViewportHeight() {
-        return Math.max(1, Math.round(viewportHeight / zoom));
+        return Math.max(1, (int) Math.ceil(viewportHeight / zoom));
+    }
+
+    private int logicalViewportWidth() {
+        return Math.max(1, (int) Math.ceil(viewportWidth / zoom));
     }
 
     private List<EditorAction> combinedViewActions() {
@@ -2273,7 +2415,7 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void setZoom(float value) {
-        zoom = Math.max(0.4f, Math.min(2.0f, Math.round(value * 10.0f) / 10.0f));
+        zoom = Math.max(0.4f, Math.min(2.0f, Math.round(value * 100.0f) / 100.0f));
         scrollOffset = clampScroll(scrollOffset);
     }
 
@@ -2373,8 +2515,11 @@ public final class ScholarEditorScreen extends Screen {
                 new MenuDefinition("Data", List.of(
                         MenuEntry.action(action(EditorActionId.DATA_NEW_DATASET)),
                         MenuEntry.action(action(EditorActionId.DATA_INSERT_DATASET_TABLE)),
+                        MenuEntry.action(action(EditorActionId.DATA_INSERT_ANALYSIS)),
+                        MenuEntry.action(action(EditorActionId.DATA_EDIT_ANALYSIS)),
                         MenuEntry.separator(),
-                        MenuEntry.action(action(EditorActionId.DATA_BIND_PLOT_TO_DATASET)))),
+                        MenuEntry.action(action(EditorActionId.DATA_BIND_PLOT_TO_DATASET)),
+                        MenuEntry.action(action(EditorActionId.DATA_ADD_FIT_OVERLAY)))),
                 new MenuDefinition("Table", List.of(
                         MenuEntry.action(action(EditorActionId.TABLE_INSERT_ROW_ABOVE)),
                         MenuEntry.action(action(EditorActionId.TABLE_INSERT_ROW_BELOW)),

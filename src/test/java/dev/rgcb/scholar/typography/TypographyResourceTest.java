@@ -1,6 +1,9 @@
 package dev.rgcb.scholar.typography;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import com.google.gson.JsonParser;
 
 import java.awt.Font;
 import java.nio.file.Files;
@@ -34,6 +37,26 @@ class TypographyResourceTest {
     void experimentalMathFontResourcesExist() {
         assertTrue(Files.isRegularFile(FONT_ROOT.resolve("math.json")));
         assertTrue(Files.isRegularFile(FONT_ROOT.resolve("noto_sans_math/regular.ttf")));
+    }
+
+    @Test
+    void highResolutionDocumentFontsMatchTheExistingFamilies() throws Exception {
+        for (var name : List.of("document_regular", "document_bold", "document_italic", "document_bold_italic", "math")) {
+            var base = JsonParser.parseString(Files.readString(FONT_ROOT.resolve(name + ".json"))).getAsJsonObject();
+            var hi = JsonParser.parseString(Files.readString(FONT_ROOT.resolve(name + "_hi.json"))).getAsJsonObject();
+            var baseProviders = base.getAsJsonArray("providers");
+            var hiProviders = hi.getAsJsonArray("providers");
+            assertEquals(baseProviders.size(), hiProviders.size(), name);
+            for (var i = 0; i < baseProviders.size(); i++) {
+                var source = baseProviders.get(i).getAsJsonObject();
+                var enlarged = hiProviders.get(i).getAsJsonObject();
+                assertEquals(source.get("type"), enlarged.get("type"), name);
+                if (source.has("file")) {
+                    assertEquals(source.get("file"), enlarged.get("file"), name);
+                    assertEquals(source.get("size").getAsDouble() * 2, enlarged.get("size").getAsDouble(), name);
+                }
+            }
+        }
     }
 
     @Test

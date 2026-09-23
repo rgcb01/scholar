@@ -10,6 +10,7 @@ import dev.rgcb.scholar.typography.TypographyRole;
 import java.util.Objects;
 import java.util.Set;
 import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
@@ -19,13 +20,43 @@ public final class MinecraftTypographyResolver {
     private static final ResourceLocation DOCUMENT_ITALIC = ResourceLocation.fromNamespaceAndPath(Scholar.MOD_ID, "document_italic");
     private static final ResourceLocation DOCUMENT_BOLD_ITALIC = ResourceLocation.fromNamespaceAndPath(Scholar.MOD_ID, "document_bold_italic");
     private static final ResourceLocation MATH = ResourceLocation.fromNamespaceAndPath(Scholar.MOD_ID, "math");
+    private static final ResourceLocation DOCUMENT_REGULAR_HI = ResourceLocation.fromNamespaceAndPath(Scholar.MOD_ID, "document_regular_hi");
+    private static final ResourceLocation DOCUMENT_BOLD_HI = ResourceLocation.fromNamespaceAndPath(Scholar.MOD_ID, "document_bold_hi");
+    private static final ResourceLocation DOCUMENT_ITALIC_HI = ResourceLocation.fromNamespaceAndPath(Scholar.MOD_ID, "document_italic_hi");
+    private static final ResourceLocation DOCUMENT_BOLD_ITALIC_HI = ResourceLocation.fromNamespaceAndPath(Scholar.MOD_ID, "document_bold_italic_hi");
+    private static final ResourceLocation MATH_HI = ResourceLocation.fromNamespaceAndPath(Scholar.MOD_ID, "math_hi");
 
     private final Font defaultFont;
     private final ScholarTypography typography;
+    private final boolean highResolution;
 
     public MinecraftTypographyResolver(Font defaultFont, ScholarTypography typography) {
+        this(defaultFont, typography, false);
+    }
+
+    private MinecraftTypographyResolver(Font defaultFont, ScholarTypography typography, boolean highResolution) {
         this.defaultFont = Objects.requireNonNull(defaultFont, "defaultFont");
         this.typography = Objects.requireNonNull(typography, "typography");
+        this.highResolution = highResolution;
+    }
+
+    public MinecraftTypographyResolver highResolution() {
+        return new MinecraftTypographyResolver(defaultFont, typography, true);
+    }
+
+    public void drawDocumentString(GuiGraphics graphics, Component content, float x, float y, int color, float scale) {
+        graphics.pose().pushPose();
+        try {
+            graphics.pose().translate(x, y, 0);
+            graphics.pose().scale(scale / (highResolution ? 2.0f : 1.0f), scale / (highResolution ? 2.0f : 1.0f), 1.0f);
+            graphics.drawString(defaultFont, content, 0, 0, color, false);
+        } finally {
+            graphics.pose().popPose();
+        }
+    }
+
+    public float logicalWidth(Component content) {
+        return defaultFont.width(content) / (highResolution ? 2.0f : 1.0f);
     }
 
     public Font fontFor(TypographyRole role) {
@@ -69,12 +100,14 @@ public final class MinecraftTypographyResolver {
 
     ResourceLocation fontIdFor(ResolvedTypographyStyle resolved, TextStyle textStyle) {
         if (resolved.role() == TypographyRole.MATH) {
-            return MATH;
+            return highResolution ? MATH_HI : MATH;
         }
         if (textStyle != null && textStyle.format().fontFamily().orElse(null) == dev.rgcb.scholar.document.ScholarFontFamily.SCIENTIFIC_MATH) {
-            return MATH;
+            return highResolution ? MATH_HI : MATH;
         }
-        return selectVariant(resolved, DOCUMENT_REGULAR, DOCUMENT_BOLD, DOCUMENT_ITALIC, DOCUMENT_BOLD_ITALIC);
+        return highResolution
+                ? selectVariant(resolved, DOCUMENT_REGULAR_HI, DOCUMENT_BOLD_HI, DOCUMENT_ITALIC_HI, DOCUMENT_BOLD_ITALIC_HI)
+                : selectVariant(resolved, DOCUMENT_REGULAR, DOCUMENT_BOLD, DOCUMENT_ITALIC, DOCUMENT_BOLD_ITALIC);
     }
 
     private static ResourceLocation selectVariant(

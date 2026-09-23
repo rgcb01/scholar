@@ -6,6 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.rgcb.scholar.document.BlockNode;
 import dev.rgcb.scholar.document.Document;
+import dev.rgcb.scholar.document.DocumentSettings;
+import dev.rgcb.scholar.document.LayoutSectionBreak;
+import dev.rgcb.scholar.document.ColumnLayout;
+import dev.rgcb.scholar.client.render.DocumentViewTransform;
 import dev.rgcb.scholar.document.EquationBlock;
 import dev.rgcb.scholar.document.Heading;
 import dev.rgcb.scholar.document.InlineContent;
@@ -33,6 +37,68 @@ class SelectionGeometryResolverTest {
         var rects = resolver.resolve(range(1, 4), layout, textMeasurer);
 
         assertEquals(List.of(new SelectionRect(10, 0, 30, 10)), rects);
+    }
+
+    @Test
+    void paginatedPartialSelectionUsesPlacedRunOriginOnlyOnce() {
+        var source = new Document(List.of(paragraph(text("abcdef"))), List.of(), DocumentSettings.blank());
+        var layout = layoutEngine.layoutPaginated(source, textMeasurer, null);
+        var run = layout.blocks().getFirst().lines().getFirst().textRuns().getFirst();
+        assertTrue(run.x() > 0);
+        var rect = resolver.resolve(range(1, 4), layout, textMeasurer).getFirst();
+        assertEquals(new SelectionRect(run.x() + 10, run.y(), 30, layout.blocks().getFirst().lines().getFirst().height()), rect);
+        for (var zoom : new double[]{0.75, 1.0, 1.25, 1.5, 2.0}) {
+            var view = new DocumentViewTransform(35, 50, zoom);
+            assertEquals(view.screenX(35 + run.x() + 10), view.screenX(35 + rect.x()), 1.0e-9);
+            assertEquals(30 * zoom, view.screenX(35 + rect.x() + rect.width()) - view.screenX(35 + rect.x()), 1.0e-9);
+        }
+    }
+
+    @Test
+    void paginatedTwoColumnSelectionUsesActualColumnOrigin() {
+        var source = new Document(List.of(new LayoutSectionBreak(ColumnLayout.two()), paragraph(text("abcdef"))),
+                List.of(), DocumentSettings.blank());
+        var layout = layoutEngine.layoutPaginated(source, textMeasurer, null);
+        var run = layout.blocks().get(1).lines().getFirst().textRuns().getFirst();
+        var rect = resolver.resolve(new DocumentRange(new DocumentPosition(1, 2), new DocumentPosition(1, 5)),
+                layout, textMeasurer).getFirst();
+        assertEquals(run.x() + 20, rect.x());
+        assertEquals(30, rect.width());
+    }
+
+    @Test
+    void selectedWidthUsesDifferenceOfPrefixAdvances() {
+        TextMeasurer kerned = new TextMeasurer() {
+            @Override public int measureWidth(String text, TextStyle style) {
+                return text.length() * 10 - (text.startsWith("AV") ? 2 : 0);
+            }
+            @Override public int lineHeight(TextStyle style) { return 12; }
+        };
+        var layout = layoutEngine.layout(document(paragraph(text("AVA"))), 100, kerned);
+        var rect = resolver.resolve(range(1, 2), layout, kerned).getFirst();
+        assertEquals(10, rect.x());
+        assertEquals(8, rect.width());
+    }
+
+    @Test
+    void paginatedWrappedSelectionStartsAndEndsAtActualCarets() {
+        var content = "alpha beta gamma delta epsilon ".repeat(35);
+        var source = new Document(List.of(paragraph(text(content))), List.of(), DocumentSettings.blank());
+        var layout = layoutEngine.layoutPaginated(source, textMeasurer, null);
+        var start = new DocumentPosition(0, 3);
+        var end = new DocumentPosition(0, content.length() - 3);
+        var rects = resolver.resolve(new DocumentRange(start, end), layout, textMeasurer);
+        var caret = new CaretGeometryResolver();
+        assertTrue(layout.blocks().getFirst().lines().size() > 1);
+        assertEquals(caret.resolve(start, layout, textMeasurer).x(), rects.getFirst().x());
+        assertEquals(caret.resolve(end, layout, textMeasurer).x(),
+                rects.getLast().x() + rects.getLast().width());
+        for (var rect : rects) {
+            var line = layout.blocks().getFirst().lines().stream()
+                    .filter(candidate -> candidate.y() == rect.y()).findFirst().orElseThrow();
+            assertTrue(rect.x() >= line.x());
+            assertTrue(rect.x() + rect.width() <= line.x() + line.width());
+        }
     }
 
     @Test

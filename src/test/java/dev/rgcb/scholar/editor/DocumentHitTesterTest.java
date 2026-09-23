@@ -12,6 +12,11 @@ import dev.rgcb.scholar.document.Paragraph;
 import dev.rgcb.scholar.document.Text;
 import dev.rgcb.scholar.document.TextMark;
 import dev.rgcb.scholar.layout.DocumentLayoutEngine;
+import dev.rgcb.scholar.layout.LaidOutBlock;
+import dev.rgcb.scholar.layout.LaidOutBlockKind;
+import dev.rgcb.scholar.layout.LaidOutDocument;
+import dev.rgcb.scholar.layout.LaidOutLine;
+import dev.rgcb.scholar.layout.LaidOutText;
 import dev.rgcb.scholar.layout.TextMeasurer;
 import dev.rgcb.scholar.layout.TextStyle;
 import dev.rgcb.scholar.math.MathIdentifier;
@@ -24,6 +29,19 @@ class DocumentHitTesterTest {
     private final DocumentLayoutEngine layoutEngine = new DocumentLayoutEngine();
     private final TextMeasurer textMeasurer = new FixedTextMeasurer();
     private final DocumentHitTester hitTester = new DocumentHitTester();
+
+    @Test void overlappingBoundsOfCrossColumnParagraphDoNotStealLaterParagraphHit() {
+        var style = TextStyle.paragraph();
+        var first = new LaidOutBlock(LaidOutBlockKind.PARAGRAPH, 0, 0, 0, 250, 90, List.of(
+                new LaidOutLine(0, 80, 10, 10, List.of(new LaidOutText("a", style, 0, 80, 10, 0, 0, 1, false))),
+                new LaidOutLine(200, 0, 10, 10, List.of(new LaidOutText("b", style, 200, 0, 10, 0, 1, 2, false)))));
+        var later = new LaidOutBlock(LaidOutBlockKind.PARAGRAPH, 0, 200, 20, 50, 10, List.of(
+                new LaidOutLine(200, 20, 40, 10, List.of(new LaidOutText("tail", style, 200, 20, 40, 1, 0, 4, false)))));
+        var document = new LaidOutDocument(300, 100, List.of(first, later));
+
+        assertEquals(new DocumentPosition(1, 0), hitTester.hitTest(document, 200, 25, textMeasurer).orElseThrow());
+        assertEquals(new DocumentPosition(0, 1), hitTester.hitTest(document, 200, 5, textMeasurer).orElseThrow());
+    }
 
     @Test
     void hitsStartMiddleTieAndEndOfLine() {

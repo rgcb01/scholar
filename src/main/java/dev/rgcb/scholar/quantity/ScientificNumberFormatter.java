@@ -7,7 +7,7 @@ public final class ScientificNumberFormatter {
     public String format(QuantityValue value, NumberNotation notation, boolean unicode) {
         Objects.requireNonNull(value); Objects.requireNonNull(notation);
         var nominal = value.nominal();
-        var number = formatNumber(nominal.value(), notation, unicode);
+        var number = nominal.semantics().valuePrefix(unicode) + formatNumber(nominal.value(), notation, unicode);
         var unit = unicode ? nominal.unit().displaySymbol(UnitRegistry.builtIn()) : nominal.unit().asciiSymbol(UnitRegistry.builtIn());
         if (value instanceof MeasuredQuantity measured) {
             return number + " ± " + formatNumber(measured.absoluteUncertainty(), notation, unicode) + " " + unit;

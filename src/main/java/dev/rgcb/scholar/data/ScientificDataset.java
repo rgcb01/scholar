@@ -64,12 +64,19 @@ public record ScientificDataset(String id, Optional<String> displayName, List<Da
     }
 
     public ScientificDataset withColumnUnit(String columnId, Optional<dev.rgcb.scholar.quantity.UnitExpression> unit) {
+        return withColumnUnit(columnId, unit, unit.map(dev.rgcb.scholar.quantity.QuantitySemantics::defaultFor)
+                .orElse(dev.rgcb.scholar.quantity.QuantitySemantics.LINEAR));
+    }
+
+    public ScientificDataset withColumnUnit(String columnId, Optional<dev.rgcb.scholar.quantity.UnitExpression> unit,
+                                            dev.rgcb.scholar.quantity.QuantitySemantics semantics) {
         Objects.requireNonNull(unit, "unit");
+        Objects.requireNonNull(semantics, "semantics");
         var index = columnIndex(columnId);
         if (index < 0) return this;
         var source = columns.get(index);
         var updated = new ArrayList<>(columns);
-        updated.set(index, new DatasetColumn(source.id(), source.displayName(), source.type(), unit));
+        updated.set(index, new DatasetColumn(source.id(), source.displayName(), source.type(), unit, semantics));
         return new ScientificDataset(id, displayName, updated, rows);
     }
 

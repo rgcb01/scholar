@@ -110,6 +110,18 @@ public class FileDocumentStorage implements DocumentStorage {
         }
     }
 
+    @Override public PersistenceResult<Boolean> delete(String name) {
+        if (!validName(name)) return badName();
+        try {
+            var path = target(name);
+            if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) return ioFailure("Document could not be deleted.");
+            Files.delete(path);
+            return new PersistenceResult.Success<>(true, List.of());
+        } catch (IOException | SecurityException e) {
+            return ioFailure("Document could not be deleted.");
+        }
+    }
+
     private Path target(String name) throws IOException {
         ensureDirectory();
         var path = directory.resolve(name + EXTENSION).normalize();

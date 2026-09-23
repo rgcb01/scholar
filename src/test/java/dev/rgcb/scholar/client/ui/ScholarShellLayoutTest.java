@@ -13,7 +13,9 @@ class ScholarShellLayoutTest {
         assertEquals(new ShellRect(0, MenuBarWidget.HEIGHT, 320, ToolbarWidget.HEIGHT), layout.toolbarBounds());
         assertEquals(new ShellRect(0, MenuBarWidget.HEIGHT + ToolbarWidget.HEIGHT, 320, ApplicationHeaderWidget.HEIGHT), layout.applicationHeaderBounds());
         assertEquals(MenuBarWidget.HEIGHT + ToolbarWidget.HEIGHT + ApplicationHeaderWidget.HEIGHT, layout.documentWorkspaceBounds().y());
-        assertEquals(240 - MenuBarWidget.HEIGHT - ToolbarWidget.HEIGHT - ApplicationHeaderWidget.HEIGHT, layout.documentWorkspaceBounds().height());
+        assertEquals(240 - MenuBarWidget.HEIGHT - ToolbarWidget.HEIGHT - ApplicationHeaderWidget.HEIGHT
+                - ScholarShellLayout.STATUS_BAR_HEIGHT, layout.documentWorkspaceBounds().height());
+        assertEquals(layout.documentWorkspaceBounds().bottom(), layout.statusBarBounds().y());
     }
 
     @Test
@@ -25,6 +27,8 @@ class ScholarShellLayoutTest {
         assertEquals(RibbonWidget.TAB_HEIGHT, layout.menuBarBounds().height());
         assertEquals(RibbonWidget.COMMAND_HEIGHT, layout.toolbarBounds().height());
         assertEquals(layout.toolbarBounds().bottom(), layout.documentWorkspaceBounds().y());
+        assertEquals(360, layout.statusBarBounds().bottom());
+        assertEquals(layout.documentWorkspaceBounds().bottom(), layout.statusBarBounds().y());
     }
 
     @Test

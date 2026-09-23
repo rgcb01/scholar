@@ -18,6 +18,7 @@ import dev.rgcb.scholar.math.*;
 import dev.rgcb.scholar.mechanical.*;
 import dev.rgcb.scholar.plot.*;
 import dev.rgcb.scholar.quantity.*;
+import dev.rgcb.scholar.compute.*;
 import dev.rgcb.scholar.validation.DocumentValidator;
 import dev.rgcb.scholar.validation.DocumentDiagnosticSeverity;
 import java.io.IOException;
@@ -106,6 +107,15 @@ public final class DocumentJsonCodec {
     }
 
     private JsonObject block(BlockNode value) {
+        if (value instanceof DatasetAnalysisBlock v) return object("type", "dataset-analysis", "id", v.id(),
+                "datasetId", v.datasetId(), "kind", m30Label(v.kind()), "xColumnId", v.xColumnId().orElse(null),
+                "yColumnId", v.yColumnId(), "displayUnit", v.displayUnit().map(this::unitExpression).orElse(null),
+                "notation", m30Label(v.notation()));
+        if (value instanceof VariableDefinition v) return object("type", "variable", "id", v.id(), "name", v.name(),
+                "value", scientificValue(v.value()), "label", v.label().orElse(null));
+        if (value instanceof ComputedResult v) return object("type", "computed-result", "expression", computation(v.expression()),
+                "source", v.authoredSource(), "label", v.label().orElse(null),
+                "displayUnit", v.displayUnit().map(this::unitExpression).orElse(null), "notation", m30Label(v.notation()));
         if (value instanceof Paragraph v) return object("type", "paragraph", "style", m30Label(v.style()), "format", paragraphFormat(v.format()), "content", inline(v.content()));
         if (value instanceof Heading v) return object("type", "heading", "id", v.id().orElse(null), "level", v.level(), "content", inline(v.content()));
         if (value instanceof EquationBlock v) return object("type", "equation", "id", v.id().orElse(null), "expression", math(v.expression()));
@@ -125,6 +135,16 @@ public final class DocumentJsonCodec {
     private BlockNode readBlock(JsonElement value) {
         var o = node(value, "block");
         return switch (string(o, "type")) {
+            case "dataset-analysis" -> { fields(o, "type", "id", "datasetId", "kind", "xColumnId", "yColumnId", "displayUnit", "notation");
+                yield new DatasetAnalysisBlock(identity(o, "id"), identity(o, "datasetId"),
+                        m30Enum(required(o, "kind"), dev.rgcb.scholar.analysis.AnalysisKind.class), optionalString(o, "xColumnId"),
+                        identity(o, "yColumnId"), optional(o, "displayUnit", this::readUnitExpression),
+                        m30Enum(required(o, "notation"), NumberNotation.class)); }
+            case "variable" -> { fields(o, "type", "id", "name", "value", "label");
+                yield new VariableDefinition(identity(o, "id"), string(o, "name"), readScientificValue(required(o, "value")), optionalString(o, "label")); }
+            case "computed-result" -> { fields(o, "type", "expression", "source", "label", "displayUnit", "notation");
+                yield new ComputedResult(readComputation(required(o, "expression")), string(o, "source"), optionalString(o, "label"),
+                        optional(o, "displayUnit", this::readUnitExpression), m30Enum(required(o, "notation"), NumberNotation.class)); }
             case "paragraph" -> { fields(o, "type", "style", "format", "content"); yield new Paragraph(readInline(required(o, "content")), m30Enum(required(o, "style"), SemanticStyle.class), readParagraphFormat(required(o, "format"))); }
             case "heading" -> { fields(o, "type", "id", "level", "content"); yield new Heading(integer(o, "level"), readInline(required(o, "content")), optionalString(o, "id")); }
             case "equation" -> { fields(o, "type", "id", "expression"); yield new EquationBlock(readMath(required(o, "expression")), optionalString(o, "id")); }
@@ -321,7 +341,7 @@ public final class DocumentJsonCodec {
     private JsonObject dataset(ScientificDataset v) {
         return object("id", v.id(), "displayName", v.displayName().orElse(null),
                 "columns", array(v.columns(), c -> object("id", c.id(), "displayName", c.displayName(), "type", label(c.type()),
-                        "unit", c.unit().map(this::unitExpression).orElse(null))),
+                        "unit", c.unit().map(this::unitExpression).orElse(null), "quantitySemantics", m30Label(c.quantitySemantics()))),
                 "rows", array(v.rows(), r -> object("id", r.id().orElse(null), "values", array(r.values(), cell -> switch (cell.kind()) {
                     case NUMBER -> object("type", "number", "value", cell.number().orElseThrow());
                     case TEXT -> object("type", "text", "value", cell.text().orElseThrow());
@@ -332,9 +352,13 @@ public final class DocumentJsonCodec {
     private ScientificDataset readDataset(JsonElement value) {
         var o = node(value, "dataset", "id", "displayName", "columns", "rows");
         return new ScientificDataset(identity(o, "id"), optionalString(o, "displayName"), list(o, "columns", v -> {
-            var c = node(v, "column", "id", "displayName", "type", "unit");
+            var c = node(v, "column");
+            fieldsWithOptional(c, java.util.Set.of("quantitySemantics"), "id", "displayName", "type", "unit");
+            var unit = optional(c, "unit", this::readUnitExpression);
+            var semantics = optionalAdditive(c, "quantitySemantics", encoded -> m30Enum(encoded, QuantitySemantics.class))
+                    .orElseGet(() -> unit.map(QuantitySemantics::defaultFor).orElse(QuantitySemantics.LINEAR));
             return new DatasetColumn(identity(c, "id"), identity(c, "displayName"), enumeration(required(c, "type"), DatasetColumnType.class),
-                    optional(c, "unit", this::readUnitExpression));
+                    unit, semantics);
         }), list(o, "rows", v -> {
             var r = node(v, "row", "id", "values");
             return new DatasetRow(optionalString(r, "id"), list(r, "values", cell -> {
@@ -360,12 +384,17 @@ public final class DocumentJsonCodec {
         return new DatasetPlotBinding(identity(o, "datasetId"), identity(o, "xColumnId"), identity(o, "yColumnId"));
     }
     private JsonObject axis(AxisDefinition v) { return object("label", v.label(), "scale", label(v.scale()), "range", v.explicitRange().map(r -> object("min", r.min(), "max", r.max())).orElse(null),
-            "displayUnit", v.displayUnit().map(this::unitExpression).orElse(null)); }
+            "displayUnit", v.displayUnit().map(this::unitExpression).orElse(null),
+            "displayUnitSemantics", v.displayUnitSemantics().map(DocumentJsonCodec::m30Label).orElse(null)); }
     private AxisDefinition readAxis(JsonElement value) {
-        var o = node(value, "axis", "label", "scale", "range", "displayUnit");
+        var o = node(value, "axis");
+        fieldsWithOptional(o, java.util.Set.of("displayUnitSemantics"), "label", "scale", "range", "displayUnit");
+        var unit = optional(o, "displayUnit", this::readUnitExpression);
+        var semantics = optionalAdditive(o, "displayUnitSemantics", v -> m30Enum(v, QuantitySemantics.class));
+        if (semantics.isEmpty()) semantics = unit.map(QuantitySemantics::defaultFor);
         return new AxisDefinition(string(o, "label"), optional(o, "range", v -> {
             var r = node(v, "range", "min", "max"); return new AxisRange(decimal(r, "min"), decimal(r, "max"));
-        }), enumeration(required(o, "scale"), AxisScale.class), optional(o, "displayUnit", this::readUnitExpression));
+        }), enumeration(required(o, "scale"), AxisScale.class), unit, semantics);
     }
 
     private JsonObject unitExpression(UnitExpression value) {
@@ -384,34 +413,98 @@ public final class DocumentJsonCodec {
         }));
     }
 
+    private JsonObject scientificValue(ScientificValue value) {
+        if (value instanceof ScientificValue.Scalar scalar) return object("kind", "scalar", "value", scalar.value());
+        return object("kind", "physical", "quantity", quantity(((ScientificValue.Physical) value).value()));
+    }
+
+    private ScientificValue readScientificValue(JsonElement value) {
+        var o = node(value, "scientific value");
+        return switch (string(o, "kind")) {
+            case "scalar" -> { fields(o, "kind", "value");
+                yield new ScientificValue.Scalar(number(required(o, "value")).getAsBigDecimal()); }
+            case "physical" -> { fields(o, "kind", "quantity");
+                yield new ScientificValue.Physical(readQuantity(required(o, "quantity"))); }
+            default -> throw unknown("scientific value");
+        };
+    }
+
+    private JsonObject computation(Expression value) {
+        if (value instanceof Expression.NumberLiteral v) return object("type", "number", "value", v.value());
+        if (value instanceof Expression.ValueLiteral v) return object("type", "value", "value", scientificValue(v.value()));
+        if (value instanceof Expression.Variable v) return object("type", "variable", "id", v.reference().variableId(), "name", v.authoredName());
+        if (value instanceof Expression.UnresolvedName v) return object("type", "unresolved-name", "name", v.name());
+        if (value instanceof Expression.Unary v) return object("type", "unary", "operator", m30Label(v.operator()), "operand", computation(v.operand()));
+        if (value instanceof Expression.Binary v) return object("type", "binary", "operator", m30Label(v.operator()),
+                "left", computation(v.left()), "right", computation(v.right()));
+        if (value instanceof Expression.Power v) return object("type", "power", "base", computation(v.base()), "exponent", v.exponent());
+        if (value instanceof Expression.Group v) return object("type", "group", "inner", computation(v.inner()));
+        if (value instanceof Expression.Invalid v) return object("type", "invalid", "source", v.source(), "code", m30Label(v.code()));
+        throw unknown("computation expression");
+    }
+
+    private Expression readComputation(JsonElement value) {
+        var o = node(value, "computation expression");
+        return switch (string(o, "type")) {
+            case "number" -> { fields(o, "type", "value"); yield new Expression.NumberLiteral(number(required(o, "value")).getAsBigDecimal()); }
+            case "value" -> { fields(o, "type", "value"); yield new Expression.ValueLiteral(readScientificValue(required(o, "value"))); }
+            case "variable" -> { fields(o, "type", "id", "name"); yield new Expression.Variable(
+                    new VariableDependencyReference(identity(o, "id")), string(o, "name")); }
+            case "unresolved-name" -> { fields(o, "type", "name"); yield new Expression.UnresolvedName(string(o, "name")); }
+            case "unary" -> { fields(o, "type", "operator", "operand"); yield new Expression.Unary(
+                    m30Enum(required(o, "operator"), Expression.UnaryOperator.class), readComputation(required(o, "operand"))); }
+            case "binary" -> { fields(o, "type", "operator", "left", "right"); yield new Expression.Binary(
+                    m30Enum(required(o, "operator"), Expression.Operator.class), readComputation(required(o, "left")),
+                    readComputation(required(o, "right"))); }
+            case "power" -> { fields(o, "type", "base", "exponent"); yield new Expression.Power(
+                    readComputation(required(o, "base")), integer(o, "exponent")); }
+            case "group" -> { fields(o, "type", "inner"); yield new Expression.Group(readComputation(required(o, "inner"))); }
+            case "invalid" -> { fields(o, "type", "source", "code"); yield new Expression.Invalid(string(o, "source"),
+                    m30Enum(required(o, "code"), ComputationDiagnostic.Code.class)); }
+            default -> throw unknown("computation expression");
+        };
+    }
+
     private JsonObject quantity(QuantityValue value) {
-        if (value instanceof Quantity q) return object("kind", "quantity", "value", q.value(), "unit", unitExpression(q.unit()));
+        if (value instanceof Quantity q) return object("kind", "quantity", "value", q.value(), "unit", unitExpression(q.unit()),
+                "semantics", m30Label(q.semantics()));
         if (value instanceof MeasuredQuantity q) return object("kind", "measured", "value", q.nominal().value(),
-                "uncertainty", q.absoluteUncertainty(), "unit", unitExpression(q.nominal().unit()));
+                "uncertainty", q.absoluteUncertainty(), "unit", unitExpression(q.nominal().unit()),
+                "semantics", m30Label(q.nominal().semantics()));
         throw unknown("quantity");
     }
 
     private QuantityValue readQuantity(JsonElement value) {
         var o = node(value, "quantity");
         return switch (string(o, "kind")) {
-            case "quantity" -> { fields(o, "kind", "value", "unit"); yield new Quantity(number(required(o, "value")).getAsBigDecimal(), readUnitExpression(required(o, "unit"))); }
-            case "measured" -> { fields(o, "kind", "value", "uncertainty", "unit"); yield new MeasuredQuantity(
-                    new Quantity(number(required(o, "value")).getAsBigDecimal(), readUnitExpression(required(o, "unit"))),
+            case "quantity" -> {
+                fieldsWithOptional(o, java.util.Set.of("semantics"), "kind", "value", "unit");
+                var unit = readUnitExpression(required(o, "unit"));
+                yield new Quantity(number(required(o, "value")).getAsBigDecimal(), unit,
+                        optionalAdditive(o, "semantics", v -> m30Enum(v, QuantitySemantics.class)).orElseGet(() -> QuantitySemantics.defaultFor(unit)));
+            }
+            case "measured" -> {
+                fieldsWithOptional(o, java.util.Set.of("semantics"), "kind", "value", "uncertainty", "unit");
+                var unit = readUnitExpression(required(o, "unit"));
+                yield new MeasuredQuantity(
+                    new Quantity(number(required(o, "value")).getAsBigDecimal(), unit,
+                            optionalAdditive(o, "semantics", v -> m30Enum(v, QuantitySemantics.class)).orElseGet(() -> QuantitySemantics.defaultFor(unit))),
                     number(required(o, "uncertainty")).getAsBigDecimal()); }
             default -> throw unknown("quantity");
         };
     }
     private JsonObject plot(PlotDefinition v) {
         return object("title", v.title(), "xAxis", axis(v.xAxis()), "yAxis", axis(v.yAxis()), "legendVisible", v.legendVisible(), "gridVisible", v.gridVisible(), "height", v.height(),
-                "series", array(v.series(), s -> object("name", s.name(), "kind", label(s.kind()), "points", array(s.points(), p -> object("x", p.x(), "y", p.y())), "binding", s.datasetBinding().map(this::plotBinding).orElse(null))));
+                "series", array(v.series(), s -> object("name", s.name(), "kind", label(s.kind()), "points", array(s.points(), p -> object("x", p.x(), "y", p.y())), "binding", s.datasetBinding().map(this::plotBinding).orElse(null), "fitAnalysisId", s.fitAnalysisId().orElse(null))));
     }
     private PlotDefinition readPlot(JsonElement value) {
         var o = node(value, "plot", "title", "xAxis", "yAxis", "legendVisible", "gridVisible", "height", "series");
         return new PlotDefinition(string(o, "title"), readAxis(required(o, "xAxis")), readAxis(required(o, "yAxis")), list(o, "series", v -> {
-            var s = node(v, "series", "name", "kind", "points", "binding");
+            var s = node(v, "series");
+            fieldsWithOptional(s, java.util.Set.of("fitAnalysisId"), "name", "kind", "points", "binding");
             return new PlotSeries(string(s, "name"), enumeration(required(s, "kind"), PlotSeriesKind.class), list(s, "points", p -> {
                 var point = node(p, "point", "x", "y"); return new DataPoint(decimal(point, "x"), decimal(point, "y"));
-            }), optional(s, "binding", this::readPlotBinding));
+            }), optional(s, "binding", this::readPlotBinding), optionalAdditive(s, "fitAnalysisId", JsonElement::getAsString));
         }), bool(o, "legendVisible"), bool(o, "gridVisible"), integer(o, "height"));
     }
 
@@ -503,6 +596,12 @@ public final class DocumentJsonCodec {
         for (var name : o.keySet()) if (!names.contains(name)) throw invalid(name, "Unknown V1 field: " + name);
         for (var name : allowed) required(o, name);
     }
+    private static void fieldsWithOptional(JsonObject o, java.util.Set<String> optional, String... required) {
+        var names = new java.util.HashSet<>(optional);
+        names.addAll(java.util.List.of(required));
+        for (var name : o.keySet()) if (!names.contains(name)) throw invalid(name, "Unknown V2 field: " + name);
+        for (var name : required) required(o, name);
+    }
     private static JsonElement required(JsonObject o, String key) {
         if (!o.has(key)) throw error(PersistenceDiagnostic.Code.MISSING_FIELD, key, "Missing required field: " + key);
         return o.get(key);
@@ -529,6 +628,10 @@ public final class DocumentJsonCodec {
     }
     private static <T> Optional<T> optional(JsonObject o, String key, Function<JsonElement, T> convert) {
         var v = required(o, key); return v.isJsonNull() ? Optional.empty() : Optional.of(convert.apply(v));
+    }
+    private static <T> Optional<T> optionalAdditive(JsonObject o, String key, Function<JsonElement, T> convert) {
+        if (!o.has(key) || o.get(key).isJsonNull()) return Optional.empty();
+        return Optional.of(convert.apply(o.get(key)));
     }
     private static JsonPrimitive number(JsonElement v) {
         if (!v.isJsonPrimitive() || !v.getAsJsonPrimitive().isNumber()) throw invalid("number", "Expected a number."); return v.getAsJsonPrimitive();

@@ -3,6 +3,7 @@ package dev.rgcb.scholar.editor;
 import dev.rgcb.scholar.layout.LaidOutTableCell;
 import dev.rgcb.scholar.layout.LaidOutText;
 import dev.rgcb.scholar.layout.TextMeasurer;
+import dev.rgcb.scholar.layout.TextStyle;
 import java.util.Objects;
 
 public final class TableCaretGeometryResolver {
@@ -10,11 +11,11 @@ public final class TableCaretGeometryResolver {
         Objects.requireNonNull(cell, "cell");
         Objects.requireNonNull(textMeasurer, "textMeasurer");
         if (cell.lines().isEmpty()) {
-            return new CaretGeometry(cell.contentX(), cell.contentY(), cell.height());
+            return caret(cell.contentX(), cell.contentY(), cell.height(), TextStyle.paragraph(), textMeasurer);
         }
         if (characterOffset == 0 && cell.lines().get(0).textRuns().isEmpty()) {
             var line = cell.lines().get(0);
-            return new CaretGeometry(cell.contentX(), line.y(), line.height());
+            return caret(cell.contentX(), line.y(), line.height(), TextStyle.paragraph(), textMeasurer);
         }
 
         LaidOutText previousRun = null;
@@ -24,7 +25,7 @@ public final class TableCaretGeometryResolver {
             for (var run : line.textRuns()) {
                 if (characterOffset >= run.sourceStart() && characterOffset <= run.sourceEnd()) {
                     var prefix = TextBoundary.substring(run.text(), 0, characterOffset - run.sourceStart());
-                    return new CaretGeometry(run.x() + textMeasurer.measureWidth(prefix, run.style()), line.y(), line.height());
+                    return caret(run.x() + textMeasurer.measureWidth(prefix, run.style()), line.y(), line.height(), run.style(), textMeasurer);
                 }
                 previousRun = run;
                 previousLineY = line.y();
@@ -32,8 +33,13 @@ public final class TableCaretGeometryResolver {
             }
         }
         if (previousRun != null && characterOffset == previousRun.sourceEnd()) {
-            return new CaretGeometry(previousRun.x() + previousRun.width(), previousLineY, previousLineHeight);
+            return caret(previousRun.x() + previousRun.width(), previousLineY, previousLineHeight, previousRun.style(), textMeasurer);
         }
         throw new IllegalArgumentException("No laid-out cell text range contains the requested caret position.");
+    }
+
+    private static CaretGeometry caret(int x, int lineY, int lineHeight, TextStyle style, TextMeasurer measurer) {
+        var metrics = measurer.caretMetrics(style, lineHeight);
+        return new CaretGeometry(x, lineY + metrics.topInset(), metrics.height());
     }
 }

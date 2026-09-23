@@ -47,6 +47,32 @@ class FileScholarDocumentRepositoryTest {
         assertEquals("Kinematics Notes", listed.getFirst().displayName());
     }
 
+    @Test void deleteRemovesOnlyTargetAndRetiresItsApplicationIdAcrossRestart() {
+        var ids = new AtomicInteger();
+        var repository = new FileScholarDocumentRepository(directory, Clock.systemUTC(),
+                () -> new ScholarDocumentId(ids.incrementAndGet() <= 2 ? "first-id" : "next-id"));
+        var first = success(repository.createDocument("First", ScholarDocuments.blank()));
+        var second = success(repository.createDocument("Second", ScholarDocuments.blank()));
+        assertEquals("next-id", second.descriptor().id().value());
+        assertTrue(success(repository.deleteDocument(first.descriptor().id())));
+        assertEquals(List.of(second.descriptor().id()), success(repository.listDocuments()).stream()
+                .map(ScholarDocumentDescriptor::id).toList());
+        assertEquals(second.document(), success(repository.openDocument(second.descriptor().id())).document());
+        assertInstanceOf(PersistenceResult.Failure.class, repository.openDocument(first.descriptor().id()));
+        var restarted = new FileScholarDocumentRepository(directory, Clock.systemUTC(),
+                () -> new ScholarDocumentId("first-id"));
+        assertInstanceOf(PersistenceResult.Failure.class, restarted.createDocument("Reused", ScholarDocuments.blank()));
+    }
+
+    @Test void metadataFailureRejectsDeleteBeforeRemovingDocument() throws Exception {
+        var repository = repository();
+        var created = success(repository.createDocument("Keep", ScholarDocuments.blank()));
+        Files.delete(directory.resolve("workspace.json"));
+        Files.createDirectory(directory.resolve("workspace.json"));
+        assertInstanceOf(PersistenceResult.Failure.class, repository.deleteDocument(created.descriptor().id()));
+        assertEquals(created.document(), success(repository.openDocument(created.descriptor().id())).document());
+    }
+
     @Test void corruptMetadataDegradesToRecoverableDescriptorWithoutDamagingM26Document() throws Exception {
         var repository = repository();
         var created = success(repository.createDocument("Safe", document("h", "Title", "Body")));

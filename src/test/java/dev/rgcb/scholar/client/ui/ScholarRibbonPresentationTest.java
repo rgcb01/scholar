@@ -94,6 +94,13 @@ class ScholarRibbonPresentationTest {
         assertTrue(withView.stream().allMatch(tab -> tab.groups().stream().anyMatch(group -> !group.commands().isEmpty())));
     }
 
+    @Test void dataTabGroupsAnalysisCommands() {
+        var data = tab(productionTabs(BuiltInEditorActions.viewMenuActions()), "Data");
+        var analysis = data.groups().stream().filter(group -> group.label().equals("Analysis")).findFirst().orElseThrow();
+        assertEquals(List.of(EditorActionId.DATA_INSERT_ANALYSIS, EditorActionId.DATA_EDIT_ANALYSIS,
+                EditorActionId.DATA_ADD_FIT_OVERLAY), analysis.commands().stream().map(command -> command.action().id()).toList());
+    }
+
     @Test void homeUsesReadableValueControlsAndDistinctScientificFormattingIcons() {
         var home = tab(productionTabs(BuiltInEditorActions.viewMenuActions()), "Home");
         var commands = home.groups().stream().flatMap(group -> group.commands().stream()).toList();
@@ -172,9 +179,12 @@ class ScholarRibbonPresentationTest {
         assertTrue(quantity.palette());
         assertEquals(ScholarIcons.UNIT, quantity.icon());
         assertTrue(quantity.choices().stream().map(EditorAction::id).toList().contains(EditorActionId.INSERT_QUANTITY_ACCELERATION));
+        assertTrue(quantity.choices().stream().map(EditorAction::id).toList().contains(EditorActionId.INSERT_QUANTITY_CELSIUS_DIFFERENCE));
         assertTrue(columnUnit.choices().stream().map(EditorAction::id).toList().contains(EditorActionId.DATA_COLUMN_UNIT_CELSIUS));
+        assertTrue(columnUnit.choices().stream().map(EditorAction::id).toList().contains(EditorActionId.DATA_COLUMN_UNIT_CELSIUS_DIFFERENCE));
         assertTrue(xAxisUnit.choices().stream().map(EditorAction::id).toList().contains(EditorActionId.PLOT_X_UNIT_SECOND));
         assertTrue(yAxisUnit.choices().stream().map(EditorAction::id).toList().contains(EditorActionId.PLOT_Y_UNIT_KELVIN));
+        assertTrue(yAxisUnit.choices().stream().map(EditorAction::id).toList().contains(EditorActionId.PLOT_Y_UNIT_KELVIN_DIFFERENCE));
     }
 
     private static List<RibbonTabDefinition> productionTabs(List<EditorAction> view) {

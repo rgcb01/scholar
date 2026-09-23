@@ -40,12 +40,24 @@ class QuantitySystemTest {
     }
 
     @Test void celsiusKelvinConversionIsAffine() {
-        assertEquals(new BigDecimal("273.15"), new Quantity("0", parser.parseRequired("°C"))
-                .convertTo(parser.parseRequired("K")).value());
+        var freezing = new Quantity("0", parser.parseRequired("°C"));
+        assertEquals(QuantitySemantics.ABSOLUTE_TEMPERATURE, freezing.semantics());
+        assertEquals(new BigDecimal("273.15"), freezing.convertTo(parser.parseRequired("K")).value());
         assertEquals(BigDecimal.ZERO, new Quantity("273.15", parser.parseRequired("K"))
                 .convertTo(parser.parseRequired("°C")).value());
         assertEquals(new BigDecimal("373.15"), new Quantity("100", parser.parseRequired("°C"))
                 .convertTo(parser.parseRequired("K")).value());
+    }
+
+    @Test void temperatureDifferencesConvertWithScaleOnlyAndKelvinMeaningIsExplicit() {
+        var celsiusDifference = new Quantity("10", parser.parseRequired("°C"), QuantitySemantics.TEMPERATURE_DIFFERENCE);
+        var kelvinDifference = celsiusDifference.convertTo(parser.parseRequired("K"));
+        assertEquals(0, new BigDecimal("10").compareTo(kelvinDifference.value()));
+        assertEquals(QuantitySemantics.TEMPERATURE_DIFFERENCE, kelvinDifference.semantics());
+        assertEquals(BigDecimal.ONE, new Quantity("1", parser.parseRequired("°C"), QuantitySemantics.TEMPERATURE_DIFFERENCE)
+                .convertTo(parser.parseRequired("K")).value());
+        assertNotEquals(new Quantity("5", parser.parseRequired("K")),
+                new Quantity("5", parser.parseRequired("K"), QuantitySemantics.TEMPERATURE_DIFFERENCE));
     }
 
     @Test void uncertaintyUsesScaleButNeverAffineOffset() {
@@ -53,6 +65,57 @@ class QuantitySystemTest {
                 .convertTo(parser.parseRequired("K"));
         assertEquals(new BigDecimal("298.15"), converted.nominal().value());
         assertEquals(BigDecimal.ONE, converted.absoluteUncertainty());
+        assertEquals(QuantitySemantics.ABSOLUTE_TEMPERATURE, converted.nominal().semantics());
+        assertEquals(QuantitySemantics.TEMPERATURE_DIFFERENCE, converted.uncertaintyQuantity().semantics());
+    }
+
+    @Test void quantitySemanticsRejectImpossibleDimensionsAndRawLinearTemperatures() {
+        assertThrows(IllegalArgumentException.class, () -> new Quantity("5", parser.parseRequired("m"),
+                QuantitySemantics.ABSOLUTE_TEMPERATURE));
+        assertThrows(IllegalArgumentException.class, () -> new Quantity("5", parser.parseRequired("kg"),
+                QuantitySemantics.TEMPERATURE_DIFFERENCE));
+        assertThrows(IllegalArgumentException.class, () -> new Quantity("5", parser.parseRequired("K"),
+                QuantitySemantics.LINEAR));
+    }
+
+    @Test void thermalArithmeticContractIsCentralAndDeterministic() {
+        var absolute = new Quantity("25", parser.parseRequired("°C"));
+        var difference = new Quantity("5", parser.parseRequired("K"), QuantitySemantics.TEMPERATURE_DIFFERENCE);
+        var scalar = new Quantity("2", parser.parseRequired("1"));
+
+        assertEquals(QuantitySemantics.TEMPERATURE_DIFFERENCE,
+                QuantityArithmeticPolicy.result(QuantityArithmeticPolicy.BinaryOperation.SUBTRACT, absolute, absolute));
+        assertEquals(QuantitySemantics.ABSOLUTE_TEMPERATURE,
+                QuantityArithmeticPolicy.result(QuantityArithmeticPolicy.BinaryOperation.ADD, absolute, difference));
+        assertEquals(QuantitySemantics.ABSOLUTE_TEMPERATURE,
+                QuantityArithmeticPolicy.result(QuantityArithmeticPolicy.BinaryOperation.ADD, difference, absolute));
+        assertEquals(QuantitySemantics.ABSOLUTE_TEMPERATURE,
+                QuantityArithmeticPolicy.result(QuantityArithmeticPolicy.BinaryOperation.SUBTRACT, absolute, difference));
+        assertEquals(QuantitySemantics.TEMPERATURE_DIFFERENCE,
+                QuantityArithmeticPolicy.result(QuantityArithmeticPolicy.BinaryOperation.ADD, difference, difference));
+        assertEquals(QuantitySemantics.TEMPERATURE_DIFFERENCE,
+                QuantityArithmeticPolicy.result(QuantityArithmeticPolicy.BinaryOperation.SUBTRACT, difference, difference));
+        assertThrows(IllegalArgumentException.class, () -> QuantityArithmeticPolicy.result(
+                QuantityArithmeticPolicy.BinaryOperation.ADD, absolute, absolute));
+        assertThrows(IllegalArgumentException.class, () -> QuantityArithmeticPolicy.result(
+                QuantityArithmeticPolicy.BinaryOperation.SUBTRACT, difference, absolute));
+        assertThrows(IllegalArgumentException.class, () -> QuantityArithmeticPolicy.result(
+                QuantityArithmeticPolicy.BinaryOperation.MULTIPLY, absolute, scalar));
+        assertEquals(QuantitySemantics.TEMPERATURE_DIFFERENCE,
+                QuantityArithmeticPolicy.result(QuantityArithmeticPolicy.BinaryOperation.MULTIPLY, difference, scalar));
+        assertEquals(QuantitySemantics.TEMPERATURE_DIFFERENCE,
+                QuantityArithmeticPolicy.result(QuantityArithmeticPolicy.BinaryOperation.DIVIDE, difference, scalar));
+        assertEquals(QuantitySemantics.LINEAR,
+                QuantityArithmeticPolicy.result(QuantityArithmeticPolicy.BinaryOperation.DIVIDE, scalar, difference));
+        assertThrows(IllegalArgumentException.class, () -> QuantityArithmeticPolicy.integerPower(absolute, 2));
+    }
+
+    @Test void formatterMakesTemperatureDifferencesExplicitInUnicodeAndPlainText() {
+        var difference = new Quantity("5", parser.parseRequired("°C"), QuantitySemantics.TEMPERATURE_DIFFERENCE);
+        var formatter = new ScientificNumberFormatter();
+        assertEquals("Δ5 °C", formatter.format(difference, NumberNotation.DECIMAL, true));
+        assertEquals("delta 5 °C", formatter.format(difference, NumberNotation.DECIMAL, false));
+        assertEquals("25 °C", formatter.format(new Quantity("25", parser.parseRequired("°C")), NumberNotation.DECIMAL, true));
     }
 
     @Test void scientificAndEngineeringFormattingAreExplicitPresentationChoices() {

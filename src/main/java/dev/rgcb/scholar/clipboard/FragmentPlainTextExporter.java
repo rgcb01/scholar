@@ -19,6 +19,7 @@ public final class FragmentPlainTextExporter {
     private final CrossReferenceResolver references = new CrossReferenceResolver();
     private final DatasetPlotResolver plots = new DatasetPlotResolver();
     private final MathPlainTextSerializer math = new MathPlainTextSerializer();
+    private final DocumentPlainTextSerializer documentText = new DocumentPlainTextSerializer();
     public String export(Document source, DocumentFragment fragment) {
         if (fragment.content() instanceof FragmentContent.InlineSegments inline) {
             return String.join("\n", inline.segments().stream().map(segment -> references.inlineText(source, segment)).toList());
@@ -44,7 +45,7 @@ public final class FragmentPlainTextExporter {
             else if (block instanceof DiagramBlock diagram) { text.add(new DiagramPlainTextSerializer().serialize(diagram)); }
             else if (block instanceof FigureBlock figure) {
                 text.add(new FigurePlainTextSerializer().serialize(source, figure, FigureNumbering.numberFor(source, index).orElseThrow()));
-            } else { text.add(new DocumentPlainTextSerializer().serializeBlock(source, index, block)); }
+            } else { text.add(documentText.serializeBlock(source, index, block)); }
         }
         return String.join("\n\n", text);
     }

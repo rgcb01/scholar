@@ -28,7 +28,8 @@ public record SourceTransferMetadata(
                 throw new IllegalArgumentException("Dataset witness must match its typed identity.");
             }
         }
-        if (referenceText.keySet().stream().anyMatch(key -> key.kind() == StableIdentityKind.DATASET)) {
+        if (referenceText.keySet().stream().anyMatch(key -> key.kind() == StableIdentityKind.DATASET
+                || key.kind() == StableIdentityKind.VARIABLE || key.kind() == StableIdentityKind.ANALYSIS)) {
             throw new IllegalArgumentException("Reference text requires a CrossReference target namespace.");
         }
     }

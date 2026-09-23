@@ -429,6 +429,28 @@ public final class DevelopmentDocument {
                 dev.rgcb.scholar.document.DocumentTemplates.settings(dev.rgcb.scholar.document.DocumentTemplateId.IEEE_STYLE));
     }
 
+    /** Test-only M34 extension of the existing visual fixture; never registered as a command. */
+    public static Document createHighFidelityQa() {
+        var base = createVisualQa();
+        var blocks = new ArrayList<BlockNode>(base.blocks());
+        blocks.add(heading("m34-script-metrics", 2, "M34 Script and Selection Metrics"));
+        blocks.add(paragraph("Normal prose line with enough words to wrap across the current column and allow a partial drag selection near its middle."));
+        blocks.add(paragraph("H₂O H₂O H₂O H₂O H₂O H₂O H₂O H₂O H₂O H₂O"));
+        blocks.add(paragraph("x² x² x² x² x² x² x² x² x² x²"));
+        blocks.add(paragraph("CO₂ + H₂O; g = 9.81 m/s²; ΔT = 10 °C."));
+        blocks.add(new dev.rgcb.scholar.document.DatasetAnalysisBlock(
+                "m34-quadratic-fit", "m28-thermal-response",
+                dev.rgcb.scholar.analysis.AnalysisKind.QUADRATIC_FIT,
+                Optional.of("elapsed"), "measured", Optional.empty(),
+                dev.rgcb.scholar.quantity.NumberNotation.DECIMAL));
+        blocks.add(new PlotBlock(PlotDefinition.of("M34 measured response and quadratic fit",
+                AxisDefinition.linear("Elapsed time (s)"), AxisDefinition.linear("Temperature (°C)"),
+                List.of(new PlotSeries("Measured", PlotSeriesKind.SCATTER,
+                                new DatasetPlotBinding("m28-thermal-response", "elapsed", "measured")),
+                        PlotSeries.fit("Quadratic fit", "m34-quadratic-fit")))));
+        return new Document(blocks, base.datasets(), base.settings());
+    }
+
     public static Document createPersistenceFixture() {
         var base = createEditable();
         var blocks = new ArrayList<BlockNode>();

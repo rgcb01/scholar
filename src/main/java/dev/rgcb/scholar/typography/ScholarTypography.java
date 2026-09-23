@@ -1,6 +1,8 @@
 package dev.rgcb.scholar.typography;
 
 import dev.rgcb.scholar.document.TextMark;
+import dev.rgcb.scholar.layout.TextStyle;
+import dev.rgcb.scholar.layout.TextCaretMetrics;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Objects;
@@ -17,6 +19,13 @@ public record ScholarTypography(
         int maxReadableContentWidth,
         int mathRuleThickness
 ) {
+    public static final float SCRIPT_SCALE = 0.75f;
+    public static final float SCRIPT_OFFSET = 3.0f;
+    private static final int DOCUMENT_FONT_EM = 11;
+    private static final int DOCUMENT_LEADING = 1;
+    // Source Sans 3's visible ascender begins above Minecraft's 7-unit glyph baseline.
+    private static final float DOCUMENT_CARET_ASCENDER_OFFSET = 4.0f;
+    private static final float DOCUMENT_CARET_INK_HEIGHT = 10.0f;
     private static final int PARAGRAPH_COLOR = 0xFF241F1A;
     private static final int H1_COLOR = 0xFF1C3440;
     private static final int H2_COLOR = 0xFF384C36;
@@ -83,5 +92,30 @@ public record ScholarTypography(
 
     public int headingSpacingAfter(int level) {
         return headingSpacingAfterBase + Math.max(0, 3 - level);
+    }
+
+    public float textTopInset(TextStyle style) {
+        return SCRIPT_OFFSET * style.format().fontSizeHalfPoints().orElse(20) / 20.0f;
+    }
+
+    public TextCaretMetrics documentCaretMetrics(TextStyle style, int lineHeight) {
+        var scale = style.format().fontSizeHalfPoints().orElse(20) / 20.0f;
+        var top = Math.round(textTopInset(style) - DOCUMENT_CARET_ASCENDER_OFFSET * scale);
+        var height = Math.max(1, Math.min(lineHeight - top, Math.round(DOCUMENT_CARET_INK_HEIGHT * scale)));
+        return new TextCaretMetrics(top, height);
+    }
+
+    public int documentGlyphEm(int fontLineHeight) {
+        return Math.max(DOCUMENT_FONT_EM, fontLineHeight);
+    }
+
+    public int documentLineHeight(TextStyle style, int fontLineHeight, int roleAdjustment) {
+        var scale = style.format().fontSizeHalfPoints().orElse(20) / 20.0f;
+        var em = documentGlyphEm(fontLineHeight) + roleAdjustment;
+        var offset = SCRIPT_OFFSET * scale;
+        var normalExtent = em * scale;
+        var subscriptExtent = offset + em * scale * SCRIPT_SCALE;
+        return Math.max(1, (int) Math.ceil(offset + Math.max(normalExtent, subscriptExtent)
+                + DOCUMENT_LEADING * scale));
     }
 }

@@ -24,4 +24,13 @@ class HomeDocumentCardLayoutTest {
         assertEquals(last.maxPage(), last.page());
         assertFalse(last.documentCards().isEmpty());
     }
+
+    @Test void contextTargetUsesVisibleCardAndCurrentPage() {
+        var layout = HomeDocumentCardLayout.compute(320, 240, 7, 2);
+        var card = layout.documentCards().getFirst();
+        assertEquals(layout.page() * layout.documentsPerPage(),
+                layout.documentIndexAt(card.x() + 3, card.y() + 3));
+        assertEquals(-1, layout.documentIndexAt(layout.newDocumentCard().x() + 3,
+                layout.newDocumentCard().y() + 3));
+    }
 }

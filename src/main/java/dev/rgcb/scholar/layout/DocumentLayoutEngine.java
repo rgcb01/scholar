@@ -29,6 +29,13 @@ import dev.rgcb.scholar.document.TableBlock;
 import dev.rgcb.scholar.document.TableOfContentsBlock;
 import dev.rgcb.scholar.document.Text;
 import dev.rgcb.scholar.document.TextMark;
+import dev.rgcb.scholar.document.VariableDefinition;
+import dev.rgcb.scholar.document.ComputedResult;
+import dev.rgcb.scholar.document.DatasetAnalysisBlock;
+import dev.rgcb.scholar.analysis.AnalysisFormatter;
+import dev.rgcb.scholar.compute.ComputationEngine;
+import dev.rgcb.scholar.compute.ComputationFormatter;
+import dev.rgcb.scholar.quantity.NumberNotation;
 import dev.rgcb.scholar.editor.TextBoundary;
 import dev.rgcb.scholar.math.layout.MathLayoutEngine;
 import dev.rgcb.scholar.math.layout.MathTextMeasurer;
@@ -64,6 +71,19 @@ public final class DocumentLayoutEngine {
     private final DatasetPlotResolver datasetPlotResolver = new DatasetPlotResolver();
     private final ScholarTypography typography;
     private final DocumentStyleResolver styleResolver = new DocumentStyleResolver();
+    private final ComputationEngine computationEngine = new ComputationEngine();
+    private final ComputationFormatter computationFormatter = new ComputationFormatter();
+    private final AnalysisFormatter analysisFormatter = new AnalysisFormatter();
+
+    private String computationText(Document document, int blockIndex) {
+        var block = document.blocks().get(blockIndex);
+        if (block instanceof VariableDefinition variable) {
+            return variable.label().filter(value -> !value.isBlank()).map(value -> value + ": ").orElse("")
+                    + variable.name() + " = " + computationFormatter.value(variable.value(), NumberNotation.DECIMAL, true);
+        }
+        var computed = (ComputedResult) block;
+        return computationFormatter.result(computed, computationEngine.update(document).results().get(blockIndex), document, true);
+    }
 
     public DocumentLayoutEngine() {
         this(ScholarTypography.defaultProfile());
@@ -110,6 +130,7 @@ public final class DocumentLayoutEngine {
         var figureNumber = 1;
         var referenceResolver = new CrossReferenceResolver();
         var structure = structureResolver.resolve(document);
+        computationEngine.update(document);
 
         for (var blockIndex = 0; blockIndex < document.blocks().size(); blockIndex++) {
             var block = document.blocks().get(blockIndex);
@@ -152,6 +173,16 @@ public final class DocumentLayoutEngine {
                         blockIndex,
                         document,
                         referenceResolver);
+                blocks.add(laidOut);
+                y = laidOut.y() + laidOut.height() + typography.paragraphSpacingAfter();
+            } else if (block instanceof VariableDefinition || block instanceof ComputedResult) {
+                var laidOut = layoutTextBlock(LaidOutBlockKind.COMPUTATION, 0,
+                        new InlineContent(List.of(new Text(computationText(document, blockIndex), java.util.Set.of()))),
+                        null, "", contentWidth, y, textMeasurer, blockIndex, document, referenceResolver);
+                blocks.add(laidOut);
+                y = laidOut.y() + laidOut.height() + typography.paragraphSpacingAfter();
+            } else if (block instanceof DatasetAnalysisBlock analysis) {
+                var laidOut = layoutAnalysis(document, analysis, contentWidth, y, textMeasurer, blockIndex);
                 blocks.add(laidOut);
                 y = laidOut.y() + laidOut.height() + typography.paragraphSpacingAfter();
             } else if (block instanceof EquationBlock equationBlock) {
@@ -273,6 +304,7 @@ public final class DocumentLayoutEngine {
         var structure = structureResolver.resolve(document);
         var referenceResolver = new CrossReferenceResolver();
         var figureNumber = 1;
+        computationEngine.update(document);
 
         for (var blockIndex = 0; blockIndex < document.blocks().size(); blockIndex++) {
             var block = document.blocks().get(blockIndex);
@@ -335,6 +367,22 @@ public final class DocumentLayoutEngine {
                         referenceResolver);
                 blocks.add(placeTextBlock(raw, cursor, format, textMeasurer));
                 cursor.addVerticalSpace(format.spaceAfter().orElse(typography.paragraphSpacingAfter()));
+                continue;
+            }
+
+            if (block instanceof VariableDefinition || block instanceof ComputedResult) {
+                var raw = layoutTextBlock(LaidOutBlockKind.COMPUTATION, 0,
+                        new InlineContent(List.of(new Text(computationText(document, blockIndex), java.util.Set.of()))),
+                        null, "", cursor.columnWidth(), 0, textMeasurer, blockIndex, document, referenceResolver);
+                blocks.add(placeTextBlock(raw, cursor, ParagraphFormat.none(), textMeasurer));
+                cursor.addVerticalSpace(typography.paragraphSpacingAfter());
+                continue;
+            }
+
+            if (block instanceof DatasetAnalysisBlock analysis) {
+                var raw = layoutAnalysis(document, analysis, cursor.columnWidth(), 0, textMeasurer, blockIndex);
+                blocks.add(placeTextBlock(raw, cursor, ParagraphFormat.none(), textMeasurer));
+                cursor.addVerticalSpace(typography.paragraphSpacingAfter());
                 continue;
             }
 
@@ -404,9 +452,6 @@ public final class DocumentLayoutEngine {
             TextMeasurer textMeasurer
     ) {
         var placedLines = new ArrayList<LaidOutLine>();
-        var firstX = -1;
-        var firstY = -1;
-        var lastBottom = -1;
         for (var lineIndex = 0; lineIndex < raw.lines().size(); lineIndex++) {
             var line = raw.lines().get(lineIndex);
             var scaledHeight = Math.max(1, line.height() * format.lineSpacingPermille().orElse(1000) / 1000);
@@ -440,24 +485,21 @@ public final class DocumentLayoutEngine {
                 }
             }
             placedLines.add(new LaidOutLine(dx, dy, justify && spaces > 0 ? available : line.width(), scaledHeight, runs));
-            if (firstX < 0) {
-                firstX = dx;
-                firstY = dy;
-            }
-            lastBottom = dy + scaledHeight;
             cursor.consume(scaledHeight);
         }
         if (placedLines.isEmpty()) {
             var height = textMeasurer.lineHeight(TextStyle.paragraph());
             cursor.ensureFits(height);
-            firstX = cursor.x();
-            firstY = cursor.y();
-            placedLines.add(new LaidOutLine(firstX, firstY, 0, height, List.of()));
-            lastBottom = firstY + height;
+            placedLines.add(new LaidOutLine(cursor.x(), cursor.y(), 0, height, List.of()));
             cursor.consume(height);
         }
         var tableOfContents = raw.tableOfContents().map(toc -> relocateTableOfContents(raw.lines(), placedLines, toc));
-        return new LaidOutBlock(raw.kind(), raw.headingLevel(), firstX, firstY, cursor.columnWidth(), lastBottom - firstY,
+        // Lines may continue at the top of the next column, where Y decreases on the same page.
+        var left = placedLines.stream().mapToInt(LaidOutLine::x).min().orElseThrow();
+        var top = placedLines.stream().mapToInt(LaidOutLine::y).min().orElseThrow();
+        var right = placedLines.stream().mapToInt(line -> line.x() + Math.max(cursor.columnWidth(), line.width())).max().orElseThrow();
+        var bottom = placedLines.stream().mapToInt(line -> line.y() + line.height()).max().orElseThrow();
+        return new LaidOutBlock(raw.kind(), raw.headingLevel(), left, top, right - left, bottom - top,
                 placedLines, raw.math(), raw.table(), raw.plot(), raw.diagram(), raw.figure(), tableOfContents);
     }
 
@@ -822,6 +864,21 @@ public final class DocumentLayoutEngine {
     private TextStyle semanticTextStyle(Document document, SemanticStyle style) {
         var definition = styleResolver.resolve(document.settings().template(), style);
         return TextStyle.paragraph(definition.marks()).withFormat(definition.text());
+    }
+
+    private LaidOutBlock layoutAnalysis(Document document, DatasetAnalysisBlock analysis, int width, int y,
+                                       TextMeasurer measurer, int blockIndex) {
+        var lines = new ArrayList<LaidOutLine>();
+        var lineY = y;
+        for (var text : analysisFormatter.lines(document, analysis, true)) {
+            var line = layoutTextBlock(LaidOutBlockKind.ANALYSIS, 0,
+                    new InlineContent(List.of(new Text(text, java.util.Set.of()))), null, "", width, lineY,
+                    measurer, blockIndex, document, new CrossReferenceResolver());
+            lines.addAll(line.lines());
+            lineY += line.height() + 2;
+        }
+        return new LaidOutBlock(LaidOutBlockKind.ANALYSIS, 0, BLOCK_X, y, width,
+                Math.max(0, lineY - y - 2), lines);
     }
 
     private static LaidOutBlock layoutTextBlock(

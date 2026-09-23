@@ -7,13 +7,25 @@ import java.util.HashSet;
 /** Prepared decisions only; context captures original destination for later stale-state preflight. */
 public record TransferPlan(DocumentFragment fragment, TransferContext context, boolean sameDocument,
                            IdentityRemapPlan identities, ResourceTransferPlan resources,
-                           ReferenceDispositionPlan references, List<TransferDiagnostic> diagnostics) {
+                           ReferenceDispositionPlan references, VariableDependencyPlan variableDependencies,
+                           AnalysisDependencyPlan analysisDependencies,
+                           List<TransferDiagnostic> diagnostics) {
+    public TransferPlan(DocumentFragment fragment, TransferContext context, boolean sameDocument,
+                        IdentityRemapPlan identities, ResourceTransferPlan resources,
+                        ReferenceDispositionPlan references, VariableDependencyPlan variableDependencies,
+                        List<TransferDiagnostic> diagnostics) {
+        this(fragment, context, sameDocument, identities, resources, references, variableDependencies,
+                new AnalysisDependencyPlan(List.of()), diagnostics);
+    }
+
     public TransferPlan {
         fragment = Objects.requireNonNull(fragment, "fragment");
         context = Objects.requireNonNull(context, "context");
         identities = Objects.requireNonNull(identities, "identities");
         resources = Objects.requireNonNull(resources, "resources");
         references = Objects.requireNonNull(references, "references");
+        variableDependencies = Objects.requireNonNull(variableDependencies, "variableDependencies");
+        analysisDependencies = Objects.requireNonNull(analysisDependencies, "analysisDependencies");
         diagnostics = List.copyOf(diagnostics);
         if (sameDocument != context.hasSameDocumentToken()
                 || diagnostics.stream().anyMatch(d -> d.severity() == TransferDiagnostic.Severity.ERROR)) {
@@ -82,6 +94,50 @@ public record TransferPlan(DocumentFragment fragment, TransferContext context, b
                     && (!sameDocument || !inventory.targets().containsKey(sourceKey)
                     || inventory.targets().get(sourceKey) != context.sourceMetadata().targetWitnesses().get(sourceKey))) {
                 throw new IllegalArgumentException("External active reference requires exact applicable proof.");
+            }
+        }
+        var variableOccurrences = TransferPlanner.variableOccurrences(fragment.content());
+        if (variableOccurrences.size() != variableDependencies.decisions().size()) {
+            throw new IllegalArgumentException("Incomplete variable dependency plan.");
+        }
+        for (var i = 0; i < variableOccurrences.size(); i++) {
+            var occurrence = variableOccurrences.get(i);
+            var decision = variableDependencies.decisions().get(i);
+            var sourceKey = new StableIdentityKey(StableIdentityKind.VARIABLE, occurrence.reference().variableId());
+            if (!decision.location().equals(occurrence.location()) || !decision.source().equals(occurrence.reference())) {
+                throw new IllegalArgumentException("Variable decision must match its exact source occurrence.");
+            }
+            if (fragment.identities().provided().contains(sourceKey)) {
+                if (decision.disposition() != VariableDependencyPlan.Disposition.REMAP_TRAVELING_TARGET
+                        || !decision.destination().equals(identities.destinationOf(sourceKey))) {
+                    throw new IllegalArgumentException("Traveling variable dependency must use shared remap.");
+                }
+            } else if (decision.disposition() != VariableDependencyPlan.Disposition.PRESERVE_PROVEN_SAME_DOCUMENT_TARGET
+                    || !sameDocument || !inventory.targets().containsKey(sourceKey)
+                    || inventory.targets().get(sourceKey) != context.sourceMetadata().targetWitnesses().get(sourceKey)) {
+                throw new IllegalArgumentException("External variable dependency requires exact applicable proof.");
+            }
+        }
+        var fitOccurrences = TransferPlanner.analysisOccurrences(fragment.content());
+        if (fitOccurrences.size() != analysisDependencies.decisions().size()) {
+            throw new IllegalArgumentException("Incomplete fit analysis dependency plan.");
+        }
+        for (var i = 0; i < fitOccurrences.size(); i++) {
+            var occurrence = fitOccurrences.get(i);
+            var decision = analysisDependencies.decisions().get(i);
+            var key = new StableIdentityKey(StableIdentityKind.ANALYSIS, occurrence.analysisId());
+            if (!decision.location().equals(occurrence.location()) || !decision.sourceId().equals(occurrence.analysisId())) {
+                throw new IllegalArgumentException("Fit decision must match source occurrence.");
+            }
+            if (fragment.identities().provided().contains(key)) {
+                if (decision.disposition() != AnalysisDependencyPlan.Disposition.REMAP_TRAVELING_TARGET
+                        || !decision.destination().equals(identities.destinationOf(key))) {
+                    throw new IllegalArgumentException("Traveling fit analysis must use shared remap.");
+                }
+            } else if (decision.disposition() != AnalysisDependencyPlan.Disposition.PRESERVE_PROVEN_SAME_DOCUMENT_TARGET
+                    || !sameDocument || inventory.targets().get(key) == null
+                    || inventory.targets().get(key) != context.sourceMetadata().targetWitnesses().get(key)) {
+                throw new IllegalArgumentException("External fit analysis requires exact applicable proof.");
             }
         }
     }

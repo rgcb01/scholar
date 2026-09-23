@@ -2,6 +2,8 @@ package dev.rgcb.scholar.transfer;
 
 import dev.rgcb.scholar.data.ScientificDataset;
 import dev.rgcb.scholar.document.BlockNode;
+import dev.rgcb.scholar.document.ComputationTransferBlock;
+import dev.rgcb.scholar.document.DatasetAnalysisBlock;
 import dev.rgcb.scholar.document.CrossReference;
 import dev.rgcb.scholar.document.DiagramBlock;
 import dev.rgcb.scholar.document.EquationBlock;
@@ -56,6 +58,12 @@ public record FragmentIdentityIndex(Set<StableIdentityKey> provided, Set<StableI
     }
 
     public static Optional<StableIdentityKey> blockIdentity(BlockNode block) {
+        if (block instanceof DatasetAnalysisBlock analysis) {
+            return Optional.of(new StableIdentityKey(StableIdentityKind.ANALYSIS, analysis.id()));
+        }
+        if (block instanceof ComputationTransferBlock computation) {
+            return computation.definedVariableId().map(id -> new StableIdentityKey(StableIdentityKind.VARIABLE, id));
+        }
         if (block instanceof Heading heading) {
             return heading.id().map(id -> new StableIdentityKey(StableIdentityKind.SECTION, id));
         }
@@ -83,9 +91,16 @@ public record FragmentIdentityIndex(Set<StableIdentityKey> provided, Set<StableI
         } else if (block instanceof PlotBlock plot) {
             plot.definition().series().forEach(series -> series.datasetBinding()
                     .ifPresent(binding -> referenced.add(datasetKey(binding.datasetId()))));
+            plot.definition().series().forEach(series -> series.fitAnalysisId()
+                    .ifPresent(id -> referenced.add(new StableIdentityKey(StableIdentityKind.ANALYSIS, id))));
+        } else if (block instanceof DatasetAnalysisBlock analysis) {
+            referenced.add(datasetKey(analysis.datasetId()));
         } else if (block instanceof FigureBlock figure) {
             visitInline(figure.caption(), referenced);
             visitBlock(figure.content(), provided, referenced);
+        } else if (block instanceof ComputationTransferBlock computation) {
+            computation.variableDependencies().forEach(dependency -> referenced.add(
+                    new StableIdentityKey(StableIdentityKind.VARIABLE, dependency.variableId())));
         } else if (!(block instanceof EquationBlock || block instanceof DiagramBlock || block instanceof TableOfContentsBlock
                 || block instanceof PageBreak || block instanceof LayoutSectionBreak)) {
             throw new IllegalArgumentException("Unsupported fragment block type: " + block.getClass().getName());

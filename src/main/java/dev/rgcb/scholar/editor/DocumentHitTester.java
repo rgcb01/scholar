@@ -24,7 +24,7 @@ public final class DocumentHitTester {
                 return DocumentHit.block(index);
             }
         }
-        var editableBlockIndex = nearestEditableBlockIndex(document, y);
+        var editableBlockIndex = nearestEditableBlockIndex(document, x, y);
         if (editableBlockIndex.isEmpty()) {
             return DocumentHit.none();
         }
@@ -48,16 +48,14 @@ public final class DocumentHitTester {
             return Optional.of(new DocumentPosition(blockIndex, 0));
         }
 
-        var firstLine = block.lines().get(0);
-        var lastLine = block.lines().get(block.lines().size() - 1);
-        if (y < firstLine.y()) {
+        if (y < block.y()) {
             return Optional.of(new DocumentPosition(blockIndex, paragraphStart(block, blockIndex)));
         }
-        if (y >= lastLine.y() + lastLine.height()) {
+        if (y >= block.y() + block.height()) {
             return Optional.of(new DocumentPosition(blockIndex, paragraphEnd(block, blockIndex)));
         }
 
-        var line = nearestLine(block, y);
+        var line = nearestLine(block, x, y);
         if (line.textRuns().isEmpty()) {
             return Optional.of(new DocumentPosition(blockIndex, lineStart(line, blockIndex)));
         }
@@ -94,19 +92,22 @@ public final class DocumentHitTester {
         return Optional.of(new DocumentPosition(blockIndex, lastRun.sourceEnd()));
     }
 
-    private static Optional<Integer> nearestEditableBlockIndex(LaidOutDocument document, int y) {
+    private static Optional<Integer> nearestEditableBlockIndex(LaidOutDocument document, int x, int y) {
         var bestIndex = -1;
-        var bestDistance = Integer.MAX_VALUE;
+        var bestDistance = Long.MAX_VALUE;
+        var verticallyAligned = false;
         for (var index = 0; index < document.blocks().size(); index++) {
             var block = document.blocks().get(index);
             if (!isEditableTextBlock(block)) {
                 continue;
             }
-            if (y >= block.y() && y <= block.y() + block.height()) {
-                return Optional.of(index);
-            }
-            var distance = y < block.y() ? block.y() - y : y - (block.y() + block.height());
-            if (distance < bestDistance) {
+            var aligned = block.lines().stream().anyMatch(line -> containsY(line, y));
+            var distance = block.lines().isEmpty() ? lineDistance(x, y, block.x(), block.y(), block.width(), block.height())
+                    : block.lines().stream().filter(line -> !aligned || containsY(line, y))
+                            .mapToLong(line -> lineDistance(x, y, line.x(), line.y(), line.width(), line.height()))
+                            .min().orElse(Long.MAX_VALUE);
+            if (aligned && !verticallyAligned || aligned == verticallyAligned && distance < bestDistance) {
+                verticallyAligned = aligned;
                 bestDistance = distance;
                 bestIndex = index;
             }
@@ -125,20 +126,30 @@ public final class DocumentHitTester {
                 && y <= block.y() + Math.max(1, block.height());
     }
 
-    private static LaidOutLine nearestLine(LaidOutBlock block, int y) {
+    private static LaidOutLine nearestLine(LaidOutBlock block, int x, int y) {
         var bestLine = block.lines().get(0);
-        var bestDistance = Integer.MAX_VALUE;
+        var bestDistance = Long.MAX_VALUE;
+        var verticallyAligned = false;
         for (var line : block.lines()) {
-            if (y >= line.y() && y < line.y() + line.height()) {
-                return line;
-            }
-            var distance = y < line.y() ? line.y() - y : y - (line.y() + line.height());
-            if (distance < bestDistance) {
+            var aligned = containsY(line, y);
+            var distance = lineDistance(x, y, line.x(), line.y(), line.width(), line.height());
+            if (aligned && !verticallyAligned || aligned == verticallyAligned && distance < bestDistance) {
+                verticallyAligned = aligned;
                 bestDistance = distance;
                 bestLine = line;
             }
         }
         return bestLine;
+    }
+
+    private static boolean containsY(LaidOutLine line, int y) {
+        return y >= line.y() && y < line.y() + line.height();
+    }
+
+    private static long lineDistance(int x, int y, int left, int top, int width, int height) {
+        var dx = x < left ? (long) left - x : Math.max(0L, (long) x - left - Math.max(1, width));
+        var dy = y < top ? (long) top - y : Math.max(0L, (long) y - top - Math.max(1, height) + 1);
+        return dx * dx + dy * dy;
     }
 
     private static int nearestBoundary(LaidOutText run, int x, TextMeasurer textMeasurer) {

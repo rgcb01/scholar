@@ -7,4 +7,5 @@ public interface DocumentStorage {
     PersistenceResult<String> save(String name, Document document);
     PersistenceResult<Document> load(String name);
     PersistenceResult<List<String>> list();
+    PersistenceResult<Boolean> delete(String name);
 }

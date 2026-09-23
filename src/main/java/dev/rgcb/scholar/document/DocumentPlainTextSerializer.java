@@ -1,12 +1,19 @@
 package dev.rgcb.scholar.document;
 
 import dev.rgcb.scholar.data.DatasetTableResolver;
+import dev.rgcb.scholar.compute.ComputationEngine;
+import dev.rgcb.scholar.analysis.AnalysisFormatter;
+import dev.rgcb.scholar.compute.ComputationFormatter;
+import dev.rgcb.scholar.quantity.NumberNotation;
 import java.util.Objects;
 
 public final class DocumentPlainTextSerializer {
     private final CrossReferenceResolver referenceResolver = new CrossReferenceResolver();
     private final DocumentStructureResolver structureResolver = new DocumentStructureResolver();
     private final DatasetTableResolver datasetTableResolver = new DatasetTableResolver();
+    private final ComputationFormatter computationFormatter = new ComputationFormatter();
+    private final ComputationEngine computations = new ComputationEngine();
+    private final AnalysisFormatter analysisFormatter = new AnalysisFormatter();
 
     public String serialize(Document document) {
         Objects.requireNonNull(document, "document");
@@ -29,6 +36,15 @@ public final class DocumentPlainTextSerializer {
         }
         if (block instanceof Paragraph paragraph) {
             return referenceResolver.inlineText(document, paragraph.content());
+        }
+        if (block instanceof VariableDefinition variable) {
+            return variable.name() + " = " + computationFormatter.value(variable.value(), NumberNotation.DECIMAL, false);
+        }
+        if (block instanceof ComputedResult computed) {
+            return computationFormatter.result(computed, computations.update(document).results().get(blockIndex), document, false);
+        }
+        if (block instanceof DatasetAnalysisBlock analysis) {
+            return analysisFormatter.plainText(document, analysis);
         }
         if (block instanceof TableOfContentsBlock) {
             return serializeTableOfContents(document);

@@ -58,6 +58,22 @@ class DevelopmentVisualQaDocumentTest {
     }
 
     @Test
+    void highFidelityFixtureIncludesDerivedQuadraticCurveWithoutPersistingSamples() {
+        var document = DevelopmentDocument.createHighFidelityQa();
+        assertTrue(DocumentValidator.validate(document).isValid());
+        var fitPlot = (PlotBlock) document.blocks().getLast();
+        var fit = fitPlot.definition().series().get(1);
+        assertTrue(fit.points().isEmpty());
+        assertEquals(65, new dev.rgcb.scholar.data.DatasetPlotResolver()
+                .resolve(document, fitPlot).definition().series().get(1).points().size());
+        assertTrue(document.blocks().stream().filter(dev.rgcb.scholar.document.Paragraph.class::isInstance)
+                .map(dev.rgcb.scholar.document.Paragraph.class::cast)
+                .anyMatch(paragraph -> paragraph.content().nodes().stream()
+                        .filter(Text.class::isInstance).map(Text.class::cast)
+                        .anyMatch(text -> text.content().contains("H₂O H₂O"))));
+    }
+
+    @Test
     void explicitStressProfilesRemainSeparateFromVisualQaDefault() {
         var visualQa = DevelopmentDocument.createVisualQa();
         for (var profile : DevelopmentStressDocument.Profile.values()) {

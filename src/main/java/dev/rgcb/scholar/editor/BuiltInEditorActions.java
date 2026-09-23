@@ -13,6 +13,7 @@ import dev.rgcb.scholar.math.editor.SemanticMathTokenKind;
 import dev.rgcb.scholar.plot.PlotSeriesKind;
 import dev.rgcb.scholar.quantity.NumberNotation;
 import dev.rgcb.scholar.quantity.Quantity;
+import dev.rgcb.scholar.quantity.QuantitySemantics;
 import dev.rgcb.scholar.quantity.UnitExpression;
 import dev.rgcb.scholar.quantity.UnitParser;
 import java.math.BigDecimal;
@@ -48,6 +49,8 @@ public final class BuiltInEditorActions {
                 convertToMathText(),
                 insertQuantity(EditorActionId.INSERT_QUANTITY_METRE, "Length: 1 m", "m"),
                 insertQuantity(EditorActionId.INSERT_QUANTITY_CELSIUS, "Temperature: 25 °C", "°C", "25"),
+                insertQuantity(EditorActionId.INSERT_QUANTITY_CELSIUS_DIFFERENCE, "Temperature Difference: Δ5 °C", "°C", "5",
+                        QuantitySemantics.TEMPERATURE_DIFFERENCE),
                 insertQuantity(EditorActionId.INSERT_QUANTITY_VOLT, "Voltage: 5 V", "V", "5"),
                 insertQuantity(EditorActionId.INSERT_QUANTITY_MILLIAMPERE, "Current: 1 mA", "mA"),
                 insertQuantity(EditorActionId.INSERT_QUANTITY_KILOOHM, "Resistance: 1 kΩ", "kΩ"),
@@ -58,7 +61,11 @@ public final class BuiltInEditorActions {
                 convertQuantity(EditorActionId.QUANTITY_CONVERT_KELVIN, "Convert to K", "K"),
                 quantityNotation(EditorActionId.QUANTITY_FORMAT_DECIMAL, "Decimal", NumberNotation.DECIMAL),
                 quantityNotation(EditorActionId.QUANTITY_FORMAT_SCIENTIFIC, "Scientific", NumberNotation.SCIENTIFIC),
-                quantityNotation(EditorActionId.QUANTITY_FORMAT_ENGINEERING, "Engineering", NumberNotation.ENGINEERING));
+                quantityNotation(EditorActionId.QUANTITY_FORMAT_ENGINEERING, "Engineering", NumberNotation.ENGINEERING),
+                computationDialog(EditorActionId.INSERT_VARIABLE, "Variable", ComputationDialogKind.INSERT_VARIABLE),
+                computationDialog(EditorActionId.INSERT_COMPUTED_RESULT, "Computed Result", ComputationDialogKind.INSERT_RESULT),
+                computationDialog(EditorActionId.EDIT_VARIABLE, "Edit Variable", ComputationDialogKind.EDIT_VARIABLE),
+                computationDialog(EditorActionId.EDIT_COMPUTED_RESULT, "Edit Computed Result", ComputationDialogKind.EDIT_RESULT));
     }
 
     public static List<EditorAction> formatMenuActions() {
@@ -134,6 +141,10 @@ public final class BuiltInEditorActions {
                 plotAxisUnit(EditorActionId.PLOT_Y_UNIT_AUTO, "Automatic Y Unit", false, Optional.empty()),
                 plotAxisUnit(EditorActionId.PLOT_Y_UNIT_CELSIUS, "Y Axis: °C", false, Optional.of(unit("°C"))),
                 plotAxisUnit(EditorActionId.PLOT_Y_UNIT_KELVIN, "Y Axis: K", false, Optional.of(unit("K"))),
+                plotAxisUnit(EditorActionId.PLOT_Y_UNIT_CELSIUS_DIFFERENCE, "Y Axis: Δ°C", false,
+                        Optional.of(unit("°C")), Optional.of(QuantitySemantics.TEMPERATURE_DIFFERENCE)),
+                plotAxisUnit(EditorActionId.PLOT_Y_UNIT_KELVIN_DIFFERENCE, "Y Axis: ΔK", false,
+                        Optional.of(unit("K")), Optional.of(QuantitySemantics.TEMPERATURE_DIFFERENCE)),
                 plotAxisUnit(EditorActionId.PLOT_Y_UNIT_VOLT, "Y Axis: V", false, Optional.of(unit("V"))));
     }
 
@@ -216,11 +227,18 @@ public final class BuiltInEditorActions {
 
     public static List<EditorAction> dataMenuActions() {
         return List.of(newDataset(), insertDatasetTable(), bindPlotToDataset(),
+                computationDialog(EditorActionId.DATA_INSERT_ANALYSIS, "Analysis", ComputationDialogKind.INSERT_ANALYSIS),
+                computationDialog(EditorActionId.DATA_EDIT_ANALYSIS, "Edit Analysis", ComputationDialogKind.EDIT_ANALYSIS),
+                computationDialog(EditorActionId.DATA_ADD_FIT_OVERLAY, "Add Fit", ComputationDialogKind.ADD_FIT_OVERLAY),
                 datasetColumnUnit(EditorActionId.DATA_COLUMN_UNIT_NONE, "Unitless", Optional.empty()),
                 datasetColumnUnit(EditorActionId.DATA_COLUMN_UNIT_METRE, "Metre (m)", Optional.of(unit("m"))),
                 datasetColumnUnit(EditorActionId.DATA_COLUMN_UNIT_SECOND, "Second (s)", Optional.of(unit("s"))),
                 datasetColumnUnit(EditorActionId.DATA_COLUMN_UNIT_CELSIUS, "Celsius (°C)", Optional.of(unit("°C"))),
                 datasetColumnUnit(EditorActionId.DATA_COLUMN_UNIT_KELVIN, "Kelvin (K)", Optional.of(unit("K"))),
+                datasetColumnUnit(EditorActionId.DATA_COLUMN_UNIT_CELSIUS_DIFFERENCE, "Temperature Difference (Δ°C)",
+                        Optional.of(unit("°C")), QuantitySemantics.TEMPERATURE_DIFFERENCE),
+                datasetColumnUnit(EditorActionId.DATA_COLUMN_UNIT_KELVIN_DIFFERENCE, "Temperature Difference (ΔK)",
+                        Optional.of(unit("K")), QuantitySemantics.TEMPERATURE_DIFFERENCE),
                 datasetColumnUnit(EditorActionId.DATA_COLUMN_UNIT_VOLT, "Volt (V)", Optional.of(unit("V"))),
                 datasetColumnUnit(EditorActionId.DATA_COLUMN_UNIT_AMPERE, "Ampere (A)", Optional.of(unit("A"))),
                 datasetColumnUnit(EditorActionId.DATA_COLUMN_UNIT_OHM, "Ohm (Ω)", Optional.of(unit("Ω"))));
@@ -231,16 +249,27 @@ public final class BuiltInEditorActions {
     }
 
     private static EditorAction insertQuantity(EditorActionId id, String label, String unit, String value) {
+        return insertQuantity(id, label, unit, value, QuantitySemantics.defaultFor(unit(unit)));
+    }
+
+    private static EditorAction insertQuantity(EditorActionId id, String label, String unit, String value,
+                                               QuantitySemantics semantics) {
         return new SimpleAction(id, label, "Insert a semantic scientific quantity", null,
                 context -> context.session().supportsInsertQuantity(),
-                context -> context.session().insertQuantity(new Quantity(new BigDecimal(value), unit(unit)), NumberNotation.DECIMAL)
+                context -> context.session().insertQuantity(new Quantity(new BigDecimal(value), unit(unit), semantics), NumberNotation.DECIMAL)
                         ? EditorActionResult.DOCUMENT_CHANGED : EditorActionResult.NONE);
     }
 
     private static EditorAction datasetColumnUnit(EditorActionId id, String label, Optional<UnitExpression> unit) {
+        return datasetColumnUnit(id, label, unit,
+                unit.map(QuantitySemantics::defaultFor).orElse(QuantitySemantics.LINEAR));
+    }
+
+    private static EditorAction datasetColumnUnit(EditorActionId id, String label, Optional<UnitExpression> unit,
+                                                  QuantitySemantics semantics) {
         return new SimpleAction(id, label, "Set the selected numeric dataset column unit", null,
                 context -> context.session().supportsSetSelectedDatasetColumnUnit(),
-                context -> context.session().setSelectedDatasetColumnUnit(unit)
+                context -> context.session().setSelectedDatasetColumnUnit(unit, semantics)
                         ? EditorActionResult.DOCUMENT_CHANGED : EditorActionResult.NONE);
     }
 
@@ -260,9 +289,14 @@ public final class BuiltInEditorActions {
     }
 
     private static EditorAction plotAxisUnit(EditorActionId id, String label, boolean xAxis, Optional<UnitExpression> unit) {
+        return plotAxisUnit(id, label, xAxis, unit, unit.map(QuantitySemantics::defaultFor));
+    }
+
+    private static EditorAction plotAxisUnit(EditorActionId id, String label, boolean xAxis, Optional<UnitExpression> unit,
+                                             Optional<QuantitySemantics> semantics) {
         return new SimpleAction(id, label, "Set the selected plot " + (xAxis ? "X" : "Y") + "-axis display unit", null,
                 context -> context.session().supportsSetSelectedPlotAxisDisplayUnit(),
-                context -> context.session().setSelectedPlotAxisDisplayUnit(xAxis, unit)
+                context -> context.session().setSelectedPlotAxisDisplayUnit(xAxis, unit, semantics)
                         ? EditorActionResult.DOCUMENT_CHANGED : EditorActionResult.NONE);
     }
 
@@ -496,6 +530,18 @@ public final class BuiltInEditorActions {
                 context -> context.session().insertEmptyEquation()
                         ? EditorActionResult.DOCUMENT_CHANGED
                         : EditorActionResult.NONE);
+    }
+
+    private static EditorAction computationDialog(EditorActionId id, String label, ComputationDialogKind kind) {
+        return new SimpleAction(id, label, null,
+                context -> switch (kind) {
+                    case INSERT_VARIABLE, INSERT_RESULT -> context.session().supportsInsertComputation();
+                    case EDIT_VARIABLE -> context.session().supportsEditVariable();
+                    case EDIT_RESULT -> context.session().supportsEditComputedResult();
+                    case INSERT_ANALYSIS -> context.session().supportsInsertAnalysis();
+                    case EDIT_ANALYSIS -> context.session().supportsEditAnalysis();
+                    case ADD_FIT_OVERLAY -> context.session().supportsAddFitOverlay();
+                }, context -> EditorActionResult.openComputationDialog(kind));
     }
 
     public static EditorAction insertTable() {

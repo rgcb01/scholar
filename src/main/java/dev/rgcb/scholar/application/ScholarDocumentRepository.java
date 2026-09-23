@@ -11,4 +11,5 @@ public interface ScholarDocumentRepository {
     PersistenceResult<ScholarDocumentDescriptor> saveDocument(ScholarDocumentId id, Document document);
     PersistenceResult<OpenedScholarDocument> saveAs(String displayName, Document document);
     PersistenceResult<ScholarDocumentDescriptor> renameDocument(ScholarDocumentId id, String displayName);
+    PersistenceResult<Boolean> deleteDocument(ScholarDocumentId id);
 }

@@ -9,6 +9,7 @@ import dev.rgcb.scholar.editor.EditorAction;
 import dev.rgcb.scholar.editor.EditorActionContext;
 import dev.rgcb.scholar.editor.EditorSession;
 import dev.rgcb.scholar.editor.EditorState;
+import dev.rgcb.scholar.editor.ComputationDialogKind;
 import dev.rgcb.scholar.layout.LaidOutDocument;
 import dev.rgcb.scholar.layout.TextMeasurer;
 import dev.rgcb.scholar.math.editor.MathSelection;
@@ -40,6 +41,7 @@ public final class ScholarEditorController {
     private final Consumer<SemanticMathTokenKind> semanticTokenPopup;
     private final Runnable crossReferencePopup;
     private final Runnable toggleOutline;
+    private final Consumer<ComputationDialogKind> computationDialog;
     private final Supplier<LaidOutDocument> laidOutDocument;
     private final Supplier<TextMeasurer> textMeasurer;
 
@@ -106,6 +108,16 @@ public final class ScholarEditorController {
             Runnable crossReferencePopup,
             Runnable toggleOutline
     ) {
+        this(session, clipboard, relayout, keepCaretVisible, laidOutDocument, textMeasurer,
+                semanticTokenPopup, crossReferencePopup, toggleOutline, kind -> { });
+    }
+
+    public ScholarEditorController(
+            EditorSession session, ClipboardAdapter clipboard, Runnable relayout, Runnable keepCaretVisible,
+            Supplier<LaidOutDocument> laidOutDocument, Supplier<TextMeasurer> textMeasurer,
+            Consumer<SemanticMathTokenKind> semanticTokenPopup, Runnable crossReferencePopup,
+            Runnable toggleOutline, Consumer<ComputationDialogKind> computationDialog
+    ) {
         this.session = Objects.requireNonNull(session, "session");
         this.clipboard = Objects.requireNonNull(clipboard, "clipboard");
         scholarClipboard = PROCESS_CLIPBOARD;
@@ -116,6 +128,7 @@ public final class ScholarEditorController {
         this.semanticTokenPopup = Objects.requireNonNull(semanticTokenPopup, "semanticTokenPopup");
         this.crossReferencePopup = Objects.requireNonNull(crossReferencePopup, "crossReferencePopup");
         this.toggleOutline = Objects.requireNonNull(toggleOutline, "toggleOutline");
+        this.computationDialog = Objects.requireNonNull(computationDialog, "computationDialog");
     }
 
     public EditorSession session() {
@@ -151,6 +164,7 @@ public final class ScholarEditorController {
         if (result.toggleOutline()) {
             toggleOutline.run();
         }
+        result.computationDialog().ifPresent(computationDialog);
         if (result.documentChanged()) {
             relayout.run();
         }

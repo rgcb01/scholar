@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import dev.rgcb.scholar.quantity.UnitRegistry;
+import dev.rgcb.scholar.quantity.QuantitySemantics;
 
 public final class DatasetTableResolver {
     private final DatasetRegistry registry = new DatasetRegistry();
@@ -41,7 +42,7 @@ public final class DatasetTableResolver {
         var rows = new ArrayList<TableRow>();
         rows.add(new TableRow(columns.stream()
                 .map(column -> cell(column.displayName() + column.unit()
-                        .map(unit -> " (" + unit.displaySymbol(UnitRegistry.builtIn()) + ")").orElse("")))
+                        .map(unit -> " (" + semanticUnit(column.quantitySemantics(), unit) + ")").orElse("")))
                 .toList()));
         for (var row : dataset.rows()) {
             var cells = new ArrayList<TableCell>();
@@ -75,5 +76,10 @@ public final class DatasetTableResolver {
 
     private static TableCell cell(String text) {
         return new TableCell(new TableCellContent(new InlineContent(List.of((InlineNode) new Text(text, Set.of())))));
+    }
+
+    private static String semanticUnit(QuantitySemantics semantics, dev.rgcb.scholar.quantity.UnitExpression unit) {
+        var symbol = unit.displaySymbol(UnitRegistry.builtIn());
+        return semantics == QuantitySemantics.TEMPERATURE_DIFFERENCE ? "Δ" + symbol : symbol;
     }
 }

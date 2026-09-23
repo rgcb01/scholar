@@ -11,11 +11,15 @@ public final class UnitConverter {
     public Quantity convert(Quantity source, UnitExpression target) {
         Objects.requireNonNull(source); Objects.requireNonNull(target);
         if (!source.unit().compatibleWith(target, registry)) throw new IllegalArgumentException("incompatible unit dimensions");
+        source.semantics().validate(target);
+        var useOffset = source.semantics().isAbsoluteTemperature();
+        var sourceOffset = useOffset ? registry.offset(source.unit()) : BigDecimal.ZERO;
+        var targetOffset = useOffset ? registry.offset(target) : BigDecimal.ZERO;
         var canonical = source.value().multiply(registry.scale(source.unit()), UnitRegistry.MATH_CONTEXT)
-                .add(registry.offset(source.unit()), UnitRegistry.MATH_CONTEXT);
-        var converted = canonical.subtract(registry.offset(target), UnitRegistry.MATH_CONTEXT)
+                .add(sourceOffset, UnitRegistry.MATH_CONTEXT);
+        var converted = canonical.subtract(targetOffset, UnitRegistry.MATH_CONTEXT)
                 .divide(registry.scale(target), UnitRegistry.MATH_CONTEXT);
-        return new Quantity(normalize(converted), target);
+        return new Quantity(normalize(converted), target, source.semantics());
     }
 
     public MeasuredQuantity convert(MeasuredQuantity source, UnitExpression target) {

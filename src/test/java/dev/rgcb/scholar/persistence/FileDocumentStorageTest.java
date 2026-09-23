@@ -30,6 +30,24 @@ class FileDocumentStorageTest {
         try (var paths = Files.list(directory)) { assertEquals(2, paths.count()); }
     }
 
+    @Test void deleteRemovesOnlyNamedDocumentAndReportsMissingFile() {
+        var storage = new FileDocumentStorage(directory);
+        success(storage.save("alpha", first));
+        success(storage.save("beta", second));
+        assertTrue(success(storage.delete("alpha")));
+        assertEquals(List.of("beta"), success(storage.list()));
+        assertEquals(second, success(storage.load("beta")));
+        assertInstanceOf(PersistenceResult.Failure.class, storage.delete("alpha"));
+        assertInstanceOf(PersistenceResult.Failure.class, storage.delete("../beta"));
+    }
+
+    @Test void deleteRejectsNonDocumentDirectory() throws IOException {
+        var storage = new FileDocumentStorage(directory);
+        Files.createDirectory(directory.resolve("not-a-file.scholar.json"));
+        assertInstanceOf(PersistenceResult.Failure.class, storage.delete("not-a-file"));
+        assertTrue(Files.isDirectory(directory.resolve("not-a-file.scholar.json")));
+    }
+
     @ParameterizedTest @NullSource @ValueSource(strings = {"", "../outside", "..", ".", "a/b", "a\\b", "C:\\absolute", "/absolute", "a.json", " name", "name ", "CON", "aux", "LPT1", "a:b", "a?b"})
     void unsafeNamesNeverReachFilesystem(String name) throws IOException {
         var storage = new FileDocumentStorage(directory);

@@ -1,5 +1,7 @@
 package dev.rgcb.scholar.markdown;
 
+import dev.rgcb.scholar.document.DatasetAnalysisBlock;
+
 import dev.rgcb.scholar.data.DatasetTableResolver;
 import dev.rgcb.scholar.document.DiagramBlock;
 import dev.rgcb.scholar.document.CrossReference;
@@ -16,6 +18,9 @@ import dev.rgcb.scholar.document.TableCell;
 import dev.rgcb.scholar.document.TableOfContentsBlock;
 import dev.rgcb.scholar.document.Text;
 import dev.rgcb.scholar.document.TextMark;
+import dev.rgcb.scholar.document.VariableDefinition;
+import dev.rgcb.scholar.document.ComputedResult;
+import dev.rgcb.scholar.document.DocumentPlainTextSerializer;
 import java.util.Objects;
 import java.util.Set;
 
@@ -42,6 +47,9 @@ public final class MarkdownSerializer {
                         .append(serializeInline(document, heading.content()));
             } else if (block instanceof Paragraph paragraph) {
                 output.append(serializeInline(document, paragraph.content()));
+            } else if (block instanceof VariableDefinition || block instanceof ComputedResult
+                    || block instanceof DatasetAnalysisBlock) {
+                output.append(new DocumentPlainTextSerializer().serializeBlock(document, index, block));
             } else if (block instanceof TableBlock table) {
                 output.append(serializeTable(document, datasetTableResolver.resolve(document, table)));
             } else if (block instanceof TableOfContentsBlock) {

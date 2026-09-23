@@ -1,7 +1,9 @@
 package dev.rgcb.scholar.client.ui;
 
-public record ScholarShellLayout(ShellRect menuBarBounds, ShellRect toolbarBounds, ShellRect applicationHeaderBounds, ShellRect documentWorkspaceBounds) {
+public record ScholarShellLayout(ShellRect menuBarBounds, ShellRect toolbarBounds, ShellRect applicationHeaderBounds,
+                                 ShellRect documentWorkspaceBounds, ShellRect statusBarBounds) {
     public static final int DOCUMENT_SCROLL_STEP = 24;
+    public static final int STATUS_BAR_HEIGHT = 24;
     public static ScholarShellLayout compute(int screenWidth, int screenHeight) {
         return compute(screenWidth, screenHeight, false);
     }
@@ -21,8 +23,11 @@ public record ScholarShellLayout(ShellRect menuBarBounds, ShellRect toolbarBound
                 ? new ShellRect(0, menu.bottom(), screenWidth, RibbonWidget.COMMAND_HEIGHT)
                 : new ShellRect(0, menu.bottom(), screenWidth, ToolbarWidget.HEIGHT);
         var workspaceY = productionRibbon ? toolbar.bottom() : header.bottom();
-        var workspaceHeight = Math.max(0, screenHeight - workspaceY);
-        return new ScholarShellLayout(menu, toolbar, header, new ShellRect(0, workspaceY, screenWidth, workspaceHeight));
+        var statusY = Math.min(screenHeight, Math.max(workspaceY, screenHeight - STATUS_BAR_HEIGHT));
+        var workspaceHeight = Math.max(0, statusY - workspaceY);
+        return new ScholarShellLayout(menu, toolbar, header,
+                new ShellRect(0, workspaceY, screenWidth, workspaceHeight),
+                new ShellRect(0, statusY, screenWidth, Math.max(0, screenHeight - statusY)));
     }
 
     public int chromeHeight() {

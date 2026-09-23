@@ -12,6 +12,11 @@ import dev.rgcb.scholar.document.Text;
 import dev.rgcb.scholar.document.SemanticStyle;
 import dev.rgcb.scholar.document.LayoutSectionBreak;
 import dev.rgcb.scholar.document.ColumnLayout;
+import dev.rgcb.scholar.document.FigureBlock;
+import dev.rgcb.scholar.document.EquationBlock;
+import dev.rgcb.scholar.document.TableBlock;
+import dev.rgcb.scholar.document.DatasetAnalysisBlock;
+import dev.rgcb.scholar.validation.DocumentValidator;
 import dev.rgcb.scholar.editor.BlockSelection;
 import dev.rgcb.scholar.editor.DocumentPosition;
 import dev.rgcb.scholar.editor.EditorState;
@@ -30,6 +35,34 @@ import org.junit.jupiter.api.io.TempDir;
 
 class ScholarApplicationWorkspaceTest {
     @TempDir Path directory;
+
+    @Test void readabilitySampleIsOptInPersistentAndNotRecreatedAfterDelete() {
+        var application = application();
+        assertTrue(success(application.documents()).isEmpty());
+        var sample = success(application.createReadabilitySample());
+        assertEquals("M34", sample.displayName());
+        var document = sample.session().current().document();
+        assertTrue(DocumentValidator.validate(document).isValid());
+        assertTrue(document.blocks().stream().anyMatch(FigureBlock.class::isInstance));
+        assertTrue(document.blocks().stream().anyMatch(TableBlock.class::isInstance));
+        assertTrue(document.blocks().stream().anyMatch(DatasetAnalysisBlock.class::isInstance));
+        assertTrue(document.blocks().stream().filter(EquationBlock.class::isInstance).count() >= 5);
+        assertTrue(document.blocks().stream().anyMatch(block -> block.equals(new LayoutSectionBreak(ColumnLayout.two()))));
+        var firstOpen = success(application.openDocument(sample.id()));
+        assertEquals(document, firstOpen.session().current().document());
+        application.closeWorkspace(sample);
+        assertInstanceOf(PersistenceResult.Failure.class, application.deleteDocument(sample.id()));
+        firstOpen.session().typeText("edited");
+        assertTrue(firstOpen.isDirty());
+        var historyDepth = firstOpen.session().undoDepth();
+        assertInstanceOf(PersistenceResult.Failure.class, application.deleteDocument(sample.id()));
+        application.closeWorkspace(firstOpen);
+        assertTrue(success(application.deleteDocument(sample.id())));
+        assertEquals(historyDepth, firstOpen.session().undoDepth());
+        assertTrue(success(application.documents()).isEmpty());
+        assertTrue(success(application.documents()).isEmpty());
+        assertEquals("M34", success(application.createReadabilitySample()).displayName());
+    }
 
     @Test void neutralDocumentsUseCollisionSafeNamesAndValidFreshSessions() {
         var application = application();
@@ -180,5 +213,6 @@ class ScholarApplicationWorkspaceTest {
         }
         public PersistenceResult<OpenedScholarDocument> saveAs(String name, Document document) { return delegate.saveAs(name, document); }
         public PersistenceResult<ScholarDocumentDescriptor> renameDocument(ScholarDocumentId id, String name) { return delegate.renameDocument(id, name); }
+        public PersistenceResult<Boolean> deleteDocument(ScholarDocumentId id) { return delegate.deleteDocument(id); }
     }
 }

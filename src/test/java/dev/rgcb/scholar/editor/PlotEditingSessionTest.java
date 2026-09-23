@@ -126,6 +126,8 @@ class PlotEditingSessionTest {
                 EditorActionId.PLOT_Y_UNIT_AUTO,
                 EditorActionId.PLOT_Y_UNIT_CELSIUS,
                 EditorActionId.PLOT_Y_UNIT_KELVIN,
+                EditorActionId.PLOT_Y_UNIT_CELSIUS_DIFFERENCE,
+                EditorActionId.PLOT_Y_UNIT_KELVIN_DIFFERENCE,
                 EditorActionId.PLOT_Y_UNIT_VOLT), actions.stream().map(EditorAction::id).toList());
         assertEquals(ActionSelectionState.ON, actions.get(0).selectionState(context));
         assertEquals(ActionSelectionState.ON, actions.get(1).selectionState(context));

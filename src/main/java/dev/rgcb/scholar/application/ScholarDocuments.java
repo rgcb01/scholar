@@ -15,4 +15,6 @@ public final class ScholarDocuments {
     public static Document fromTemplate(dev.rgcb.scholar.document.DocumentTemplateId template) {
         return dev.rgcb.scholar.document.DocumentTemplates.create(template);
     }
+
+    public static Document m34Readability() { return M34ReadabilityDocument.create(); }
 }

@@ -8,10 +8,17 @@ public record EditorActionResult(
         boolean caretShouldBeVisible,
         Optional<SemanticMathTokenKind> semanticTokenPopup,
         boolean crossReferencePopup,
-        boolean toggleOutline
+        boolean toggleOutline,
+        Optional<ComputationDialogKind> computationDialog
 ) {
     public static final EditorActionResult NONE = new EditorActionResult(false, false, Optional.empty(), false, false);
     public static final EditorActionResult DOCUMENT_CHANGED = new EditorActionResult(true, true, Optional.empty(), false, false);
+
+    public EditorActionResult(boolean documentChanged, boolean caretShouldBeVisible,
+                              Optional<SemanticMathTokenKind> semanticTokenPopup, boolean crossReferencePopup,
+                              boolean toggleOutline) {
+        this(documentChanged, caretShouldBeVisible, semanticTokenPopup, crossReferencePopup, toggleOutline, Optional.empty());
+    }
 
     public EditorActionResult(boolean documentChanged, boolean caretShouldBeVisible) {
         this(documentChanged, caretShouldBeVisible, Optional.empty(), false, false);
@@ -23,6 +30,7 @@ public record EditorActionResult(
 
     public EditorActionResult {
         semanticTokenPopup = semanticTokenPopup == null ? Optional.empty() : semanticTokenPopup;
+        computationDialog = computationDialog == null ? Optional.empty() : computationDialog;
     }
 
     public static EditorActionResult semanticTokenPopup(SemanticMathTokenKind kind) {
@@ -35,5 +43,9 @@ public record EditorActionResult(
 
     public static EditorActionResult requestToggleOutline() {
         return new EditorActionResult(false, false, Optional.empty(), false, true);
+    }
+
+    public static EditorActionResult openComputationDialog(ComputationDialogKind kind) {
+        return new EditorActionResult(false, false, Optional.empty(), false, false, Optional.of(kind));
     }
 }

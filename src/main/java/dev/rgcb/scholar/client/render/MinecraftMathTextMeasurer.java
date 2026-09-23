@@ -23,7 +23,9 @@ public final class MinecraftMathTextMeasurer implements MathTextMeasurer {
     public MathTextMetrics measureText(String content, MathTextKind kind) {
         var resolved = typographyResolver.resolveMath(kind);
         var font = typographyResolver.fontFor(resolved.role());
-        return new MathTextMetrics(font.width(typographyResolver.component(content, resolved)), Math.max(0, font.lineHeight - DEFAULT_DESCENT), DEFAULT_DESCENT);
+        var em = typographyResolver.typography().documentGlyphEm(font.lineHeight);
+        return new MathTextMetrics(Math.round(typographyResolver.logicalWidth(
+                typographyResolver.component(content, resolved))), em - DEFAULT_DESCENT, DEFAULT_DESCENT);
     }
 
     @Override

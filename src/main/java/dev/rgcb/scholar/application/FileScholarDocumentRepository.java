@@ -21,6 +21,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /** Application repository layered over the M26 document storage and codec. */
@@ -124,11 +126,32 @@ public final class FileScholarDocumentRepository implements ScholarDocumentRepos
         return new PersistenceResult.Success<>(renamed, List.of());
     }
 
+    @Override public PersistenceResult<Boolean> deleteDocument(ScholarDocumentId id) {
+        Objects.requireNonNull(id, "id");
+        var stored = storage.list();
+        if (stored instanceof PersistenceResult.Failure<List<String>> failure) return new PersistenceResult.Failure<>(failure.diagnostics());
+        if (!((PersistenceResult.Success<List<String>>) stored).value().contains(id.value())) {
+            return PersistenceResult.failure(PersistenceDiagnostic.Code.IO_FAILURE, "document", "Document no longer exists.");
+        }
+        var records = loadIndex();
+        var retired = loadRetiredIds();
+        retired.add(id.value());
+        var reserved = saveIndex(records, retired);
+        if (reserved instanceof PersistenceResult.Failure<Boolean> failure) return failure;
+        var deleted = storage.delete(id.value());
+        if (deleted instanceof PersistenceResult.Failure<Boolean> failure) return failure;
+        records.remove(id.value());
+        var metadata = saveIndex(records, retired);
+        return new PersistenceResult.Success<>(true, metadataWarnings(metadata));
+    }
+
     private ScholarDocumentId nextUnusedId(List<String> files) {
         var known = loadIndex();
+        var retired = loadRetiredIds();
         for (var attempts = 0; attempts < 1000; attempts++) {
             var candidate = ids.get();
-            if (!known.containsKey(candidate.value()) && !files.contains(candidate.value())) return candidate;
+            if (!known.containsKey(candidate.value()) && !retired.contains(candidate.value())
+                    && !files.contains(candidate.value())) return candidate;
         }
         throw new IllegalStateException("Document identity supplier did not produce a free identity.");
     }
@@ -156,7 +179,26 @@ public final class FileScholarDocumentRepository implements ScholarDocumentRepos
         return result;
     }
 
+    private Set<String> loadRetiredIds() {
+        var result = new HashSet<String>();
+        try {
+            if (!Files.isRegularFile(indexPath) || Files.size(indexPath) > MAX_INDEX_BYTES) return result;
+            var json = JsonParser.parseString(Files.readString(indexPath, StandardCharsets.UTF_8)).getAsJsonObject();
+            if (!INDEX_FORMAT.equals(json.get("format").getAsString()) || json.get("version").getAsInt() != INDEX_VERSION) return result;
+            var retired = json.getAsJsonArray("retiredIds");
+            if (retired != null) for (var value : retired) {
+                var id = value.getAsString();
+                if (FileDocumentStorage.validName(id)) result.add(id);
+            }
+        } catch (IOException | RuntimeException ignored) { }
+        return result;
+    }
+
     private PersistenceResult<Boolean> saveIndex(Map<String, ScholarDocumentDescriptor> records) {
+        return saveIndex(records, loadRetiredIds());
+    }
+
+    private PersistenceResult<Boolean> saveIndex(Map<String, ScholarDocumentDescriptor> records, Set<String> retiredIds) {
         Path temporary = null;
         try {
             Files.createDirectories(root);
@@ -170,6 +212,9 @@ public final class FileScholarDocumentRepository implements ScholarDocumentRepos
                 item.addProperty("blockCount", descriptor.preview().blockCount()); documents.add(item);
             });
             json.add("documents", documents);
+            var retired = new JsonArray();
+            retiredIds.stream().sorted().forEach(retired::add);
+            json.add("retiredIds", retired);
             temporary = Files.createTempFile(root, ".workspace-", ".tmp");
             Files.writeString(temporary, JSON.toJson(json), StandardCharsets.UTF_8);
             try { Files.move(temporary, indexPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING); }

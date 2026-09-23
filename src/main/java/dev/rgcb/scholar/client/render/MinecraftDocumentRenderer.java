@@ -28,8 +28,9 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
 public final class MinecraftDocumentRenderer {
-    private static final int PAGE_COLOR = 0xFFF6F2E8;
-    private static final int BORDER_COLOR = 0xFF8A806F;
+    private static final int PAGE_COLOR = 0xFFFCFCF9;
+    private static final int BORDER_COLOR = 0xFF817F79;
+    private static final int PAGE_SHADOW = 0x44000000;
     private static final int TABLE_GRID_COLOR = 0xFF6F675A;
     private static final int TABLE_HEADER_FILL = 0x1A1F2933;
     private static final int PLOT_FRAME_COLOR = 0xFF8A806F;
@@ -54,14 +55,20 @@ public final class MinecraftDocumentRenderer {
 
     private final MinecraftTypographyResolver typographyResolver;
     private final MinecraftMathRenderer mathRenderer;
+    private final DocumentViewTransform viewTransform;
 
     public MinecraftDocumentRenderer(Font font) {
         this(new MinecraftTypographyResolver(font, ScholarTypography.defaultProfile()));
     }
 
     public MinecraftDocumentRenderer(MinecraftTypographyResolver typographyResolver) {
+        this(typographyResolver, new DocumentViewTransform(0, 0, 1));
+    }
+
+    public MinecraftDocumentRenderer(MinecraftTypographyResolver typographyResolver, DocumentViewTransform viewTransform) {
         this.typographyResolver = typographyResolver;
         this.mathRenderer = new MinecraftMathRenderer(typographyResolver);
+        this.viewTransform = viewTransform;
     }
 
     public void render(
@@ -74,20 +81,19 @@ public final class MinecraftDocumentRenderer {
             int scrollOffset
     ) {
         graphics.pose().pushPose();
-        graphics.enableScissor(viewportX, viewportY, viewportX + viewportWidth, viewportY + viewportHeight);
+        enableDocumentScissor(graphics, viewportX, viewportY, viewportX + viewportWidth, viewportY + viewportHeight);
         try {
             if (document.paginated()) {
                 for (var page : document.pages()) {
                     var pageY = viewportY + page.y() - scrollOffset;
                     if (pageY + page.height() < viewportY || pageY > viewportY + viewportHeight) continue;
+                    graphics.fill(viewportX + page.x() + 3, pageY + 3, viewportX + page.x() + page.width() + 3, pageY + page.height() + 3, PAGE_SHADOW);
                     graphics.fill(viewportX + page.x(), pageY, viewportX + page.x() + page.width(), pageY + page.height(), PAGE_COLOR);
                     graphics.renderOutline(viewportX + page.x(), pageY, page.width(), page.height(), BORDER_COLOR);
-                    if (!page.headerText().isEmpty()) graphics.drawCenteredString(typographyResolver.fontFor(dev.rgcb.scholar.typography.TypographyRole.BODY),
-                            page.headerText(), viewportX + page.x() + page.width() / 2, pageY + 8, 0xFF6B655D);
+                    if (!page.headerText().isEmpty()) renderPageFurniture(graphics, page.headerText(), viewportX + page.x() + page.width() / 2, pageY + 8);
                     var footer = page.footerText();
                     if (page.pageNumberVisible()) footer = footer.isEmpty() ? Integer.toString(page.index() + 1) : footer + "  " + (page.index() + 1);
-                    if (!footer.isEmpty()) graphics.drawCenteredString(typographyResolver.fontFor(dev.rgcb.scholar.typography.TypographyRole.BODY),
-                            footer, viewportX + page.x() + page.width() / 2, pageY + page.height() - 14, 0xFF6B655D);
+                    if (!footer.isEmpty()) renderPageFurniture(graphics, footer, viewportX + page.x() + page.width() / 2, pageY + page.height() - 14);
                 }
             } else {
                 graphics.fill(viewportX - 8, viewportY - 8, viewportX + viewportWidth + 8, viewportY + viewportHeight + 8, PAGE_COLOR);
@@ -127,6 +133,13 @@ public final class MinecraftDocumentRenderer {
             graphics.disableScissor();
             graphics.pose().popPose();
         }
+    }
+
+    private void renderPageFurniture(GuiGraphics graphics, String text, int centerX, int y) {
+        var resolved = typographyResolver.resolve(dev.rgcb.scholar.layout.TextStyle.paragraph());
+        var component = typographyResolver.component(text, resolved);
+        typographyResolver.drawDocumentString(graphics, component,
+                centerX - typographyResolver.logicalWidth(component) / 2, y, 0xFF66645F, 1.0f);
     }
 
     private void renderFigure(
@@ -195,40 +208,38 @@ public final class MinecraftDocumentRenderer {
             }
         }
 
+        var columns = new java.util.TreeSet<Integer>();
+        var rows = new java.util.TreeSet<Integer>();
         for (var row : table.rows()) {
+            rows.add(viewportY + row.y() - scrollOffset);
+            rows.add(viewportY + row.y() + row.height() - scrollOffset);
             for (var cell : row.cells()) {
-                graphics.renderOutline(
-                        viewportX + cell.x(),
-                        viewportY + cell.y() - scrollOffset,
-                        cell.width(),
-                        cell.height(),
-                        TABLE_GRID_COLOR);
+                columns.add(viewportX + cell.x());
+                columns.add(viewportX + cell.x() + cell.width());
             }
         }
+        var left = viewportX + table.x();
+        var right = left + table.width();
+        for (var y : rows) graphics.fill(left, y, right + 1, y + 1, TABLE_GRID_COLOR);
+        for (var x : columns) graphics.fill(x, tableTop, x + 1, tableBottom + 1, TABLE_GRID_COLOR);
     }
 
     private void renderText(GuiGraphics graphics, LaidOutText run, int x, int y) {
         var resolved = typographyResolver.resolve(run.style());
-        var scale = run.style().format().fontSizeHalfPoints().orElse(20) / 20.0f;
+        var authoredScale = run.style().format().fontSizeHalfPoints().orElse(20) / 20.0f;
+        var scale = authoredScale;
         var baselineOffset = 0.0f;
         if (run.style().marks().contains(dev.rgcb.scholar.document.TextMark.SUPERSCRIPT)) {
-            scale *= 0.75f;
-            baselineOffset = -3.0f;
+            scale *= ScholarTypography.SCRIPT_SCALE;
+            baselineOffset = -ScholarTypography.SCRIPT_OFFSET * authoredScale;
         } else if (run.style().marks().contains(dev.rgcb.scholar.document.TextMark.SUBSCRIPT)) {
-            scale *= 0.75f;
-            baselineOffset = 3.0f;
+            scale *= ScholarTypography.SCRIPT_SCALE;
+            baselineOffset = ScholarTypography.SCRIPT_OFFSET * authoredScale;
         }
-        graphics.pose().pushPose();
-        graphics.pose().translate(x, y + baselineOffset, 0);
-        graphics.pose().scale(scale, scale, 1.0f);
-        graphics.drawString(
-                typographyResolver.fontFor(resolved.role()),
-                typographyResolver.component(run.text(), resolved, run.style()),
-                0,
-                0,
-                resolved.color(),
-                false);
-        graphics.pose().popPose();
+        typographyResolver.drawDocumentString(graphics,
+                typographyResolver.component(run.text(), resolved, run.style()), x,
+                y + typographyResolver.typography().textTopInset(run.style()) + baselineOffset,
+                resolved.color(), scale);
     }
 
     private void renderDiagram(
@@ -252,7 +263,7 @@ public final class MinecraftDocumentRenderer {
         graphics.renderOutline(
                 workspaceX, workspaceY, diagram.workspaceWidth(), diagram.workspaceHeight(), DIAGRAM_CANVAS_BORDER);
 
-        graphics.enableScissor(workspaceX, workspaceY, workspaceRight, workspaceBottom);
+        enableDocumentScissor(graphics, workspaceX, workspaceY, workspaceRight, workspaceBottom);
         try {
             var canvasX = viewportX + diagram.canvasX();
             var canvasY = viewportY + diagram.canvasY() - scrollOffset;
@@ -334,6 +345,11 @@ public final class MinecraftDocumentRenderer {
         // Title is outside the internal workspace clip and remains visible/selectable.
         diagram.title().ifPresent(label -> renderDiagramLabel(
                 graphics, label, viewportX, viewportY, viewportHeight, scrollOffset));
+    }
+
+    private void enableDocumentScissor(GuiGraphics graphics, int left, int top, int right, int bottom) {
+        var clip = viewTransform.clip(left, top, right, bottom);
+        graphics.enableScissor(clip.left(), clip.top(), clip.right(), clip.bottom());
     }
 
     private void renderMechanicalDimension(
@@ -603,44 +619,31 @@ public final class MinecraftDocumentRenderer {
     }
 
     private static void drawMechanicalLine(GuiGraphics graphics, int x1, int y1, int x2, int y2) {
-        var dx = Math.abs(x2 - x1);
-        var sx = x1 < x2 ? 1 : -1;
-        var dy = -Math.abs(y2 - y1);
-        var sy = y1 < y2 ? 1 : -1;
-        var error = dx + dy;
-        var x = x1;
-        var y = y1;
-        while (true) {
-            graphics.fill(x, y, x + 1, y + 1, MECHANICAL_PRIMITIVE_COLOR);
-            if (x == x2 && y == y2) break;
-            var twice = error * 2;
-            if (twice >= dy) { error += dy; x += sx; }
-            if (twice <= dx) { error += dx; y += sy; }
-        }
+        ScientificStroke.draw(graphics, x1, y1, x2, y2, 1, MECHANICAL_PRIMITIVE_COLOR);
     }
 
     private static void drawMechanicalCircle(GuiGraphics graphics, int cx, int cy, int radius) {
         var steps = Math.max(20, radius * 6);
-        var prevX = cx + radius;
-        var prevY = cy;
+        double prevX = cx + radius;
+        double prevY = cy;
         for (var i = 1; i <= steps; i++) {
             var angle = Math.PI * 2.0 * i / steps;
-            var x = cx + (int) Math.round(Math.cos(angle) * radius);
-            var y = cy + (int) Math.round(Math.sin(angle) * radius);
-            drawMechanicalLine(graphics, prevX, prevY, x, y);
+            var x = cx + Math.cos(angle) * radius;
+            var y = cy + Math.sin(angle) * radius;
+            ScientificStroke.draw(graphics, prevX, prevY, x, y, 1, MECHANICAL_PRIMITIVE_COLOR);
             prevX = x; prevY = y;
         }
     }
 
     private static void drawMechanicalArc(GuiGraphics graphics, int cx, int cy, int radius) {
         var steps = Math.max(10, radius * 3);
-        var prevX = cx - radius;
-        var prevY = cy;
+        double prevX = cx - radius;
+        double prevY = cy;
         for (var i = 1; i <= steps; i++) {
             var angle = Math.PI - Math.PI * i / steps;
-            var x = cx + (int) Math.round(Math.cos(angle) * radius);
-            var y = cy - (int) Math.round(Math.sin(angle) * radius);
-            drawMechanicalLine(graphics, prevX, prevY, x, y);
+            var x = cx + Math.cos(angle) * radius;
+            var y = cy - Math.sin(angle) * radius;
+            ScientificStroke.draw(graphics, prevX, prevY, x, y, 1, MECHANICAL_PRIMITIVE_COLOR);
             prevX = x; prevY = y;
         }
     }
@@ -686,68 +689,22 @@ public final class MinecraftDocumentRenderer {
         throw new IllegalArgumentException("Unsupported laid-out electrical primitive: " + primitive.getClass().getName());
     }
 
-    /** Integer Bresenham line for schematic diagonals; semantic geometry is already resolved by core layout. */
     private static void drawElectricalLine(GuiGraphics graphics, int x1, int y1, int x2, int y2) {
-        var dx = Math.abs(x2 - x1);
-        var sx = x1 < x2 ? 1 : -1;
-        var dy = -Math.abs(y2 - y1);
-        var sy = y1 < y2 ? 1 : -1;
-        var error = dx + dy;
-        var x = x1;
-        var y = y1;
-        while (true) {
-            graphics.fill(x, y, x + 1, y + 1, ELECTRICAL_SYMBOL_COLOR);
-            if (x == x2 && y == y2) {
-                break;
-            }
-            var twiceError = error * 2;
-            if (twiceError >= dy) {
-                error += dy;
-                x += sx;
-            }
-            if (twiceError <= dx) {
-                error += dx;
-                y += sy;
-            }
-        }
+        ScientificStroke.draw(graphics, x1, y1, x2, y2, 1, ELECTRICAL_SYMBOL_COLOR);
     }
 
-    /** Midpoint circle renderer for the derived DC-source circle primitive. */
     private static void drawElectricalCircle(GuiGraphics graphics, int centerX, int centerY, int radius) {
-        var x = radius;
-        var y = 0;
-        var decision = 1 - radius;
-        while (x >= y) {
-            plotElectricalCircleOctants(graphics, centerX, centerY, x, y);
-            y++;
-            if (decision <= 0) {
-                decision += 2 * y + 1;
-            } else {
-                x--;
-                decision += 2 * (y - x) + 1;
-            }
+        var steps = Math.max(20, radius * 6);
+        double prevX = centerX + radius;
+        double prevY = centerY;
+        for (var i = 1; i <= steps; i++) {
+            var angle = Math.PI * 2.0 * i / steps;
+            var x = centerX + Math.cos(angle) * radius;
+            var y = centerY + Math.sin(angle) * radius;
+            ScientificStroke.draw(graphics, prevX, prevY, x, y, 1, ELECTRICAL_SYMBOL_COLOR);
+            prevX = x;
+            prevY = y;
         }
-    }
-
-    private static void plotElectricalCircleOctants(
-            GuiGraphics graphics,
-            int centerX,
-            int centerY,
-            int x,
-            int y
-    ) {
-        plotElectricalPixel(graphics, centerX + x, centerY + y);
-        plotElectricalPixel(graphics, centerX + y, centerY + x);
-        plotElectricalPixel(graphics, centerX - y, centerY + x);
-        plotElectricalPixel(graphics, centerX - x, centerY + y);
-        plotElectricalPixel(graphics, centerX - x, centerY - y);
-        plotElectricalPixel(graphics, centerX - y, centerY - x);
-        plotElectricalPixel(graphics, centerX + y, centerY - x);
-        plotElectricalPixel(graphics, centerX + x, centerY - y);
-    }
-
-    private static void plotElectricalPixel(GuiGraphics graphics, int x, int y) {
-        graphics.fill(x, y, x + 1, y + 1, ELECTRICAL_SYMBOL_COLOR);
     }
 
     private static void drawDiagramSegment(GuiGraphics graphics, int x1, int y1, int x2, int y2) {
@@ -776,13 +733,8 @@ public final class MinecraftDocumentRenderer {
             return;
         }
         var resolved = typographyResolver.resolve(label.style());
-        graphics.drawString(
-                typographyResolver.fontFor(resolved.role()),
-                typographyResolver.component(label.text(), resolved),
-                viewportX + label.x(),
-                drawY,
-                resolved.color(),
-                false);
+        typographyResolver.drawDocumentString(graphics, typographyResolver.component(label.text(), resolved),
+                viewportX + label.x(), drawY, resolved.color(), 1.0f);
     }
 
     private void renderPlot(
@@ -942,6 +894,11 @@ public final class MinecraftDocumentRenderer {
             int clipRight,
             int clipBottom
     ) {
+        if (pattern == PlotLinePattern.SOLID) {
+            ScientificStroke.draw(graphics, x1, y1, x2, y2, 1, color,
+                    clipLeft, clipTop, clipRight, clipBottom);
+            return;
+        }
         var dx = Math.abs(x2 - x1);
         var sx = x1 < x2 ? 1 : -1;
         var dy = -Math.abs(y2 - y1);
@@ -1071,13 +1028,8 @@ public final class MinecraftDocumentRenderer {
             return;
         }
         var resolved = typographyResolver.resolve(label.style());
-        graphics.drawString(
-                typographyResolver.fontFor(resolved.role()),
-                typographyResolver.component(label.text(), resolved),
-                viewportX + label.x(),
-                drawY,
-                resolved.color(),
-                false);
+        typographyResolver.drawDocumentString(graphics, typographyResolver.component(label.text(), resolved),
+                viewportX + label.x(), drawY, resolved.color(), 1.0f);
     }
 
 }

@@ -76,7 +76,8 @@ public final class PlotEditor {
         } else if (target instanceof PlotSeriesTarget seriesTarget) {
             var series = new ArrayList<>(definition.series());
             var old = series.get(seriesTarget.seriesIndex());
-            series.set(seriesTarget.seriesIndex(), new PlotSeries(text, old.kind(), old.points()));
+            series.set(seriesTarget.seriesIndex(), new PlotSeries(text, old.kind(), old.points(),
+                    old.datasetBinding(), old.fitAnalysisId()));
             updated = copy(definition, definition.title(), definition.xAxis(), definition.yAxis(), series, definition.legendVisible(), definition.gridVisible());
         } else {
             return new PlotEditResult(plot, target, false);
@@ -147,14 +148,14 @@ public final class PlotEditor {
 
     public boolean canSetSeriesKind(PlotBlock plot, PlotEditTarget target) {
         validateSelection(plot, target);
-        return seriesIndex(target) >= 0;
+        return seriesIndex(target) >= 0 && plot.definition().series().get(seriesIndex(target)).fitAnalysisId().isEmpty();
     }
 
     public PlotEditResult setSeriesKind(PlotBlock plot, PlotEditTarget target, PlotSeriesKind kind) {
         Objects.requireNonNull(kind, "kind");
         validateSelection(plot, target);
         var index = seriesIndex(target);
-        if (index < 0) {
+        if (index < 0 || !canSetSeriesKind(plot, target)) {
             return new PlotEditResult(plot, target, false);
         }
         var d = plot.definition();
@@ -170,13 +171,13 @@ public final class PlotEditor {
 
     public boolean canAddPoint(PlotBlock plot, PlotEditTarget target) {
         validateSelection(plot, target);
-        return seriesIndex(target) >= 0;
+        return seriesIndex(target) >= 0 && plot.definition().series().get(seriesIndex(target)).fitAnalysisId().isEmpty();
     }
 
     public PlotEditResult addPoint(PlotBlock plot, PlotEditTarget target) {
         validateSelection(plot, target);
         var index = seriesIndex(target);
-        if (index < 0) {
+        if (index < 0 || !canAddPoint(plot, target)) {
             return new PlotEditResult(plot, target, false);
         }
         var d = plot.definition();

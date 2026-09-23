@@ -1,5 +1,6 @@
 package dev.rgcb.scholar.transfer;
 
+import dev.rgcb.scholar.document.ComputationTransferBlock;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -33,5 +34,15 @@ class TransferBoundaryTest {
                 .map(Class::getSimpleName).collect(java.util.stream.Collectors.toSet());
         assertTrue(FragmentContent.class.isSealed());
         org.junit.jupiter.api.Assertions.assertEquals(java.util.Set.of("Blocks", "InlineSegments", "ResourcePrimary"), names);
+    }
+
+    @Test
+    void computationDependenciesUseTheDocumentTransferBoundary() throws IOException {
+        assertTrue(java.util.Arrays.asList(StableIdentityKind.values()).contains(StableIdentityKind.VARIABLE));
+        assertTrue(dev.rgcb.scholar.document.BlockNode.class.isAssignableFrom(ComputationTransferBlock.class));
+        var planner = Files.readString(Path.of("src/main/java/dev/rgcb/scholar/transfer/TransferPlanner.java"));
+        assertTrue(planner.contains("UNRESOLVED_EXTERNAL_VARIABLE_DEPENDENCY"));
+        assertFalse(planner.contains("authoredName()"));
+        assertTrue(planner.contains("new ReferenceDispositionPlan"));
     }
 }

@@ -2,6 +2,7 @@ package dev.rgcb.scholar.transfer;
 
 import dev.rgcb.scholar.data.ScientificDataset;
 import dev.rgcb.scholar.document.BlockNode;
+import dev.rgcb.scholar.document.ComputationTransferBlock;
 import dev.rgcb.scholar.document.CrossReference;
 import dev.rgcb.scholar.document.CrossReferenceResolution;
 import dev.rgcb.scholar.document.Document;
@@ -11,6 +12,8 @@ import dev.rgcb.scholar.document.InlineContent;
 import dev.rgcb.scholar.document.Paragraph;
 import dev.rgcb.scholar.document.StableIdAllocator;
 import dev.rgcb.scholar.document.TableBlock;
+import dev.rgcb.scholar.document.VariableDependencyReference;
+import dev.rgcb.scholar.document.PlotBlock;
 import dev.rgcb.scholar.validation.DocumentDiagnosticCode;
 import dev.rgcb.scholar.validation.DocumentDiagnosticSeverity;
 import dev.rgcb.scholar.validation.DocumentValidator;
@@ -151,8 +154,43 @@ public final class TransferPlanner {
                         "Unproven external reference is planned as non-reference text.", Optional.of(key), Optional.of(occurrence.location())));
             }
         }
+        var variableDecisions = new ArrayList<VariableDependencyPlan.Decision>();
+        for (var occurrence : variableOccurrences(content)) {
+            var key = new StableIdentityKey(StableIdentityKind.VARIABLE, occurrence.reference().variableId());
+            if (fragment.identities().provided().contains(key)) {
+                variableDecisions.add(new VariableDependencyPlan.Decision(occurrence.location(), occurrence.reference(),
+                        VariableDependencyPlan.Disposition.REMAP_TRAVELING_TARGET, remap.destinationOf(key)));
+            } else if (context.hasSameDocumentToken() && inventory.targets().get(key) != null
+                    && inventory.targets().get(key) == context.sourceMetadata().targetWitnesses().get(key)) {
+                variableDecisions.add(new VariableDependencyPlan.Decision(occurrence.location(), occurrence.reference(),
+                        VariableDependencyPlan.Disposition.PRESERVE_PROVEN_SAME_DOCUMENT_TARGET, key));
+            } else {
+                return new PlanningResult.Failure(List.of(diagnostic(TransferDiagnostic.Severity.ERROR,
+                        TransferDiagnostic.Code.UNRESOLVED_EXTERNAL_VARIABLE_DEPENDENCY,
+                        "Variable dependency cannot be proven in the destination.", Optional.of(key),
+                        Optional.of(occurrence.location()))));
+            }
+        }
+        var analysisDecisions = new ArrayList<AnalysisDependencyPlan.Decision>();
+        for (var occurrence : analysisOccurrences(content)) {
+            var key = new StableIdentityKey(StableIdentityKind.ANALYSIS, occurrence.analysisId());
+            if (fragment.identities().provided().contains(key)) {
+                analysisDecisions.add(new AnalysisDependencyPlan.Decision(occurrence.location(), occurrence.analysisId(),
+                        AnalysisDependencyPlan.Disposition.REMAP_TRAVELING_TARGET, remap.destinationOf(key)));
+            } else if (context.hasSameDocumentToken() && inventory.targets().get(key) != null
+                    && inventory.targets().get(key) == context.sourceMetadata().targetWitnesses().get(key)) {
+                analysisDecisions.add(new AnalysisDependencyPlan.Decision(occurrence.location(), occurrence.analysisId(),
+                        AnalysisDependencyPlan.Disposition.PRESERVE_PROVEN_SAME_DOCUMENT_TARGET, key));
+            } else {
+                return new PlanningResult.Failure(List.of(diagnostic(TransferDiagnostic.Severity.ERROR,
+                        TransferDiagnostic.Code.UNRESOLVED_EXTERNAL_ANALYSIS_DEPENDENCY,
+                        "Fit analysis dependency cannot be proven in destination.", Optional.of(key),
+                        Optional.of(occurrence.location()))));
+            }
+        }
         return new PlanningResult.Success(new TransferPlan(fragment, context, context.hasSameDocumentToken(), remap,
-                new ResourceTransferPlan(resources), new ReferenceDispositionPlan(references), diagnostics));
+                new ResourceTransferPlan(resources), new ReferenceDispositionPlan(references),
+                new VariableDependencyPlan(variableDecisions), new AnalysisDependencyPlan(analysisDecisions), diagnostics));
     }
 
     static boolean compatible(FragmentContent content, TransferContext.Scope scope) {
@@ -186,6 +224,47 @@ public final class TransferPlanner {
     }
 
     record Occurrence(String location, CrossReference reference) {}
+
+    record VariableOccurrence(String location, VariableDependencyReference reference) {}
+
+    record AnalysisOccurrence(String location, String analysisId) {}
+
+    static List<AnalysisOccurrence> analysisOccurrences(FragmentContent content) {
+        var result = new ArrayList<AnalysisOccurrence>();
+        if (content instanceof FragmentContent.Blocks blocks) {
+            for (var i = 0; i < blocks.roots().size(); i++) {
+                collectAnalysis(blocks.roots().get(i), "roots[" + i + "]", result);
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private static void collectAnalysis(BlockNode block, String path, List<AnalysisOccurrence> result) {
+        if (block instanceof FigureBlock figure) {
+            collectAnalysis(figure.content(), path + ".content", result);
+        } else if (block instanceof PlotBlock plot) {
+            for (var i = 0; i < plot.definition().series().size(); i++) {
+                var index = i;
+                plot.definition().series().get(i).fitAnalysisId().ifPresent(id ->
+                        result.add(new AnalysisOccurrence(path + ".series[" + index + "].fitAnalysis", id)));
+            }
+        }
+    }
+
+    static List<VariableOccurrence> variableOccurrences(FragmentContent content) {
+        var result = new ArrayList<VariableOccurrence>();
+        if (content instanceof FragmentContent.Blocks blocks) {
+            for (var i = 0; i < blocks.roots().size(); i++) {
+                if (blocks.roots().get(i) instanceof ComputationTransferBlock computation) {
+                    for (var j = 0; j < computation.variableDependencies().size(); j++) {
+                        result.add(new VariableOccurrence("roots[" + i + "].variableDependencies[" + j + "]",
+                                computation.variableDependencies().get(j)));
+                    }
+                }
+            }
+        }
+        return List.copyOf(result);
+    }
 
     static List<Occurrence> occurrences(FragmentContent content) {
         var result = new ArrayList<Occurrence>();

@@ -6,4 +6,7 @@ public record CaretGeometry(int x, int y, int height) {
             throw new IllegalArgumentException("height must not be negative.");
         }
     }
+
+
+    public int bottom() { return y + height; }
 }

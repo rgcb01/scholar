@@ -141,8 +141,6 @@ class TransferPlannerTest {
         assertSame(roots.getFirst(), ((FragmentContent.Blocks) plan.fragment().content()).roots().getFirst());
         assertEquals("d", ((TableBlock) roots.getFirst()).datasetBinding().orElseThrow().datasetId());
         assertEquals("x", value.columns().getFirst().id());
-        assertEquals(Set.of(StableIdentityKind.SECTION, StableIdentityKind.EQUATION, StableIdentityKind.TABLE,
-                StableIdentityKind.FIGURE, StableIdentityKind.DATASET), Set.of(StableIdentityKind.values()));
     }
 
     @Test
@@ -362,6 +360,8 @@ class TransferPlannerTest {
             case TABLE -> CrossReferenceTargetKind.TABLE;
             case EQUATION -> CrossReferenceTargetKind.EQUATION;
             case DATASET -> throw new IllegalArgumentException("Dataset is not a cross-reference target.");
+            case VARIABLE -> throw new IllegalArgumentException("Variable is not a cross-reference target.");
+            case ANALYSIS -> throw new IllegalArgumentException("Analysis is not a cross-reference target.");
         };
         return new CrossReference(targetKind, id);
     }
@@ -372,6 +372,8 @@ class TransferPlannerTest {
             case TABLE -> TableBlock.empty(1, 1).withId(id);
             case FIGURE -> FigureBlock.emptyCaption(id, plot());
             case DATASET -> throw new IllegalArgumentException("Dataset is not a block root.");
+            case VARIABLE -> throw new IllegalArgumentException("Variable requires computation content.");
+            case ANALYSIS -> throw new IllegalArgumentException("Analysis requires dataset content.");
         };
     }
 }

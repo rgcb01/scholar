@@ -41,9 +41,45 @@ class ProductionSurfaceBoundaryTest {
         assertTrue(Files.exists(TEST_CLIENT.resolve("DevelopmentStressDocument.java")));
     }
 
-    @Test void productionHomeAndEditorRemainReachable() {
+    @Test void productionHomeEditorAndTemperatureDifferenceAuthoringRemainReachable() throws Exception {
         assertTrue(Files.exists(MAIN_CLIENT.resolve("screen/ScholarHomeScreen.java")));
         assertTrue(Files.exists(MAIN_CLIENT.resolve("screen/ScholarEditorScreen.java")));
         assertTrue(Files.exists(MAIN_CLIENT.resolve("ui/ScholarRibbonModel.java")));
+        var ribbon = Files.readString(MAIN_CLIENT.resolve("ui/ScholarRibbonModel.java"));
+        assertTrue(ribbon.contains("INSERT_QUANTITY_CELSIUS_DIFFERENCE"));
+        assertTrue(ribbon.contains("DATA_COLUMN_UNIT_CELSIUS_DIFFERENCE"));
+        assertTrue(ribbon.contains("PLOT_Y_UNIT_KELVIN_DIFFERENCE"));
+    }
+
+    @Test void productionRibbonAuthorsAndEditsScientificComputationsWithoutDevCommands() throws Exception {
+        var ribbon = Files.readString(MAIN_CLIENT.resolve("ui/ScholarRibbonModel.java"));
+        var screen = Files.readString(MAIN_CLIENT.resolve("screen/ScholarEditorScreen.java"));
+        var dialog = Files.readString(MAIN_CLIENT.resolve("screen/ScholarComputationDialog.java"));
+        var actions = Files.readString(Path.of("src/main/java/dev/rgcb/scholar/editor/BuiltInEditorActions.java"));
+        for (var id : new String[] { "INSERT_VARIABLE", "INSERT_COMPUTED_RESULT", "EDIT_VARIABLE", "EDIT_COMPUTED_RESULT" }) {
+            assertTrue(ribbon.contains(id));
+            assertTrue(screen.contains(id));
+            assertTrue(actions.contains(id));
+        }
+        assertTrue(screen.contains("new ScholarComputationDialog(this, session, kind)"));
+        assertTrue(dialog.contains("session.insertVariable("));
+        assertTrue(dialog.contains("session.insertComputedResult("));
+        assertTrue(dialog.contains("session.editVariable("));
+        assertTrue(dialog.contains("session.editComputedResult("));
+        assertFalse(dialog.contains("scholar_dev_"));
+    }
+
+    @Test void productionDataRibbonOpensAnalysisAuthoringAndFitOverlay() throws Exception {
+        var ribbon = Files.readString(MAIN_CLIENT.resolve("ui/ScholarRibbonModel.java"));
+        var screen = Files.readString(MAIN_CLIENT.resolve("screen/ScholarEditorScreen.java"));
+        var dialog = Files.readString(MAIN_CLIENT.resolve("screen/ScholarAnalysisDialog.java"));
+        assertTrue(ribbon.contains("DATA_INSERT_ANALYSIS"));
+        assertTrue(ribbon.contains("DATA_EDIT_ANALYSIS"));
+        assertTrue(ribbon.contains("DATA_ADD_FIT_OVERLAY"));
+        assertTrue(screen.contains("new ScholarAnalysisDialog(this, session, kind)"));
+        assertTrue(dialog.contains("session.insertAnalysis("));
+        assertTrue(dialog.contains("session.editAnalysis("));
+        assertTrue(dialog.contains("session.addFitOverlay("));
+        assertFalse(dialog.contains("scholar_dev_"));
     }
 }

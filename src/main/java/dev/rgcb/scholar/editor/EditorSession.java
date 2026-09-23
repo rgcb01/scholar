@@ -24,6 +24,18 @@ import dev.rgcb.scholar.document.InlineContent;
 import dev.rgcb.scholar.document.InlineNode;
 import dev.rgcb.scholar.document.Text;
 import dev.rgcb.scholar.document.QuantityInline;
+import dev.rgcb.scholar.document.VariableDefinition;
+import dev.rgcb.scholar.document.ComputedResult;
+import dev.rgcb.scholar.document.DatasetAnalysisBlock;
+import dev.rgcb.scholar.analysis.AnalysisKind;
+import dev.rgcb.scholar.analysis.DatasetAnalysisEngine;
+import dev.rgcb.scholar.compute.ComputationEngine;
+import dev.rgcb.scholar.compute.ComputationSnapshot;
+import dev.rgcb.scholar.compute.ExpressionParser;
+import dev.rgcb.scholar.compute.Expression;
+import dev.rgcb.scholar.compute.ExpressionBinder;
+import dev.rgcb.scholar.compute.ExpressionEvaluator;
+import dev.rgcb.scholar.compute.ScientificValue;
 import dev.rgcb.scholar.clipboard.ScholarClipboardPayload;
 import dev.rgcb.scholar.clipboard.DocumentFragmentClipboardPayload;
 import dev.rgcb.scholar.clipboard.LegacyFragmentClipboardAdapter;
@@ -81,6 +93,182 @@ import java.util.Optional;
 import java.util.Set;
 
 public final class EditorSession {
+    private final ComputationEngine computationEngine = new ComputationEngine();
+
+    public boolean supportsInsertAnalysis() { return supportsInsertComputation() && !current().document().datasets().isEmpty(); }
+
+    public boolean supportsEditAnalysis() {
+        return current().isBlockSelection() && current().document().blocks()
+                .get(current().blockSelection().blockIndex()) instanceof DatasetAnalysisBlock;
+    }
+
+    public boolean insertAnalysis(String datasetId, AnalysisKind kind, Optional<String> xColumnId,
+                                  String yColumnId, Optional<UnitExpression> displayUnit, NumberNotation notation) {
+        if (!supportsInsertAnalysis()) return false;
+        var existing = current().document().blocks().stream().filter(DatasetAnalysisBlock.class::isInstance)
+                .map(DatasetAnalysisBlock.class::cast).map(DatasetAnalysisBlock::id).collect(java.util.stream.Collectors.toSet());
+        var id = dev.rgcb.scholar.document.StableIdAllocator.firstFree("analysis", existing);
+        var block = new DatasetAnalysisBlock(id, datasetId, kind, xColumnId, yColumnId, displayUnit, notation);
+        if (new DatasetAnalysisEngine().evaluate(current().document(), block).result().isEmpty()) return false;
+        return history.applyEdit(editor.insertBlock(current(), block));
+    }
+
+    public boolean editAnalysis(String datasetId, AnalysisKind kind, Optional<String> xColumnId,
+                                String yColumnId, Optional<UnitExpression> displayUnit, NumberNotation notation) {
+        if (!supportsEditAnalysis()) return false;
+        var index = current().blockSelection().blockIndex();
+        var original = (DatasetAnalysisBlock) current().document().blocks().get(index);
+        var replacement = new DatasetAnalysisBlock(original.id(), datasetId, kind, xColumnId, yColumnId, displayUnit, notation);
+        if (original.equals(replacement) || new DatasetAnalysisEngine().evaluate(current().document(), replacement).result().isEmpty()) return false;
+        var blocks = new java.util.ArrayList<>(current().document().blocks());
+        blocks.set(index, replacement);
+        return history.applyEdit(new EditResult(withCurrentDatasets(blocks), current().selection(), current().explicitTypingMarks(), true));
+    }
+
+    public List<DatasetAnalysisBlock> availableFitAnalyses() {
+        var plot = selectedPlotBlock();
+        if (plot.isEmpty()) return List.of();
+        return current().document().blocks().stream().filter(DatasetAnalysisBlock.class::isInstance)
+                .map(DatasetAnalysisBlock.class::cast).filter(analysis -> analysis.kind().isFit())
+                .filter(analysis -> plot.orElseThrow().definition().series().stream().anyMatch(series ->
+                        series.datasetBinding().filter(binding -> binding.datasetId().equals(analysis.datasetId())
+                                && binding.xColumnId().equals(analysis.xColumnId().orElse(""))
+                                && binding.yColumnId().equals(analysis.yColumnId())).isPresent()))
+                .filter(analysis -> plot.orElseThrow().definition().series().stream().noneMatch(series ->
+                        series.fitAnalysisId().filter(analysis.id()::equals).isPresent())).toList();
+    }
+
+    public boolean supportsAddFitOverlay() { return !availableFitAnalyses().isEmpty(); }
+
+    public boolean addFitOverlay(String analysisId) {
+        if (!supportsAddFitOverlay()) return false;
+        var analysis = availableFitAnalyses().stream().filter(value -> value.id().equals(analysisId)).findFirst();
+        if (analysis.isEmpty() || new DatasetAnalysisEngine().evaluate(current().document(), analysis.orElseThrow()).result().isEmpty()) return false;
+        var index = selectedPlotIndex();
+        var blocks = new java.util.ArrayList<>(current().document().blocks());
+        var plot = selectedPlotBlock().orElseThrow();
+        if (plot.definition().series().stream().anyMatch(series -> series.fitAnalysisId().filter(analysisId::equals).isPresent())) return false;
+        var series = new java.util.ArrayList<>(plot.definition().series());
+        series.add(PlotSeries.fit("Fit: " + analysisId, analysisId));
+        var definition = plot.definition();
+        blocks.set(index, replacePlotContent(blocks.get(index), new PlotBlock(new PlotDefinition(definition.title(),
+                definition.xAxis(), definition.yAxis(), series, definition.legendVisible(), definition.gridVisible(), definition.height()))));
+        return history.applyEdit(new EditResult(withCurrentDatasets(blocks), current().selection(), current().explicitTypingMarks(), true));
+    }
+
+    private int selectedPlotIndex() {
+        if (current().isPlotEditingSelection()) return current().plotEditingSelection().blockIndex();
+        if (current().isBlockSelection()) return current().blockSelection().blockIndex();
+        return -1;
+    }
+
+    private Optional<PlotBlock> selectedPlotBlock() {
+        var index = selectedPlotIndex();
+        if (index < 0 || index >= current().document().blocks().size()) return Optional.empty();
+        var block = current().document().blocks().get(index);
+        if (block instanceof PlotBlock plot) return Optional.of(plot);
+        if (block instanceof FigureBlock figure && figure.content() instanceof PlotBlock plot) return Optional.of(plot);
+        return Optional.empty();
+    }
+
+    public ComputationSnapshot computations() {
+        return computationEngine.update(current().document());
+    }
+
+    public boolean supportsInsertComputation() {
+        return !current().isEquationEditingSelection() && !current().isTableEditingSelection()
+                && !current().isPlotEditingSelection() && !current().isDiagramEditingSelection()
+                && !current().isFigureCaptionSelection() && editor.supportsInsertBlock(current());
+    }
+
+    public boolean insertVariable(String name, ScientificValue value, Optional<String> label) {
+        if (!supportsInsertComputation()) return false;
+        var existing = current().document().blocks().stream()
+                .filter(VariableDefinition.class::isInstance).map(VariableDefinition.class::cast)
+                .map(VariableDefinition::id).collect(java.util.stream.Collectors.toSet());
+        var id = dev.rgcb.scholar.document.StableIdAllocator.firstFree("variable-" + name, existing);
+        return history.applyEdit(bindNewlyAvailableVariables(
+                editor.insertBlock(current(), new VariableDefinition(id, name, value, label))));
+    }
+
+    public boolean insertComputedResult(String source, Optional<String> label,
+                                        Optional<UnitExpression> displayUnit, NumberNotation notation) {
+        if (!supportsInsertComputation()) return false;
+        var expression = new ExpressionParser().parse(source, current().document()).expression();
+        if (!compatibleComputationDisplay(expression, displayUnit)) return false;
+        return history.applyEdit(editor.insertBlock(current(), new ComputedResult(expression, source, label, displayUnit, notation)));
+    }
+
+    public boolean supportsEditVariable() {
+        return current().isBlockSelection() && current().document().blocks().get(current().blockSelection().blockIndex()) instanceof VariableDefinition;
+    }
+
+    public boolean supportsEditComputedResult() {
+        return current().isBlockSelection() && current().document().blocks().get(current().blockSelection().blockIndex()) instanceof ComputedResult;
+    }
+
+    public boolean editVariable(String name, ScientificValue value, Optional<String> label) {
+        if (!supportsEditVariable()) return false;
+        var index = current().blockSelection().blockIndex();
+        var prior = (VariableDefinition) current().document().blocks().get(index);
+        var blocks = new java.util.ArrayList<>(current().document().blocks());
+        var replacement = new VariableDefinition(prior.id(), name, value, label);
+        if (prior.equals(replacement)) return false;
+        blocks.set(index, replacement);
+        return history.applyEdit(bindNewlyAvailableVariables(new EditResult(withCurrentDatasets(blocks),
+                current().selection(), current().explicitTypingMarks(), true)));
+    }
+
+    public boolean editComputedResult(String source, Optional<String> label,
+                                      Optional<UnitExpression> displayUnit, NumberNotation notation) {
+        if (!supportsEditComputedResult()) return false;
+        var index = current().blockSelection().blockIndex();
+        var expression = new ExpressionParser().parse(source, current().document()).expression();
+        if (!compatibleComputationDisplay(expression, displayUnit)) return false;
+        return replaceComputationBlock(index, new ComputedResult(expression, source, label, displayUnit, notation));
+    }
+
+    private boolean compatibleComputationDisplay(Expression expression, Optional<UnitExpression> displayUnit) {
+        if (displayUnit.isEmpty()) return true;
+        var evaluated = new ExpressionEvaluator().evaluate(expression, current().document());
+        if (evaluated.value().isEmpty()) return true;
+        if (!(evaluated.value().orElseThrow() instanceof ScientificValue.Physical physical)) return false;
+        try {
+            var target = displayUnit.orElseThrow();
+            var converter = new dev.rgcb.scholar.quantity.UnitConverter();
+            if (physical.value() instanceof MeasuredQuantity measured) converter.convert(measured, target);
+            else converter.convert(physical.value().nominal(), target);
+            return true;
+        } catch (IllegalArgumentException failure) {
+            return false;
+        }
+    }
+
+    private boolean replaceComputationBlock(int index, BlockNode replacement) {
+        var blocks = new java.util.ArrayList<>(current().document().blocks());
+        if (blocks.get(index).equals(replacement)) return false;
+        blocks.set(index, replacement);
+        return history.applyEdit(new EditResult(withCurrentDatasets(blocks), current().selection(), current().explicitTypingMarks(), true));
+    }
+
+    private EditResult bindNewlyAvailableVariables(EditResult edit) {
+        if (!edit.changed()) return edit;
+        var document = edit.document();
+        var blocks = new java.util.ArrayList<>(document.blocks());
+        var binder = new ExpressionBinder();
+        var changed = false;
+        for (var index = 0; index < blocks.size(); index++) {
+            if (!(blocks.get(index) instanceof ComputedResult computed)) continue;
+            var bound = binder.bindAvailable(computed.expression(), document);
+            if (!bound.equals(computed.expression())) {
+                blocks.set(index, computed.withExpression(bound, computed.authoredSource()));
+                changed = true;
+            }
+        }
+        if (!changed) return edit;
+        return new EditResult(new Document(blocks, document.datasets(), document.settings()), edit.selection(),
+                edit.explicitTypingMarks(), true);
+    }
     private final DocumentEditor editor;
     private final MathExpressionEditor mathEditor;
     private final TableEditor tableEditor;
@@ -1830,8 +2018,16 @@ public final class EditorSession {
     }
 
     public boolean setDatasetColumnUnit(String datasetId, String columnId, Optional<UnitExpression> unit) {
+        return setDatasetColumnUnit(datasetId, columnId, unit,
+                unit.map(dev.rgcb.scholar.quantity.QuantitySemantics::defaultFor)
+                        .orElse(dev.rgcb.scholar.quantity.QuantitySemantics.LINEAR));
+    }
+
+    public boolean setDatasetColumnUnit(String datasetId, String columnId, Optional<UnitExpression> unit,
+                                        dev.rgcb.scholar.quantity.QuantitySemantics semantics) {
         Objects.requireNonNull(unit, "unit");
-        return replaceDataset(datasetId, dataset -> dataset.withColumnUnit(columnId, unit));
+        Objects.requireNonNull(semantics, "semantics");
+        return replaceDataset(datasetId, dataset -> dataset.withColumnUnit(columnId, unit, semantics));
     }
 
     public boolean supportsSetSelectedDatasetColumnUnit() {
@@ -1848,6 +2044,12 @@ public final class EditorSession {
     }
 
     public boolean setSelectedDatasetColumnUnit(Optional<UnitExpression> unit) {
+        return setSelectedDatasetColumnUnit(unit, unit.map(dev.rgcb.scholar.quantity.QuantitySemantics::defaultFor)
+                .orElse(dev.rgcb.scholar.quantity.QuantitySemantics.LINEAR));
+    }
+
+    public boolean setSelectedDatasetColumnUnit(Optional<UnitExpression> unit,
+                                                dev.rgcb.scholar.quantity.QuantitySemantics semantics) {
         Objects.requireNonNull(unit, "unit");
         if (!supportsSetSelectedDatasetColumnUnit()) return false;
         var selection = current().tableEditingSelection();
@@ -1856,7 +2058,7 @@ public final class EditorSession {
         var dataset = current().document().datasets().stream()
                 .filter(candidate -> candidate.id().equals(binding.datasetId())).findFirst().orElseThrow();
         var columnId = datasetColumnId(dataset, binding, selection.selection().cell().columnIndex()).orElseThrow();
-        return setDatasetColumnUnit(dataset.id(), columnId, unit);
+        return setDatasetColumnUnit(dataset.id(), columnId, unit, semantics);
     }
 
     public boolean supportsInsertQuantity() {
@@ -1899,12 +2101,18 @@ public final class EditorSession {
     }
 
     public boolean setPlotAxisDisplayUnit(int blockIndex, boolean xAxis, Optional<UnitExpression> unit) {
+        return setPlotAxisDisplayUnit(blockIndex, xAxis, unit, unit.map(dev.rgcb.scholar.quantity.QuantitySemantics::defaultFor));
+    }
+
+    public boolean setPlotAxisDisplayUnit(int blockIndex, boolean xAxis, Optional<UnitExpression> unit,
+                                          Optional<dev.rgcb.scholar.quantity.QuantitySemantics> semantics) {
         Objects.requireNonNull(unit, "unit");
+        Objects.requireNonNull(semantics, "semantics");
         if (blockIndex < 0 || blockIndex >= current().document().blocks().size()
                 || !(current().document().blocks().get(blockIndex) instanceof PlotBlock plot)) return false;
         var definition = plot.definition();
         var source = xAxis ? definition.xAxis() : definition.yAxis();
-        var replacement = new AxisDefinition(source.label(), source.explicitRange(), source.scale(), unit);
+        var replacement = new AxisDefinition(source.label(), source.explicitRange(), source.scale(), unit, semantics);
         var updatedDefinition = new PlotDefinition(definition.title(), xAxis ? replacement : definition.xAxis(),
                 xAxis ? definition.yAxis() : replacement, definition.series(), definition.legendVisible(),
                 definition.gridVisible(), definition.height());
@@ -1920,6 +2128,11 @@ public final class EditorSession {
 
     public boolean setSelectedPlotAxisDisplayUnit(boolean xAxis, Optional<UnitExpression> unit) {
         return selectedPlotBlockIndex().map(index -> setPlotAxisDisplayUnit(index, xAxis, unit)).orElse(false);
+    }
+
+    public boolean setSelectedPlotAxisDisplayUnit(boolean xAxis, Optional<UnitExpression> unit,
+                                                  Optional<dev.rgcb.scholar.quantity.QuantitySemantics> semantics) {
+        return selectedPlotBlockIndex().map(index -> setPlotAxisDisplayUnit(index, xAxis, unit, semantics)).orElse(false);
     }
 
     public boolean editDatasetCell(String datasetId, int rowIndex, String columnId, DatasetValue value) {

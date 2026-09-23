@@ -91,8 +91,9 @@ public final class SelectionGeometryResolver {
                 }
                 var prefix = TextBoundary.substring(run.text(), 0, start - run.sourceStart());
                 var selected = TextBoundary.substring(run.text(), start - run.sourceStart(), end - run.sourceStart());
-                var x = line.x() + run.x() + textMeasurer.measureWidth(prefix, run.style());
-                var width = textMeasurer.measureWidth(selected, run.style());
+                var prefixWidth = textMeasurer.measureWidth(prefix, run.style());
+                var x = run.x() + prefixWidth;
+                var width = textMeasurer.measureWidth(prefix + selected, run.style()) - prefixWidth;
                 if (width > 0) {
                     rects.add(new SelectionRect(x, line.y(), width, line.height()));
                 }
@@ -106,7 +107,7 @@ public final class SelectionGeometryResolver {
 
     private static SelectionRect boundaryRect(LaidOutBlock block) {
         var line = block.lines().isEmpty() ? null : block.lines().get(0);
-        var x = line == null ? block.x() : block.x() + line.x();
+        var x = line == null ? block.x() : line.x();
         var y = line == null ? block.y() : line.y();
         var height = line == null ? block.height() : line.height();
         return new SelectionRect(x, y, Math.min(BOUNDARY_SELECTION_WIDTH, Math.max(1, block.width())), height);

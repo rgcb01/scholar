@@ -3,6 +3,7 @@ package dev.rgcb.scholar.validation;
 import dev.rgcb.scholar.data.DatasetPlotBinding;
 import dev.rgcb.scholar.data.DatasetTableBinding;
 import dev.rgcb.scholar.data.ScientificDataset;
+import dev.rgcb.scholar.data.DatasetColumnType;
 import dev.rgcb.scholar.diagram.DiagramDefinition;
 import dev.rgcb.scholar.diagram.DiagramElement;
 import dev.rgcb.scholar.diagram.DiagramElementId;
@@ -21,6 +22,8 @@ import dev.rgcb.scholar.document.PlotBlock;
 import dev.rgcb.scholar.document.TableBlock;
 import dev.rgcb.scholar.document.TableCell;
 import dev.rgcb.scholar.document.Text;
+import dev.rgcb.scholar.document.VariableDefinition;
+import dev.rgcb.scholar.document.DatasetAnalysisBlock;
 import dev.rgcb.scholar.document.QuantityInline;
 import dev.rgcb.scholar.quantity.UnitExpression;
 import dev.rgcb.scholar.quantity.UnitRegistry;
@@ -99,7 +102,10 @@ public final class DocumentValidator {
                             DocumentDiagnosticCode.DUPLICATE_DATASET_COLUMN_ID,
                             "Dataset column id is duplicated inside dataset " + dataset.id() + ": " + column.id()));
                 }
-                column.unit().ifPresent(unit -> validateUnit(unit, dataset.id(), column.id()));
+                column.unit().ifPresent(unit -> {
+                    validateUnit(unit, dataset.id(), column.id());
+                    validateQuantitySemantics(column.quantitySemantics(), unit, dataset.id(), column.id());
+                });
             }
 
             for (var rowIndex = 0; rowIndex < dataset.rows().size(); rowIndex++) {
@@ -120,6 +126,8 @@ public final class DocumentValidator {
         var headingIds = new HashSet<String>();
         var tableIds = new HashSet<String>();
         var equationIds = new HashSet<String>();
+        var variableIds = new HashSet<String>();
+        var analysisIds = new HashSet<String>();
 
         for (var blockIndex = 0; blockIndex < document.blocks().size(); blockIndex++) {
             var block = document.blocks().get(blockIndex);
@@ -136,6 +144,11 @@ public final class DocumentValidator {
                     addDuplicateIfSeen(equationIds, equation.id().orElseThrow(), DocumentDiagnosticCode.DUPLICATE_EQUATION_ID, blockIndex, "equation");
                 }
                 validateMath(equation.expression(), blockIndex);
+            } else if (block instanceof VariableDefinition variable) {
+                addDuplicateIfSeen(variableIds, variable.id(), DocumentDiagnosticCode.DUPLICATE_VARIABLE_ID, blockIndex, "variable");
+            } else if (block instanceof DatasetAnalysisBlock analysis) {
+                addDuplicateIfSeen(analysisIds, analysis.id(), DocumentDiagnosticCode.DUPLICATE_ANALYSIS_ID, blockIndex, "analysis");
+                validateAnalysis(blockIndex, analysis);
             } else if (block instanceof PlotBlock plot) {
                 validatePlot(blockIndex, plot);
             } else if (block instanceof DiagramBlock diagram) {
@@ -246,6 +259,32 @@ public final class DocumentValidator {
         }
     }
 
+    private void validateAnalysis(int blockIndex, DatasetAnalysisBlock analysis) {
+        var source = datasetsById.get(analysis.datasetId());
+        if (source == null) {
+            diagnostics.add(DocumentDiagnostic.warning(DocumentDiagnosticCode.MISSING_ANALYSIS_DEPENDENCY,
+                    "Analysis dataset is unavailable.", blockIndex, analysis.id(), "analysis"));
+            return;
+        }
+        var y = source.column(analysis.yColumnId());
+        var x = analysis.xColumnId().flatMap(source::column);
+        if (y.isEmpty() || analysis.kind().isFit() && x.isEmpty()) {
+            diagnostics.add(DocumentDiagnostic.warning(DocumentDiagnosticCode.MISSING_ANALYSIS_DEPENDENCY,
+                    "Analysis column is unavailable.", blockIndex, analysis.id(), "analysis"));
+            return;
+        }
+        var yColumn = y.orElseThrow();
+        if (yColumn.type() != DatasetColumnType.NUMBER
+                || x.filter(column -> column.type() != DatasetColumnType.NUMBER).isPresent()
+                || analysis.displayUnit().isPresent() && (yColumn.unit().isEmpty()
+                || !yColumn.unit().orElseThrow().compatibleWith(analysis.displayUnit().orElseThrow(), unitRegistry))
+                || analysis.kind().isFit() && (yColumn.quantitySemantics().isAbsoluteTemperature()
+                || x.orElseThrow().quantitySemantics().isAbsoluteTemperature())) {
+            diagnostics.add(DocumentDiagnostic.warning(DocumentDiagnosticCode.INVALID_ANALYSIS_RESULT,
+                    "Analysis has incompatible numeric or unit configuration.", blockIndex, analysis.id(), "analysis"));
+        }
+    }
+
     private void validatePlot(int blockIndex, PlotBlock plot) {
         for (var seriesIndex = 0; seriesIndex < plot.definition().series().size(); seriesIndex++) {
             validatePlotSeriesBinding(blockIndex, seriesIndex, plot.definition().series().get(seriesIndex));
@@ -255,6 +294,17 @@ public final class DocumentValidator {
     }
 
     private void validatePlotSeriesBinding(int blockIndex, int seriesIndex, PlotSeries series) {
+        series.fitAnalysisId().ifPresent(id -> {
+            var analysis = document.blocks().stream().filter(block -> block instanceof DatasetAnalysisBlock value
+                    && value.id().equals(id)).map(block -> (DatasetAnalysisBlock) block).findFirst();
+            if (analysis.isEmpty()) {
+                diagnostics.add(DocumentDiagnostic.warning(DocumentDiagnosticCode.MISSING_ANALYSIS_DEPENDENCY,
+                        "Fitted plot series references a missing analysis: " + id, blockIndex, id, "plot fit"));
+            } else if (!analysis.orElseThrow().kind().isFit()) {
+                diagnostics.add(DocumentDiagnostic.warning(DocumentDiagnosticCode.INVALID_ANALYSIS_RESULT,
+                        "Plot fit requires a regression analysis.", blockIndex, id, "plot fit"));
+            }
+        });
         series.datasetBinding().ifPresent(binding -> {
             var dataset = dataset(binding.datasetId(), blockIndex, "plot series " + seriesIndex);
             if (dataset == null) {
@@ -439,12 +489,13 @@ public final class DocumentValidator {
                         blockIndex,
                         context));
             }
-            if (node instanceof QuantityInline quantity) validateUnit(quantity.value().nominal().unit(), context);
+            if (node instanceof QuantityInline quantity) validateQuantity(quantity.value().nominal(), context);
         }
     }
 
     private void validateAxisUnits(int blockIndex, PlotBlock plot, boolean xAxis) {
         UnitExpression first = null;
+        dev.rgcb.scholar.quantity.QuantitySemantics firstSemantics = null;
         for (var series : plot.definition().series()) {
             if (series.datasetBinding().isEmpty()) continue;
             var binding = series.datasetBinding().orElseThrow();
@@ -453,9 +504,10 @@ public final class DocumentValidator {
             var column = dataset.column(xAxis ? binding.xColumnId() : binding.yColumnId());
             if (column.isEmpty() || column.orElseThrow().unit().isEmpty()) continue;
             var unit = column.orElseThrow().unit().orElseThrow();
+            var semantics = column.orElseThrow().quantitySemantics();
             if (!validateUnit(unit, "plot axis")) continue;
-            if (first == null) first = unit;
-            else if (!first.compatibleWith(unit, unitRegistry)) {
+            if (first == null) { first = unit; firstSemantics = semantics; }
+            else if (!first.compatibleWith(unit, unitRegistry) || firstSemantics != semantics) {
                 diagnostics.add(DocumentDiagnostic.error(DocumentDiagnosticCode.INCOMPATIBLE_PLOT_UNITS,
                         "Dataset-backed plot series use incompatible " + (xAxis ? "x" : "y") + " dimensions.",
                         blockIndex, "plot axis"));
@@ -463,8 +515,10 @@ public final class DocumentValidator {
             }
         }
         var display = (xAxis ? plot.definition().xAxis() : plot.definition().yAxis()).displayUnit();
+        var displaySemantics = (xAxis ? plot.definition().xAxis() : plot.definition().yAxis()).displayUnitSemantics();
         if (display.isPresent() && validateUnit(display.orElseThrow(), "plot display unit")
-                && first != null && !first.compatibleWith(display.orElseThrow(), unitRegistry)) {
+                && first != null && (!first.compatibleWith(display.orElseThrow(), unitRegistry)
+                || displaySemantics.orElseThrow() != firstSemantics)) {
             diagnostics.add(DocumentDiagnostic.error(DocumentDiagnosticCode.INCOMPATIBLE_PLOT_UNITS,
                     "Plot display unit is incompatible with bound dataset columns.", blockIndex, "plot axis"));
         }
@@ -484,9 +538,28 @@ public final class DocumentValidator {
         }
     }
 
+    private void validateQuantity(dev.rgcb.scholar.quantity.Quantity quantity, String context) {
+        if (validateUnit(quantity.unit(), context)) {
+            validateQuantitySemantics(quantity.semantics(), quantity.unit(), context);
+        }
+    }
+
+    private void validateQuantitySemantics(dev.rgcb.scholar.quantity.QuantitySemantics semantics,
+                                           UnitExpression unit, String... context) {
+        try {
+            semantics.validate(unit);
+        } catch (RuntimeException failure) {
+            diagnostics.add(context.length >= 2
+                    ? DocumentDiagnostic.error(DocumentDiagnosticCode.INVALID_QUANTITY_SEMANTICS,
+                            failure.getMessage(), context[0], context[1])
+                    : DocumentDiagnostic.error(DocumentDiagnosticCode.INVALID_QUANTITY_SEMANTICS,
+                            failure.getMessage()));
+        }
+    }
+
     private void validateMath(MathExpression expression, int blockIndex) {
         if (expression instanceof MathQuantity quantity) {
-            validateUnit(quantity.value().nominal().unit(), "equation");
+            validateQuantity(quantity.value().nominal(), "equation");
         } else if (expression instanceof MathSequence sequence) {
             sequence.expressions().forEach(child -> validateMath(child, blockIndex));
         } else if (expression instanceof MathFraction fraction) {

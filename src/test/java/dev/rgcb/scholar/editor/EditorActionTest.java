@@ -203,6 +203,7 @@ class EditorActionTest {
                 EditorActionId.MATH_CONVERT_TEXT,
                 EditorActionId.INSERT_QUANTITY_METRE,
                 EditorActionId.INSERT_QUANTITY_CELSIUS,
+                EditorActionId.INSERT_QUANTITY_CELSIUS_DIFFERENCE,
                 EditorActionId.INSERT_QUANTITY_VOLT,
                 EditorActionId.INSERT_QUANTITY_MILLIAMPERE,
                 EditorActionId.INSERT_QUANTITY_KILOOHM,
@@ -213,7 +214,11 @@ class EditorActionTest {
                 EditorActionId.QUANTITY_CONVERT_KELVIN,
                 EditorActionId.QUANTITY_FORMAT_DECIMAL,
                 EditorActionId.QUANTITY_FORMAT_SCIENTIFIC,
-                EditorActionId.QUANTITY_FORMAT_ENGINEERING), actions.stream().map(EditorAction::id).toList());
+                EditorActionId.QUANTITY_FORMAT_ENGINEERING,
+                EditorActionId.INSERT_VARIABLE,
+                EditorActionId.INSERT_COMPUTED_RESULT,
+                EditorActionId.EDIT_VARIABLE,
+                EditorActionId.EDIT_COMPUTED_RESULT), actions.stream().map(EditorAction::id).toList());
         assertEquals("Equation", actions.get(0).label());
         assertEquals("Table", actions.get(1).label());
         assertEquals("Plot", actions.get(2).label());

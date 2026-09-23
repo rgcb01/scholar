@@ -108,7 +108,8 @@ public final class FragmentExtractor {
         var exports = new HashMap<StableIdentityKey, String>();
         var resolver = new CrossReferenceResolver();
         var orderedReferences = fragment.identities().referenced().stream()
-                .filter(key -> key.kind() != StableIdentityKind.DATASET)
+                .filter(key -> key.kind() != StableIdentityKind.DATASET && key.kind() != StableIdentityKind.VARIABLE
+                        && key.kind() != StableIdentityKind.ANALYSIS)
                 .sorted(java.util.Comparator.comparing((StableIdentityKey key) -> key.kind().ordinal()).thenComparing(StableIdentityKey::id)).toList();
         for (var key : orderedReferences) {
             var kind = switch (key.kind()) {
@@ -117,6 +118,8 @@ public final class FragmentExtractor {
                 case TABLE -> CrossReferenceTargetKind.TABLE;
                 case FIGURE -> CrossReferenceTargetKind.FIGURE;
                 case DATASET -> throw new IllegalArgumentException("Dataset is not a CrossReference target.");
+                case VARIABLE -> throw new IllegalArgumentException("Variable is not a CrossReference target.");
+                case ANALYSIS -> throw new IllegalArgumentException("Analysis is not a CrossReference target.");
             };
             exports.put(key, resolver.resolve(source, new CrossReference(kind, key.id())).displayText());
             if (!targets.containsKey(key)) {

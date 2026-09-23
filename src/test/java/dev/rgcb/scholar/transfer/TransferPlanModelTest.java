@@ -70,7 +70,8 @@ class TransferPlanModelTest {
         var fragment = new DocumentFragment(new FragmentContent.ResourcePrimary(Set.of(key("a"))), List.of(value));
         var context = new TransferContext(new Document(List.of()), Optional.empty(), SourceTransferMetadata.unknown());
         assertThrows(IllegalArgumentException.class, () -> new TransferPlan(fragment, context, false,
-                new IdentityRemapPlan(Map.of()), new ResourceTransferPlan(Map.of()), new ReferenceDispositionPlan(List.of()), List.of()));
+                new IdentityRemapPlan(Map.of()), new ResourceTransferPlan(Map.of()), new ReferenceDispositionPlan(List.of()),
+                new VariableDependencyPlan(List.of()), List.of()));
     }
 
     @Test void allocatorPreservesBaseAndFindsFirstHoleWithoutMutatingReservations() {
