@@ -13,11 +13,13 @@ Status: RC preparation on `codex/m39-v1-release-candidate`; **not manually accep
 | Gradle | wrapper 9.2.1 |
 | Release command | `./gradlew clean build` or `./gradlew.bat clean build` |
 | User artifact | `build/libs/scholar-1.0.0-rc.1.jar` (never the separate reference addon) |
-| Artifact size / SHA-256 | Recompute after final RC changes and before installed-artifact QA; record below |
+| Artifact size / SHA-256 | 6,217,849 bytes / `5E3FC7C58702B93C58471AE2F443D31B11EF60D46CC2C605C1E09337453A4377` |
 
 ## Build and package audit
 
-Initial `clean build` passed, including the full JUnit suite and separate reference-addon compilation. The first RC JAR was 6,217,859 bytes with SHA-256 `DB1AF5A0383807B492C6372AEB513D722E93F2D5B24B3CCC030860950BD53504`; this is a **provisional identity** until final rebuild. It contained 771 entries. ZIP inspection confirmed the generated NeoForge TOML, production API/classes, font resources, two packaged OFL notices, and PDFBox/FontBox/pdfbox-io as NeoForge nested JARs. It did not contain test classes, `DevelopmentStressDocument`, `ReferenceAddon`, source `.java`, local logs, IDE files or report artifacts. No duplicate Scholar nested JAR was found. `ReleaseResourceTest` guards the font notices and product description in future builds.
+`clean build --rerun-tasks` passed, including 1706 JUnit tests (0 failures), all five architecture boundaries and separate reference-addon compilation. The final RC JAR is 6,217,849 bytes with SHA-256 `5E3FC7C58702B93C58471AE2F443D31B11EF60D46CC2C605C1E09337453A4377` and 771 entries. ZIP inspection confirmed the generated NeoForge TOML, production API/classes, font resources, two packaged OFL notices, and PDFBox/FontBox/pdfbox-io as NeoForge nested JARs. It did not contain test classes, `DevelopmentStressDocument`, `ReferenceAddon`, source `.java`, local logs, IDE files or report artifacts. No duplicate Scholar nested JAR was found. `ReleaseResourceTest` guards the font notices and product description in future builds.
+
+The first clean worktree build exposed CRLF checkout differences in the bundled font JSON and OFL notices. `.gitattributes` now fixes LF for exactly those distributed text resources. A newly recreated detached worktree at commit `59ec803` ran `clean build --rerun-tasks` successfully; its artifact hash and size exactly match the main RC workspace. This is a packaging reproducibility fix, not a semantic/runtime change.
 
 Generated metadata reports `modId="scholar"`, display name Scholar, RC version, product description, `All Rights Reserved`, exact Minecraft 1.21.1 and NeoForge `[21.1.249,21.2)`. Java 21 is the compiled/runtime baseline. The `authors` field remains unset pending owner confirmation; do not infer legal authorship from the repository account.
 
@@ -53,9 +55,9 @@ CSV import is bounded at 16 MiB; Markdown is lossy interchange, not native backu
 
 ## Current gate state
 
-- Clean build, package inspection, metadata/notice audit: passed in the local development environment; final artifact identity must be refreshed after all edits.
-- Fresh checkout/worktree build: pending until RC branch changes are committed.
-- Five architecture boundaries and full suite: run again after final edits.
+- Clean build, package inspection, metadata/notice audit: passed; final artifact identity is recorded above. Editing only this report does not change the JAR.
+- Fresh detached worktree build from committed RC source: passed with a byte-identical JAR. Worktree path is a temporary qualification checkout, not the user artifact path.
+- Full suite: 1706 tests, 0 failures. Transfer (3), Persistence (1), Application (1), Production Surface (6), Scholar API (3) boundary tests all passed in the clean build.
 - Clean installed-artifact boot, restart, interchange, addon and upgrade: **pending manual RC qualification**.
 - Project license and authors display: **human decisions pending**.
 
