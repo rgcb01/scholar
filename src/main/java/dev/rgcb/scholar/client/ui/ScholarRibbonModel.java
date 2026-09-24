@@ -32,7 +32,9 @@ public final class ScholarRibbonModel {
                         command(all, EditorActionId.FILE_OPEN, RibbonCommandSize.MEDIUM, "Open"),
                         command(all, EditorActionId.FILE_SAVE, RibbonCommandSize.MEDIUM, "Save"),
                         command(all, EditorActionId.FILE_SAVE_AS, RibbonCommandSize.MEDIUM, "Save As"))),
-                        group("Manage", medium(all, EditorActionId.FILE_RENAME, EditorActionId.FILE_CLOSE))),
+                        group("Manage", medium(all, EditorActionId.FILE_RENAME, EditorActionId.FILE_CLOSE)),
+                        group("Interchange", medium(all, EditorActionId.FILE_IMPORT_CSV,
+                                EditorActionId.FILE_EXPORT_MARKDOWN, EditorActionId.FILE_EXPORT_PDF))),
                 tab("Home", group("Clipboard", large(all, EditorActionId.PASTE), small(all,
                         EditorActionId.CUT, EditorActionId.COPY)),
                         group("History", medium(all, EditorActionId.UNDO, EditorActionId.REDO)),
@@ -84,6 +86,7 @@ public final class ScholarRibbonModel {
                                         EditorActionId.DATA_COLUMN_UNIT_KELVIN, EditorActionId.DATA_COLUMN_UNIT_CELSIUS_DIFFERENCE,
                                         EditorActionId.DATA_COLUMN_UNIT_KELVIN_DIFFERENCE, EditorActionId.DATA_COLUMN_UNIT_VOLT,
                                         EditorActionId.DATA_COLUMN_UNIT_AMPERE, EditorActionId.DATA_COLUMN_UNIT_OHM))),
+                        group("Interchange", medium(all, EditorActionId.DATA_EXPORT_CSV)),
                         group("Analysis", medium(all, EditorActionId.DATA_INSERT_ANALYSIS,
                                 EditorActionId.DATA_EDIT_ANALYSIS, EditorActionId.DATA_ADD_FIT_OVERLAY)),
                         group("Table", compact(table)), group("Plot", compact(plot), List.of(

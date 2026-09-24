@@ -66,6 +66,11 @@ repositories {
 
 dependencies {
     implementation 'com.google.code.gson:gson:2.10.1'
+    jarJar(implementation('org.apache.pdfbox:pdfbox:3.0.8')) { exclude group: 'commons-logging' }
+    jarJar(implementation('org.apache.pdfbox:fontbox:3.0.8')) { exclude group: 'commons-logging' }
+    jarJar(implementation('org.apache.pdfbox:pdfbox-io:3.0.8')) { exclude group: 'commons-logging' }
+    additionalRuntimeClasspath('org.apache.pdfbox:pdfbox:3.0.8') { exclude group: 'commons-logging' }
+    testRuntimeOnly 'commons-logging:commons-logging:1.2'
     testImplementation platform('org.junit:junit-bom:5.11.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

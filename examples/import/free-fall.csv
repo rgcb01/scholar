@@ -1,0 +1,7 @@
+Time [s],Distance [m],Temperature [°C],Temperature Difference [Δ°C],Note
+0,0,20,0,start
+0.2,0.2,20.2,0.2,
+0.4,0.79,20.4,0.4,"sensor, checked"
+0.6,1.77,20.6,0.6,
+0.8,3.14,20.8,0.8,
+1,4.91,21,1,end

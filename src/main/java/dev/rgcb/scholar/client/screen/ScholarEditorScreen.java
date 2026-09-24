@@ -137,6 +137,7 @@ public final class ScholarEditorScreen extends Screen {
     private final List<EditorAction> viewportActions;
     private final List<EditorAction> layoutActions = BuiltInEditorActions.layoutMenuActions();
     private final List<EditorAction> dataActions = BuiltInEditorActions.dataMenuActions();
+    private final EditorAction exportCsvAction;
     private final List<EditorAction> allActions = List.of(
             action(editActions, EditorActionId.UNDO),
             action(editActions, EditorActionId.REDO),
@@ -339,6 +340,7 @@ public final class ScholarEditorScreen extends Screen {
                 fileAction(EditorActionId.VIEW_FIT_PAGE, "Fit Page", this::fitPage),
                 fileAction(EditorActionId.VIEW_FIT_WIDTH, "Fit Width", this::fitWidth));
         session = workspace.session();
+        exportCsvAction = fileAction(EditorActionId.DATA_EXPORT_CSV, "Export CSV", () -> minecraft.setScreen(ScholarInterchangeDialog.exportCsv(this, session)));
         fileActions = List.of(
                 fileAction(EditorActionId.FILE_NEW, "New", () -> protectUnsaved(() -> {
                     if (application == null) {
@@ -350,7 +352,10 @@ public final class ScholarEditorScreen extends Screen {
                 fileAction(EditorActionId.FILE_SAVE, "Save", this::saveDocument),
                 fileAction(EditorActionId.FILE_SAVE_AS, "Save As...", () -> minecraft.setScreen(ScholarFileDialog.save(this, workspace, () -> { }))),
                 fileAction(EditorActionId.FILE_RENAME, "Rename...", () -> minecraft.setScreen(ScholarFileDialog.rename(this, workspace))),
-                fileAction(EditorActionId.FILE_CLOSE, "Close", () -> protectUnsaved(this::returnFromEditor)));
+                fileAction(EditorActionId.FILE_CLOSE, "Close", () -> protectUnsaved(this::returnFromEditor)),
+                fileAction(EditorActionId.FILE_IMPORT_CSV, "Import CSV", () -> minecraft.setScreen(ScholarInterchangeDialog.importCsv(this, session))),
+                fileAction(EditorActionId.FILE_EXPORT_MARKDOWN, "Export Markdown", () -> minecraft.setScreen(ScholarInterchangeDialog.exportMarkdown(this, session))),
+                fileAction(EditorActionId.FILE_EXPORT_PDF, "Export PDF", () -> minecraft.setScreen(ScholarInterchangeDialog.exportPdf(this, session, this::pdfLayout))));
     }
 
     static ScholarEditorScreen forWorkspace(dev.rgcb.scholar.editor.DocumentWorkspace workspace) {
@@ -379,7 +384,10 @@ public final class ScholarEditorScreen extends Screen {
             public java.util.Optional<ActionShortcut> shortcut() {
                 return dev.rgcb.scholar.client.ui.ScholarScreenActionShortcuts.forAction(id);
             }
-            public boolean isEnabled(dev.rgcb.scholar.editor.EditorActionContext context) { return true; }
+            public boolean isEnabled(dev.rgcb.scholar.editor.EditorActionContext context) {
+                return id != EditorActionId.DATA_EXPORT_CSV
+                        || !context.session().current().document().datasets().isEmpty();
+            }
             public dev.rgcb.scholar.editor.EditorActionResult execute(dev.rgcb.scholar.editor.EditorActionContext context) {
                 contextMenu = null;
                 if (menuBar != null) menuBar.close();
@@ -400,6 +408,10 @@ public final class ScholarEditorScreen extends Screen {
                 minecraft.setScreen(ScholarFileDialog.error(this, workspace, result));
             }
         }
+    }
+
+    private LaidOutDocument pdfLayout() {
+        return layoutEngine.layoutPaginated(editorState().document(), textMeasurer, mathTextMeasurer);
     }
 
     private void openCreatedDocument() {
@@ -459,8 +471,10 @@ public final class ScholarEditorScreen extends Screen {
                 refreshContextualToolbar();
             } else {
                 menuBar = null;
+                var productionDataActions = new java.util.ArrayList<>(dataActions);
+                productionDataActions.add(exportCsvAction);
                 ribbon = new RibbonWidget(controller, ScholarRibbonModel.production(fileActions, editActions,
-                        formatActions, blockStyleActions, insertActions, dataActions, tableActions, plotActions,
+                        formatActions, blockStyleActions, insertActions, productionDataActions, tableActions, plotActions,
                         figureActions, diagramActions, layoutActions, combinedViewActions()));
             }
         }
