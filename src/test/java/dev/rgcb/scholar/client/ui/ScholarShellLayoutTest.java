@@ -1,6 +1,7 @@
 package dev.rgcb.scholar.client.ui;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -36,5 +37,21 @@ class ScholarShellLayoutTest {
         var layout = ScholarShellLayout.compute(80, 10);
 
         assertEquals(0, layout.documentWorkspaceBounds().height());
+    }
+
+    @Test
+    void productionChromeHasNoNegativeOrOverlappingGeometryAcrossWindowSizes() {
+        for (var size : new int[][] {{80, 10}, {320, 240}, {640, 360}, {1280, 720}, {2560, 1440}}) {
+            var layout = ScholarShellLayout.compute(size[0], size[1], true);
+            assertEquals(layout.toolbarBounds().bottom(), layout.documentWorkspaceBounds().y());
+            if (size[1] >= layout.chromeHeight()) {
+                assertEquals(layout.documentWorkspaceBounds().bottom(), layout.statusBarBounds().y());
+            } else {
+                assertEquals(0, layout.documentWorkspaceBounds().height());
+            }
+            assertEquals(size[1], layout.statusBarBounds().bottom());
+            assertTrue(layout.documentWorkspaceBounds().height() >= 0);
+            assertTrue(layout.statusBarBounds().height() >= 0);
+        }
     }
 }

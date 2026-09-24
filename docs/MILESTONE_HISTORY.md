@@ -597,6 +597,10 @@ Markdown export, and PDF export were verified through `/scholar`; the milestone 
 and pushed to `main` at `78fc7b7bb8cab0609cf62a5e91bb0505bed267b5`.
 See [M36_IMPORT_EXPORT.md](M36_IMPORT_EXPORT.md).
 
-M37 Authoring UX & Document Workflow is in technical development on
-`codex/m37-authoring-ux`. It requires a normal production `/scholar` authoring session
-before acceptance. See [M37_AUTHORING_UX.md](M37_AUTHORING_UX.md).
+M37 Authoring UX & Document Workflow is complete and manually accepted after a
+production `/scholar` authoring session. It was merged and pushed to `main` at
+`681548597acb98cd8c0866da5b0fae4885147298`. See [M37_AUTHORING_UX.md](M37_AUTHORING_UX.md).
+
+M38 V1 Product Hardening is complete and manually accepted after large/mixed stress,
+zoom and GUI-scale, editing/history, persistence, interchange, diagrams, dirty-close,
+and reference-addon QA. It respected feature freeze. See [M38_V1_HARDENING.md](M38_V1_HARDENING.md).

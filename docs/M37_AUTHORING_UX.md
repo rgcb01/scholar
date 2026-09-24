@@ -1,6 +1,6 @@
 # M37 - Authoring UX and Document Workflow
 
-Status: technical work in `codex/m37-authoring-ux`; manual `/scholar` acceptance pending. M36 is accepted and merged at `78fc7b7bb8cab0609cf62a5e91bb0505bed267b5`.
+Status: COMPLETE / MANUALLY ACCEPTED. M37 was merged and pushed to `main` at `681548597acb98cd8c0866da5b0fae4885147298`. Historical pending-QA wording below records the implementation checkpoint.
 
 ## Initial workflow audit
 

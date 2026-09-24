@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 class DocumentViewTransformTest {
     @Test
     void finalCaretRectangleIsScreenSpaceAndScaledOnceAfterScroll() {
-        for (var zoom : new double[]{0.75, 1.0, 1.25, 1.5, 2.0}) {
+        for (var zoom : new double[]{0.4, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0}) {
             var view = new DocumentViewTransform(40, 60, zoom);
             for (var logicalHeight : new int[]{11, 12}) {
                 var logical = new CaretGeometry(27, 100, logicalHeight);
@@ -24,7 +24,7 @@ class DocumentViewTransformTest {
     @Test
     void screenAndLayoutRoundTripAcrossZoomAndGuiScales() {
         for (var guiScale : new int[]{1, 2, 3, 4}) {
-            for (var zoom : new double[]{0.75, 1.0, 1.25, 1.5, 2.0}) {
+            for (var zoom : new double[]{0.4, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0}) {
                 var transform = new DocumentViewTransform(63, 91, zoom);
                 for (var x : new double[]{63, 64.25, 232.5, 1001}) {
                     var physicalX = transform.screenX(x) * guiScale;
@@ -51,7 +51,7 @@ class DocumentViewTransformTest {
 
     @Test
     void logicalViewportExtentsCoverPhysicalViewportWhenZoomedOut() {
-        for (var zoom : new double[]{0.75, 0.8, 0.9, 1.0, 1.25, 2.0}) {
+        for (var zoom : new double[]{0.4, 0.5, 0.75, 0.8, 0.9, 1.0, 1.25, 1.5, 1.75, 2.0}) {
             var transform = new DocumentViewTransform(31, 57, zoom);
             var logicalWidth = (int) Math.ceil(481 / zoom);
             var logicalHeight = (int) Math.ceil(307 / zoom);
