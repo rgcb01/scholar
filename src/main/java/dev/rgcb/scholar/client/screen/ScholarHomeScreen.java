@@ -21,6 +21,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import org.lwjgl.glfw.GLFW;
 
 /** Production entry point for the Scholar document library. */
 public final class ScholarHomeScreen extends Screen {
@@ -85,11 +86,17 @@ public final class ScholarHomeScreen extends Screen {
         if (contextBounds != null) {
             ScholarShellRenderer.drawRaisedPanel(graphics, contextBounds.x(), contextBounds.y(),
                     contextBounds.width(), contextBounds.height(), ScholarShellStyle.PANEL);
-            if (contextBounds.contains(mouseX, mouseY)) {
-                graphics.fill(contextBounds.x() + 2, contextBounds.y() + 2,
-                        contextBounds.right() - 2, contextBounds.bottom() - 2, ScholarShellStyle.HOVER);
+            var actions = new String[] {"Open", "Rename", "Delete"};
+            for (var row = 0; row < actions.length; row++) {
+                var rowY = contextBounds.y() + row * ContextMenuLayout.ROW_HEIGHT;
+                if (contextBounds.contains(mouseX, mouseY)
+                        && mouseY >= rowY && mouseY < rowY + ContextMenuLayout.ROW_HEIGHT) {
+                    graphics.fill(contextBounds.x() + 2, rowY + 1,
+                            contextBounds.right() - 2, rowY + ContextMenuLayout.ROW_HEIGHT - 1, ScholarShellStyle.HOVER);
+                }
+                graphics.drawString(font, actions[row], contextBounds.x() + 12, rowY + 5,
+                        row == 2 ? 0xFFFFB7AC : ScholarShellStyle.TEXT, false);
             }
-            graphics.drawString(font, "Delete", contextBounds.x() + 12, contextBounds.y() + 5, 0xFFFFB7AC, false);
         }
         if (!message.isEmpty()) graphics.drawCenteredString(font, message, width / 2, height - 14, 0xFFFFB86B);
     }
@@ -104,7 +111,7 @@ public final class ScholarHomeScreen extends Screen {
             var index = layout.documentIndexAt(mouseX, mouseY);
             if (index >= 0) {
                 contextDocument = documents.get(index).id();
-                contextBounds = ContextMenuLayout.compute((int) mouseX, (int) mouseY, width, height, 1);
+                contextBounds = ContextMenuLayout.compute((int) mouseX, (int) mouseY, width, height, 3);
                 return true;
             }
             contextDocument = null;
@@ -115,11 +122,16 @@ public final class ScholarHomeScreen extends Screen {
             if (contextBounds != null) {
                 var selected = contextDocument;
                 var inside = contextBounds.contains(mouseX, mouseY);
+                var row = ((int) mouseY - contextBounds.y()) / ContextMenuLayout.ROW_HEIGHT;
                 contextDocument = null;
                 contextBounds = null;
                 if (inside) {
                     var descriptor = documents.stream().filter(item -> item.id().equals(selected)).findFirst();
-                    descriptor.ifPresent(item -> minecraft.setScreen(new ScholarDeleteDialog(this, item)));
+                    descriptor.ifPresent(item -> {
+                        if (row == 0) open(item);
+                        else if (row == 1) minecraft.setScreen(new ScholarHomeRenameDialog(this, application, item));
+                        else if (row == 2) minecraft.setScreen(new ScholarDeleteDialog(this, item));
+                    });
                 }
                 return true;
             }
@@ -153,6 +165,21 @@ public final class ScholarHomeScreen extends Screen {
             }
         }
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            if (contextBounds != null) {
+                contextBounds = null;
+                contextDocument = null;
+                return true;
+            }
+            if (choosingTemplate) {
+                choosingTemplate = false;
+                return true;
+            }
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     private HomeDocumentCardLayout.Result cardLayout() {

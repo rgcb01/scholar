@@ -104,6 +104,17 @@ public final class ScholarApplication {
         return repository.deleteDocument(id);
     }
 
+    public PersistenceResult<String> renameDocument(ScholarDocumentId id, String displayName) {
+        Objects.requireNonNull(id, "id");
+        var active = activeWorkspace(id);
+        if (active.isPresent()) return active.orElseThrow().rename(displayName);
+        var renamed = repository.renameDocument(id, displayName);
+        if (renamed instanceof PersistenceResult.Success<ScholarDocumentDescriptor> success) {
+            return new PersistenceResult.Success<>(success.value().displayName(), success.diagnostics());
+        }
+        return new PersistenceResult.Failure<>(renamed.diagnostics());
+    }
+
     private PersistenceResult<ApplicationDocumentWorkspace> workspaceFrom(PersistenceResult<OpenedScholarDocument> result) {
         if (result instanceof PersistenceResult.Failure<OpenedScholarDocument> failure) {
             return new PersistenceResult.Failure<>(failure.diagnostics());

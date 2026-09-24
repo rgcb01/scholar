@@ -592,6 +592,11 @@ then persisted the result. M35 was merged and pushed to `main` at
 
 ## Next
 
-M36 Import / Export & Interchange is in technical development on `codex/m36-import-export`.
-CSV, Markdown, and PDF interchange must pass final manual `/scholar` QA before M36 acceptance.
-See [M36_IMPORT_EXPORT.md](M36_IMPORT_EXPORT.md). M37 has not started.
+M36 Import / Export & Interchange is complete and manually accepted. CSV import/export,
+Markdown export, and PDF export were verified through `/scholar`; the milestone was merged
+and pushed to `main` at `78fc7b7bb8cab0609cf62a5e91bb0505bed267b5`.
+See [M36_IMPORT_EXPORT.md](M36_IMPORT_EXPORT.md).
+
+M37 Authoring UX & Document Workflow is in technical development on
+`codex/m37-authoring-ux`. It requires a normal production `/scholar` authoring session
+before acceptance. See [M37_AUTHORING_UX.md](M37_AUTHORING_UX.md).

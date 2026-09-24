@@ -38,12 +38,13 @@ The repository has advanced substantially beyond the original early-milestone ou
 - M33 Scientific Data Analysis is complete and manually accepted: authored analysis definitions and fit links with derived statistics, regression, and plot overlays.
 - M34 High-Fidelity Document Rendering is complete and manually accepted: document-only higher-resolution typography, shared view transform, refined strokes and caret geometry, status bar, and production readability sample.
 - M35 Scholar API & Addon Framework is complete and manually accepted: the versioned public addon entry point, document/data builders, workspace integration, and separate NeoForge reference addon were exercised in Minecraft. See [M35_SCHOLAR_API.md](M35_SCHOLAR_API.md).
-- M36 Import / Export & Interchange is in technical development on `codex/m36-import-export`; CSV, Markdown, and PDF paths require final manual `/scholar` QA before acceptance. See [M36_IMPORT_EXPORT.md](M36_IMPORT_EXPORT.md).
+- M36 Import / Export & Interchange is complete and manually accepted: CSV import/export, semantic Markdown export, and paginated PDF export are merged on `main`. See [M36_IMPORT_EXPORT.md](M36_IMPORT_EXPORT.md).
+- M37 Authoring UX & Document Workflow is in technical development on `codex/m37-authoring-ux`; normal `/scholar` authoring QA remains required. See [M37_AUTHORING_UX.md](M37_AUTHORING_UX.md).
 
 
 ## Current Forward Milestone Plan
 
-M36 Import / Export & Interchange is the active milestone and is **not accepted**. The proposed sequence after it is M37 Authoring UX & Document Workflow, M38 V1 Product Hardening, M39 V1 Release Candidate, then Scholar 1.0. These later milestones are plans, not implemented capabilities or accepted public contracts.
+M37 Authoring UX & Document Workflow is the active milestone and is **not accepted**. The proposed sequence after it is M38 V1 Product Hardening, M39 V1 Release Candidate, then Scholar 1.0. These later milestones are plans, not implemented capabilities or accepted public contracts.
 
 The M25-M30 entries below are retained as historical plans and implementation checkpoints. For current acceptance, use the status list above and [MILESTONE_HISTORY.md](MILESTONE_HISTORY.md).
 

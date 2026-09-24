@@ -10,6 +10,7 @@ import dev.rgcb.scholar.client.render.MinecraftMathTextMeasurer;
 import dev.rgcb.scholar.client.render.MinecraftTextMeasurer;
 import dev.rgcb.scholar.client.render.MinecraftTypographyResolver;
 import dev.rgcb.scholar.client.ui.ContextMenuWidget;
+import dev.rgcb.scholar.client.ui.CrossReferencePickerModel;
 import dev.rgcb.scholar.client.ui.ApplicationHeaderWidget;
 import dev.rgcb.scholar.client.ui.MenuBarWidget;
 import dev.rgcb.scholar.client.ui.ModalGeometry;
@@ -70,7 +71,6 @@ import dev.rgcb.scholar.diagram.layout.DiagramViewport;
 import dev.rgcb.scholar.diagram.layout.DiagramViewportStore;
 import dev.rgcb.scholar.document.DiagramBlock;
 import dev.rgcb.scholar.document.Document;
-import dev.rgcb.scholar.document.CrossReferenceTarget;
 import dev.rgcb.scholar.document.DocumentStructureResolver;
 import dev.rgcb.scholar.document.SectionEntry;
 import dev.rgcb.scholar.layout.LaidOutTableCell;
@@ -284,7 +284,7 @@ public final class ScholarEditorScreen extends Screen {
     private SemanticMathTokenKind semanticTokenKind = SemanticMathTokenKind.NAMED_OPERATOR;
     private String semanticTokenContent = "";
     private boolean crossReferencePopupOpen;
-    private List<CrossReferenceTarget> crossReferenceTargets = List.of();
+    private final CrossReferencePickerModel crossReferencePicker = new CrossReferencePickerModel();
     private boolean plotValuePopupOpen;
     private boolean plotPointSecondField;
     private PlotEditTarget plotPopupTarget;
@@ -385,8 +385,12 @@ public final class ScholarEditorScreen extends Screen {
                 return dev.rgcb.scholar.client.ui.ScholarScreenActionShortcuts.forAction(id);
             }
             public boolean isEnabled(dev.rgcb.scholar.editor.EditorActionContext context) {
-                return id != EditorActionId.DATA_EXPORT_CSV
-                        || !context.session().current().document().datasets().isEmpty();
+                return switch (id) {
+                    case FILE_SAVE -> workspace.isDirty() || workspace.name().isEmpty();
+                    case FILE_IMPORT_CSV -> context.session().supportsDatasetDocumentAction();
+                    case DATA_EXPORT_CSV -> !context.session().current().document().datasets().isEmpty();
+                    default -> true;
+                };
             }
             public dev.rgcb.scholar.editor.EditorActionResult execute(dev.rgcb.scholar.editor.EditorActionContext context) {
                 contextMenu = null;
@@ -731,6 +735,19 @@ public final class ScholarEditorScreen extends Screen {
         if (crossReferencePopupOpen) {
             if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
                 closeCrossReferencePopup();
+            } else if (keyCode == GLFW.GLFW_KEY_UP) {
+                crossReferencePicker.moveSelection(-1);
+            } else if (keyCode == GLFW.GLFW_KEY_DOWN) {
+                crossReferencePicker.moveSelection(1);
+            } else if (keyCode == GLFW.GLFW_KEY_PAGE_UP || keyCode == GLFW.GLFW_KEY_LEFT) {
+                crossReferencePicker.movePage(-1);
+            } else if (keyCode == GLFW.GLFW_KEY_PAGE_DOWN || keyCode == GLFW.GLFW_KEY_RIGHT) {
+                crossReferencePicker.movePage(1);
+            } else if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+                crossReferencePicker.selected().ifPresent(target -> {
+                    controller.insertCrossReference(target.kind(), target.targetId());
+                    closeCrossReferencePopup();
+                });
             }
             return true;
         }
@@ -1246,6 +1263,10 @@ public final class ScholarEditorScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (crossReferencePopupOpen) {
+            if (scrollY != 0.0) crossReferencePicker.movePage(scrollY > 0 ? -1 : 1);
+            return true;
+        }
         if (contextMenu == null && !anyModalPopupOpen() && menuBar != null && mouseY < MenuBarWidget.HEIGHT
                 && menuBar.mouseScrolled(mouseX, mouseY, scrollY)) {
             return true;
@@ -2678,8 +2699,8 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void openCrossReferencePopup() {
-        crossReferenceTargets = controller.availableCrossReferenceTargets();
-        if (crossReferenceTargets.isEmpty()) {
+        crossReferencePicker.setTargets(controller.availableCrossReferenceTargets());
+        if (crossReferencePicker.isEmpty()) {
             return;
         }
         crossReferencePopupOpen = true;
@@ -2700,7 +2721,7 @@ public final class ScholarEditorScreen extends Screen {
 
     private void closeCrossReferencePopup() {
         crossReferencePopupOpen = false;
-        crossReferenceTargets = List.of();
+        crossReferencePicker.setTargets(List.of());
     }
 
     private boolean crossReferencePopupClicked(double mouseX, double mouseY) {
@@ -2710,14 +2731,27 @@ public final class ScholarEditorScreen extends Screen {
             closeCrossReferencePopup();
             return true;
         }
+        if (crossReferencePicker.pageCount() > 1) {
+            var previous = new ShellRect(rect.x() + 10, rect.bottom() - 27, 24, 18);
+            var next = new ShellRect(rect.x() + 39, rect.bottom() - 27, 24, 18);
+            if (contains(previous, mouseX, mouseY)) {
+                crossReferencePicker.movePage(-1);
+                return true;
+            }
+            if (contains(next, mouseX, mouseY)) {
+                crossReferencePicker.movePage(1);
+                return true;
+            }
+        }
         var listTop = rect.y() + 28;
-        var visibleRows = Math.min(crossReferenceTargets.size(), crossReferencePopupVisibleRows());
+        var visibleRows = crossReferencePicker.visibleTargets().size();
         for (var i = 0; i < visibleRows; i++) {
             var row = new ShellRect(rect.x() + 8, listTop + i * 20, rect.width() - 16, 20);
             if (contains(row, mouseX, mouseY)) {
-                var target = crossReferenceTargets.get(i);
-                controller.insertCrossReference(target.kind(), target.targetId());
-                closeCrossReferencePopup();
+                crossReferencePicker.selectVisibleRow(i).ifPresent(target -> {
+                    controller.insertCrossReference(target.kind(), target.targetId());
+                    closeCrossReferencePopup();
+                });
                 return true;
             }
         }
@@ -2734,14 +2768,22 @@ public final class ScholarEditorScreen extends Screen {
         graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 34, ScholarShellStyle.PANEL_INSET);
         graphics.drawString(font, "Insert Cross Reference", rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
         var listTop = rect.y() + 28;
-        var visibleRows = Math.min(crossReferenceTargets.size(), crossReferencePopupVisibleRows());
+        var targets = crossReferencePicker.visibleTargets();
+        var visibleRows = targets.size();
         for (var i = 0; i < visibleRows; i++) {
             var row = new ShellRect(rect.x() + 8, listTop + i * 20, rect.width() - 16, 20);
-            if (contains(row, mouseX, mouseY)) {
+            if (contains(row, mouseX, mouseY) || i == crossReferencePicker.selectedRow()) {
                 graphics.fill(row.x(), row.y(), row.right(), row.bottom(), ScholarShellStyle.HOVER);
             }
-            var target = crossReferenceTargets.get(i);
+            var target = targets.get(i);
             graphics.drawString(font, clippedFromEnd(target.pickerLabel(), row.width() - 10), row.x() + 5, row.y() + 6, ScholarShellStyle.TEXT, false);
+        }
+        if (crossReferencePicker.pageCount() > 1) {
+            var footerY = rect.bottom() - 27;
+            graphics.drawString(font, "<", rect.x() + 18, footerY + 5, ScholarShellStyle.TEXT, false);
+            graphics.drawString(font, ">", rect.x() + 47, footerY + 5, ScholarShellStyle.TEXT, false);
+            graphics.drawString(font, (crossReferencePicker.page() + 1) + " / " + crossReferencePicker.pageCount(),
+                    rect.x() + 72, footerY + 5, ScholarShellStyle.TEXT, false);
         }
         var cancelRect = new ShellRect(rect.x() + rect.width() - 72, rect.y() + rect.height() - 27, 58, 18);
         renderDialogButton(graphics, cancelRect, "Cancel", true, contains(cancelRect, mouseX, mouseY));
@@ -3394,7 +3436,7 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private int crossReferencePopupVisibleRows() {
-        return Math.max(1, Math.min(crossReferenceTargets.size(), 8));
+        return Math.max(1, crossReferencePicker.rowCapacity());
     }
 
     private String validationMessage() {
