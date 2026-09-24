@@ -604,3 +604,8 @@ production `/scholar` authoring session. It was merged and pushed to `main` at
 M38 V1 Product Hardening is complete and manually accepted after large/mixed stress,
 zoom and GUI-scale, editing/history, persistence, interchange, diagrams, dirty-close,
 and reference-addon QA. It respected feature freeze. See [M38_V1_HARDENING.md](M38_V1_HARDENING.md).
+
+M39 V1 Release Candidate is active on `codex/m39-v1-release-candidate`. Versioned
+artifact, packaging, licensing, documentation and clean-install/upgrade qualification
+are release gates, not new features. It is not accepted and Scholar 1.0.0 is not released.
+See [M39_RELEASE_CANDIDATE.md](M39_RELEASE_CANDIDATE.md).

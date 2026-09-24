@@ -7,13 +7,14 @@ modId="${mod_id}"
 version="${mod_version}"
 displayName="${mod_name}"
 description='''
-Minimal NeoForge mod foundation.
+Scientific document editor for Minecraft. Create structured documents with equations,
+datasets, tables, plots, diagrams, figures, references, and paginated export.
 '''
 
 [[dependencies.${mod_id}]]
 modId="neoforge"
 type="required"
-versionRange="[${neo_version},)"
+versionRange="[${neo_version},21.2)"
 ordering="NONE"
 side="BOTH"
 

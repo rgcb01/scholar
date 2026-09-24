@@ -93,6 +93,12 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
     into "build/generated/sources/modMetadata"
 }
 
+tasks.named('processResources', ProcessResources) {
+    from('docs/licenses/fonts') {
+        into 'META-INF/licenses/fonts'
+    }
+}
+
 sourceSets.main.resources.srcDir generateModMetadata
 neoForge.ideSyncTask generateModMetadata
 
