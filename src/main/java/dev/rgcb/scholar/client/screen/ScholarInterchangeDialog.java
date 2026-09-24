@@ -18,6 +18,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import org.lwjgl.glfw.GLFW;
 
 /** Minecraft-native file boundary; format logic stays in the interchange layer. */
 final class ScholarInterchangeDialog extends Screen {
@@ -35,6 +36,7 @@ final class ScholarInterchangeDialog extends Screen {
     private int columnPage;
     private CsvDatasetInterchange.Preview preview;
     private EditBox name;
+    private String nameDraft;
     private String message = "";
     private boolean busy;
     private long previewRequest;
@@ -123,8 +125,14 @@ final class ScholarInterchangeDialog extends Screen {
         previewTop = inputY + 58;
         name = new EditBox(font, x, inputY, w, 20, Component.literal(mode == Mode.IMPORT_CSV ? "Dataset name" : "Export filename"));
         name.setMaxLength(120);
-        name.setValue(mode == Mode.IMPORT_CSV ? "Imported dataset" : mode == Mode.EXPORT_CSV ? "dataset.csv"
-                : mode == Mode.EXPORT_PDF ? "document.pdf" : "document.md");
+        var defaultName = switch (mode) {
+            case IMPORT_CSV -> "Imported dataset";
+            case EXPORT_CSV -> "dataset.csv";
+            case EXPORT_MARKDOWN -> "document.md";
+            case EXPORT_PDF -> "document.pdf";
+        };
+        name.setValue(nameDraft == null ? defaultName : nameDraft);
+        name.setResponder(value -> nameDraft = value);
         addRenderableWidget(name);
         addRenderableWidget(Button.builder(Component.literal(mode == Mode.IMPORT_CSV ? "Import" : "Export"), b -> submit())
                 .bounds(x, inputY + 28, w / 2 - 3, 20).build());
@@ -141,10 +149,8 @@ final class ScholarInterchangeDialog extends Screen {
     }
 
     private void changeColumnPage(int step) {
-        var draft = name.getValue();
         columnPage += step;
         rebuildWidgets();
-        name.setValue(draft);
     }
 
     private void selectFile(int index) {
@@ -267,5 +273,12 @@ final class ScholarInterchangeDialog extends Screen {
     }
 
     @Override public void onClose() { if (!busy) minecraft.setScreen(parent); }
+    @Override public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if ((keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) && getFocused() == name) {
+            submit();
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
     @Override public boolean isPauseScreen() { return false; }
 }

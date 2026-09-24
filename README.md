@@ -14,6 +14,7 @@ Scholar keeps a semantic document model as its source of truth. Layout, referenc
 - Structured units and quantities, named variables, computed results, dataset statistics, polynomial fits, and derived plot overlays.
 - Document Home, multi-document workspaces, save/open/rename/delete, undo/redo, and semantic clipboard transfer with plain-text fallbacks.
 - High-fidelity document text and stroke rendering with zoom, fit controls, caret, selection, and hit testing.
+- CSV dataset import/export, readable Markdown export, and paginated PDF export.
 
 ## Screenshots
 
@@ -35,7 +36,7 @@ On Unix-like systems use `./gradlew` with the same tasks. The built mod JAR is w
 
 ## Using Scholar
 
-Enter a Minecraft world and run `/scholar`. Home lets you create a blank or template document, open an existing one, and manage saved documents. Edit in the document workspace and use File > Save; closing a modified document prompts you to save, discard, or cancel. The M34 Readability Sample is an optional production template, not an automatically created file.
+Enter a Minecraft world and run `/scholar`. Home lets you create a blank or template document, open an existing one, and manage saved documents; right-click a document card for Open, Rename, or Delete. Edit in the document workspace and use File > Save; closing a modified document prompts you to save, discard, or cancel. File also provides CSV import and Markdown/PDF export, while Data provides dataset CSV export. The M34 Readability Sample is an optional production template, not an automatically created file.
 
 ## Architecture
 
@@ -45,7 +46,7 @@ M35 adds a deliberately small client-side addon API for documents, datasets, mea
 
 ## Developing Scholar Addons
 
-Depend on the Scholar mod artifact and call `ScholarApi.get()` on the Minecraft client thread. Author normal Scholar content through `ScholarDocument.edit`, which validates and commits one history transaction. `examples/reference-addon` is a separate example mod; run it with `.\gradlew.bat runReferenceClient` and invoke `/scholar_reference_demo` in a world. The API is still under M35 manual review and does not offer arbitrary custom blocks or server-side document editing.
+Depend on the Scholar mod artifact and call `ScholarApi.get()` on the Minecraft client thread. Author normal Scholar content through `ScholarDocument.edit`, which validates and commits one history transaction. `examples/reference-addon` is a separate example mod; run it with `.\gradlew.bat runReferenceClient` and invoke `/scholar_reference_demo` in a world. The accepted M35 API does not offer arbitrary custom blocks or server-side document editing.
 
 ## File Format
 
@@ -53,7 +54,7 @@ Scholar saves local `.scholar.json` files using its versioned semantic JSON code
 
 ## Development Status
 
-Scholar is pre-1.0. M18-M34 are implemented and manually accepted. M35, **Scholar API & Addon Framework**, is technically implemented on its development branch and awaits manual acceptance. The concise forward plan is M36 Import / Export & Interchange, M37 Authoring UX & Document Workflow, M38 V1 Product Hardening, M39 V1 Release Candidate, then Scholar 1.0. See the [Roadmap](docs/ROADMAP.md) and [Milestone History](docs/MILESTONE_HISTORY.md); plans remain subject to review.
+Scholar is pre-1.0. M18-M36 are implemented and manually accepted. M37 Authoring UX & Document Workflow is in technical development and awaits normal `/scholar` QA. The forward plan after it is M38 V1 Product Hardening, M39 V1 Release Candidate, then Scholar 1.0. See the [Roadmap](docs/ROADMAP.md) and [Milestone History](docs/MILESTONE_HISTORY.md); plans remain subject to review.
 
 ## Contributing
 

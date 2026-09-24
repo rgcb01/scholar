@@ -1,6 +1,6 @@
 # M36 - Import, Export and Interchange
 
-Status: technical implementation awaiting manual `/scholar` QA. This document does not mark M36 accepted.
+Status: complete and manually accepted through `/scholar`; merged and pushed to `main` at `78fc7b7bb8cab0609cf62a5e91bb0505bed267b5`.
 
 ## Architecture audit
 
@@ -56,4 +56,4 @@ Automated coverage includes CSV malformed input, BOM/quotes/newlines, numeric an
    In a diagram-bearing document, also compare dense electrical labels, wire continuity, mechanical dimensions, and symbols at readable zoom.
 6. Export to an existing filename and deny confirmation; verify it remains unchanged. Then confirm overwrite. Try a malformed CSV; verify no dataset or dirty-state change.
 
-M36 must remain open until those client checks are reported. Do not merge this branch on technical tests alone.
+The client checks were reported and accepted before M36 was merged. These steps remain the regression procedure for later releases.

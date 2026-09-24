@@ -10,6 +10,7 @@ import dev.rgcb.scholar.quantity.NumberNotation;
 import dev.rgcb.scholar.quantity.UnitExpression;
 import dev.rgcb.scholar.quantity.UnitParser;
 import dev.rgcb.scholar.client.ui.ScholarScreenRendering;
+import dev.rgcb.scholar.client.ui.AnalysisChoiceLabels;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -118,7 +119,7 @@ final class ScholarAnalysisDialog extends Screen {
 
     private List<String> options(int field) {
         if (mode == ComputationDialogKind.ADD_FIT_OVERLAY) return fits().stream()
-                .map(value -> value.kind().name().replace('_', ' ') + " - " + value.id()).toList();
+                .map(value -> AnalysisChoiceLabels.fit(session.current().document(), value)).toList();
         return switch (field) {
             case 0 -> session.current().document().datasets().stream().map(value -> value.displayLabel()).toList();
             case 1 -> List.of("Descriptive Statistics", "Linear Regression", "Quadratic Fit", "Cubic Fit");
@@ -128,6 +129,7 @@ final class ScholarAnalysisDialog extends Screen {
             default -> List.of();
         };
     }
+
 
     private int selected(int field) {
         if (mode == ComputationDialogKind.ADD_FIT_OVERLAY) return fitIndex;

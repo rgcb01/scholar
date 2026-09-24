@@ -75,6 +75,9 @@ class ScholarApplicationWorkspaceTest {
         assertEquals(ScholarDocuments.blank(), first.session().current().document());
         assertEquals(0, first.session().undoDepth());
         assertFalse(first.isDirty());
+        assertTrue(first.session().typeText("First note"));
+        assertTrue(first.isDirty());
+        assertEquals(1, first.session().undoDepth());
     }
 
     @Test void templateCreationPersistsTheSelectedScientificDocumentPolicy() {
@@ -128,6 +131,25 @@ class ScholarApplicationWorkspaceTest {
         assertNotEquals(originalId, workspace.id());
         assertEquals(depth, workspace.session().undoDepth());
         assertFalse(workspace.isDirty());
+    }
+
+    @Test void homeRenamePreservesIdentityHistoryAndActiveWorkspaceName() {
+        var application = application();
+        var workspace = success(application.createDocument());
+        workspace.session().typeText("draft");
+        var originalId = workspace.id();
+        var depth = workspace.session().undoDepth();
+
+        assertEquals("Lab Draft", success(application.renameDocument(originalId, "Lab Draft")));
+        assertEquals("Lab Draft", workspace.displayName());
+        assertEquals(originalId, workspace.id());
+        assertEquals(depth, workspace.session().undoDepth());
+        assertTrue(workspace.isDirty());
+
+        application.closeWorkspace(workspace);
+        assertEquals("Final Lab", success(application.renameDocument(originalId, "Final Lab")));
+        assertEquals(originalId, success(application.documents()).getFirst().id());
+        assertEquals("Final Lab", success(application.openDocument(originalId)).displayName());
     }
 
     @Test void saveFailureKeepsDirtyBaselineAndHistory() {
