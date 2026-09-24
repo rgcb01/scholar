@@ -583,7 +583,15 @@ Status: complete and manually accepted, including final Minecraft visual QA.
 
 Report: [M34_HIGH_FIDELITY_RENDERING.md](M34_HIGH_FIDELITY_RENDERING.md).
 
+## M35 - Scholar API & Addon Framework
+
+Status: complete and manually accepted. The separate NeoForge reference addon used the public
+Scholar API to create a document, dataset-backed table, Figure plot, and quadratic analysis,
+then persisted the result. M35 was merged and pushed to `main` at
+`fe459ed50c05d9d5086f457bd57ab497f098555f`. See [M35_SCHOLAR_API.md](M35_SCHOLAR_API.md).
+
 ## Next
 
-M35 Scholar API & Addon Framework is planned, not started. The current implementation packages
-are not a stable external API.
+M36 Import / Export & Interchange is in technical development on `codex/m36-import-export`.
+CSV, Markdown, and PDF interchange must pass final manual `/scholar` QA before M36 acceptance.
+See [M36_IMPORT_EXPORT.md](M36_IMPORT_EXPORT.md). M37 has not started.

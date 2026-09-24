@@ -191,10 +191,15 @@ class ScholarRibbonPresentationTest {
         var file = List.of(
                 action(EditorActionId.FILE_NEW, "New", null), action(EditorActionId.FILE_OPEN, "Open / Home", null),
                 action(EditorActionId.FILE_SAVE, "Save", null), action(EditorActionId.FILE_SAVE_AS, "Save As...", null),
-                action(EditorActionId.FILE_RENAME, "Rename...", null), action(EditorActionId.FILE_CLOSE, "Close", null));
+                action(EditorActionId.FILE_RENAME, "Rename...", null), action(EditorActionId.FILE_CLOSE, "Close", null),
+                action(EditorActionId.FILE_IMPORT_CSV, "Import CSV", null),
+                action(EditorActionId.FILE_EXPORT_MARKDOWN, "Export Markdown", null),
+                action(EditorActionId.FILE_EXPORT_PDF, "Export PDF", null));
+        var data = new java.util.ArrayList<>(BuiltInEditorActions.dataMenuActions());
+        data.add(action(EditorActionId.DATA_EXPORT_CSV, "Export CSV", null));
         return ScholarRibbonModel.production(file, BuiltInEditorActions.editMenuActions(),
                 BuiltInEditorActions.formatMenuActions(), BuiltInEditorActions.blockStyleActions(),
-                BuiltInEditorActions.insertMenuActions(), BuiltInEditorActions.dataMenuActions(),
+                BuiltInEditorActions.insertMenuActions(), data,
                 BuiltInEditorActions.tableMenuActions(), BuiltInEditorActions.plotMenuActions(),
                 BuiltInEditorActions.figureMenuActions(), BuiltInEditorActions.diagramMenuActions(), view);
     }
