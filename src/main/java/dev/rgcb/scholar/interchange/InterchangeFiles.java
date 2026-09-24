@@ -1,15 +1,19 @@
 package dev.rgcb.scholar.interchange;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.Objects;
 
 /** Safe file boundary for user-initiated interchange, separate from Scholar persistence. */
 public final class InterchangeFiles {
+    public static final int MAX_IMPORT_BYTES = 16 * 1024 * 1024;
     private InterchangeFiles() { }
 
     public static Path directory(Path gameDirectory) throws IOException {
@@ -18,7 +22,14 @@ public final class InterchangeFiles {
     }
 
     public static String readUtf8(Path source) throws IOException {
-        return Files.readString(Objects.requireNonNull(source), StandardCharsets.UTF_8);
+        try (var input = Files.newInputStream(Objects.requireNonNull(source), StandardOpenOption.READ)) {
+            var bytes = input.readNBytes(MAX_IMPORT_BYTES + 1);
+            if (bytes.length > MAX_IMPORT_BYTES) throw new IOException("CSV import exceeds the 16 MiB V1 limit.");
+            var decoder = StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT);
+            return decoder.decode(ByteBuffer.wrap(bytes)).toString();
+        }
     }
 
     public static void writeUtf8(Path destination, String content, boolean overwrite) throws IOException {

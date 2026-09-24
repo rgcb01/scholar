@@ -44,4 +44,18 @@ class ScholarInterchangeServiceTest {
         InterchangeFiles.writeUtf8(file, "replacement", true);
         assertEquals("replacement", Files.readString(file));
     }
+
+    @Test void oversizedOrMalformedUtf8CsvFailsBeforePreviewCanMutateDocument() throws Exception {
+        var service = new ScholarInterchangeService();
+        var oversized = directory.resolve("oversized.csv");
+        try (var file = new java.io.RandomAccessFile(oversized.toFile(), "rw")) {
+            file.setLength((long) InterchangeFiles.MAX_IMPORT_BYTES + 1);
+        }
+        var failure = assertThrows(java.io.IOException.class, () -> service.previewCsv(oversized));
+        assertTrue(failure.getMessage().contains("16 MiB"));
+
+        var malformed = directory.resolve("malformed.csv");
+        Files.write(malformed, new byte[] {(byte) 0xc3, 0x28});
+        assertThrows(java.nio.charset.CharacterCodingException.class, () -> service.previewCsv(malformed));
+    }
 }
