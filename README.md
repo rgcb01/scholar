@@ -16,23 +16,11 @@ Scholar keeps a semantic document model as its source of truth. Layout, referenc
 - High-fidelity document text and stroke rendering with zoom, fit controls, caret, selection, and hit testing.
 - CSV dataset import/export, readable Markdown export, and paginated PDF export.
 
-## Screenshots
+## Install the Release Candidate
 
-Project screenshots have not been checked into the repository yet. Use `/scholar` and the **M34 Readability Sample** template to inspect the current document surface in-game.
+Scholar `1.0.0-rc.1` targets Minecraft Java Edition `1.21.1`, NeoForge `21.1.249` through the `21.1.x` line (below `21.2`), and Java `21`. Install the matching NeoForge client, then place `scholar-1.0.0-rc.1.jar` in that instance's `mods` directory. Launch Minecraft, enter a world, and run `/scholar`. The reference addon is optional and is **not** included in the Scholar JAR. This is a release candidate, not the final 1.0.0 release; its clean-install qualification is still pending.
 
-## Getting Started
-
-Scholar targets Minecraft Java Edition `1.21.1`, NeoForge `21.1.249`, and Java `21`. The repository uses the Gradle `9.2.1` wrapper.
-
-From the repository root on Windows:
-
-```powershell
-.\gradlew.bat runClient
-.\gradlew.bat test
-.\gradlew.bat build
-```
-
-On Unix-like systems use `./gradlew` with the same tasks. The built mod JAR is written to `build/libs/` (currently `scholar-0.1.0.jar`). Gradle downloads the development dependencies on the first run.
+To build from source on Windows, run `.\gradlew.bat clean build`; on Unix-like systems run `./gradlew clean build`. The Gradle `9.2.1` wrapper uses a Java 21 toolchain and produces the mod JAR in `build/libs/`. `runClient` is for development, not installation proof.
 
 ## Using Scholar
 
@@ -52,9 +40,9 @@ Depend on the Scholar mod artifact and call `ScholarApi.get()` on the Minecraft 
 
 Scholar saves local `.scholar.json` files using its versioned semantic JSON codec. Current writes use V2; supported V1 files load with deterministic defaults. The file stores authored content and stable semantic IDs, not selection, undo history, zoom, cached computations, plot fit samples, or rendered pages. Markdown and plain text are lossy interchange formats, not the canonical document model.
 
-## Development Status
+## Release Status and Limitations
 
-Scholar is pre-1.0. M18-M36 are implemented and manually accepted. M37 Authoring UX & Document Workflow is in technical development and awaits normal `/scholar` QA. The forward plan after it is M38 V1 Product Hardening, M39 V1 Release Candidate, then Scholar 1.0. See the [Roadmap](docs/ROADMAP.md) and [Milestone History](docs/MILESTONE_HISTORY.md); plans remain subject to review.
+M18-M38 are manually accepted. M39 qualifies the distributable release candidate; Scholar 1.0.0 has not been tagged or published. See the [release notes draft](docs/RELEASE_1.0.md) and [changelog](CHANGELOG.md). Native `.scholar.json` is the durable document format; Markdown and plain text are lossy interchange, and CSV import has a 16 MiB limit. Addons can author supported Scholar content through the V1 API but cannot define arbitrary new document blocks. Documents are local to the Minecraft client. See the [Roadmap](docs/ROADMAP.md) for milestone status.
 
 ## Contributing
 
@@ -62,4 +50,4 @@ There is no separate contribution policy yet. For proposed changes, include focu
 
 ## License
 
-The mod metadata currently declares `All Rights Reserved`; the repository does not include a general open-source license. Bundled Source Sans 3 and Noto Sans Math fonts have their own [OFL license texts](docs/licenses/fonts/).
+The mod metadata declares `All Rights Reserved`; the owner has not selected a general project license and the repository contains no project `LICENSE` file. This requires an explicit owner decision before public 1.0.0 publication. Bundled Source Sans 3 and Noto Sans Math fonts retain their own [OFL license texts](docs/licenses/fonts/), also included in the mod JAR. Bundled PDFBox components carry their own Apache license and notices inside their nested JARs.
