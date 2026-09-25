@@ -605,7 +605,8 @@ M38 V1 Product Hardening is complete and manually accepted after large/mixed str
 zoom and GUI-scale, editing/history, persistence, interchange, diagrams, dirty-close,
 and reference-addon QA. It respected feature freeze. See [M38_V1_HARDENING.md](M38_V1_HARDENING.md).
 
-M39 V1 Release Candidate is active on `codex/m39-v1-release-candidate`. Versioned
-artifact, packaging, licensing, documentation and clean-install/upgrade qualification
-are release gates, not new features. It is not accepted and Scholar 1.0.0 is not released.
-See [M39_RELEASE_CANDIDATE.md](M39_RELEASE_CANDIDATE.md).
+M39 V1 Release Candidate is complete and manually accepted. The exact RC JAR passed
+clean installation, restart/reopen, interchange, diagrams, GUI-scale, reference-addon
+and upgrade qualification. Final project-license and author decisions, final-artifact
+verification and publication remain separate 1.0.0 release gates. Scholar 1.0.0 has
+not been tagged or published. See [M39_RELEASE_CANDIDATE.md](M39_RELEASE_CANDIDATE.md).

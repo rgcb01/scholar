@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0-rc.1 - Release candidate (qualification pending)
+## 1.0.0 - Release preparation
 
 - **Document authoring:** local Home library, structured prose, headings, outline, TOC, cross-references, editing history, semantic clipboard, and save/reopen.
 - **Scientific typesetting:** equations, quantities, page settings, one/two columns, figures and captions, high-resolution readable document surface.
@@ -11,4 +11,8 @@
 - **Addon integration:** versioned client-side V1 API for supported Scholar content; separate reference addon remains an example.
 - **Reliability:** validated document format V2 with V1 loading, atomic-save attempt, bounded history, dirty-close protection, stress regression and bounded CSV import.
 
-This RC is not the final 1.0.0 release. Installation, restart, upgrade and distribution qualification remain M39 acceptance gates.
+The 1.0.0 release retains the accepted RC functionality. Final legal/author metadata, artifact verification and installation smoke test remain release gates; no release has been published.
+
+## 1.0.0-rc.1 - Accepted release candidate
+
+The RC passed clean-install, restart/reopen, interchange, diagrams, GUI-scale, reference-addon and upgrade qualification. The accepted JAR and checksum are recorded in [the M39 report](docs/M39_RELEASE_CANDIDATE.md).

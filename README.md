@@ -16,9 +16,9 @@ Scholar keeps a semantic document model as its source of truth. Layout, referenc
 - High-fidelity document text and stroke rendering with zoom, fit controls, caret, selection, and hit testing.
 - CSV dataset import/export, readable Markdown export, and paginated PDF export.
 
-## Install the Release Candidate
+## Installation
 
-Scholar `1.0.0-rc.1` targets Minecraft Java Edition `1.21.1`, NeoForge `21.1.249` through the `21.1.x` line (below `21.2`), and Java `21`. Install the matching NeoForge client, then place `scholar-1.0.0-rc.1.jar` in that instance's `mods` directory. Launch Minecraft, enter a world, and run `/scholar`. The reference addon is optional and is **not** included in the Scholar JAR. This is a release candidate, not the final 1.0.0 release; its clean-install qualification is still pending.
+Scholar `1.0.0` targets Minecraft Java Edition `1.21.1`, NeoForge `21.1.249` through the `21.1.x` line (below `21.2`), and Java `21`. Install a compatible NeoForge client, place `scholar-1.0.0.jar` in that instance's `mods/` directory, launch Minecraft, enter a world, and run `/scholar`. The reference addon is optional and is not included in the Scholar JAR. The final JAR is not available until the remaining release decisions and artifact checks are complete.
 
 To build from source on Windows, run `.\gradlew.bat clean build`; on Unix-like systems run `./gradlew clean build`. The Gradle `9.2.1` wrapper uses a Java 21 toolchain and produces the mod JAR in `build/libs/`. `runClient` is for development, not installation proof.
 
@@ -42,7 +42,7 @@ Scholar saves local `.scholar.json` files using its versioned semantic JSON code
 
 ## Release Status and Limitations
 
-M18-M38 are manually accepted. M39 qualifies the distributable release candidate; Scholar 1.0.0 has not been tagged or published. See the [release notes draft](docs/RELEASE_1.0.md) and [changelog](CHANGELOG.md). Native `.scholar.json` is the durable document format; Markdown and plain text are lossy interchange, and CSV import has a 16 MiB limit. Addons can author supported Scholar content through the V1 API but cannot define arbitrary new document blocks. Documents are local to the Minecraft client. See the [Roadmap](docs/ROADMAP.md) for milestone status.
+M18-M39 are manually accepted. The 1.0.0 release is being prepared; it has not been tagged or published. See the [release notes](docs/RELEASE_1.0.md) and [changelog](CHANGELOG.md). Native `.scholar.json` is the durable document format; Markdown and plain text are lossy interchange, and CSV import has a 16 MiB limit. Addons can author supported Scholar content through the V1 API but cannot define arbitrary new document blocks. Documents are local to the Minecraft client. See the [Roadmap](docs/ROADMAP.md) for milestone status.
 
 ## Contributing
 
