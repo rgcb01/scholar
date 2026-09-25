@@ -16,7 +16,7 @@ public final class ApplicationHeaderWidget {
         var titleWidth = Math.max(24, bounds.width() / 2);
         var clippedTitle = font.plainSubstrByWidth(documentName, titleWidth);
         graphics.drawCenteredString(font, clippedTitle, bounds.x() + bounds.width() / 2, bounds.y() + 7, 0xFFF2F5F8);
-        var status = dirty ? "Unsaved" : "Saved";
+        var status = ScholarText.get(dirty ? "scholar.status.unsaved" : "scholar.status.saved");
         graphics.drawString(font, status, bounds.right() - 8 - font.width(status), bounds.y() + 7,
                 dirty ? 0xFFFFD27A : 0xFFAAB4BF, false);
     }

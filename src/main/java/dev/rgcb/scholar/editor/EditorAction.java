@@ -7,6 +7,18 @@ public interface EditorAction {
 
     String label();
 
+    default EditorActionDescriptor descriptor() {
+        return BuiltInEditorActionCatalog.require(id());
+    }
+
+    default String translationKey() {
+        return descriptor().translationKey();
+    }
+
+    default Optional<String> tooltipTranslationKey() {
+        return descriptor().tooltipKey();
+    }
+
     default String tooltip() {
         return label();
     }

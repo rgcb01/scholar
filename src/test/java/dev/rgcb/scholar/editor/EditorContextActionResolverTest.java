@@ -61,6 +61,9 @@ class EditorContextActionResolverTest {
         assertFalse(ids(entries).contains(EditorActionId.CUT));
         assertFalse(ids(entries).contains(EditorActionId.COPY));
         assertSame(actions.get(EditorActionId.BOLD), action(entries, EditorActionId.BOLD));
+        entries.stream().filter(entry -> entry.kind() == ContextMenuEntryKind.ACTION)
+                .map(entry -> entry.action().orElseThrow())
+                .forEach(action -> assertSame(BuiltInEditorActionCatalog.require(action.id()), action.descriptor()));
     }
 
     @Test

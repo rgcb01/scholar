@@ -21,13 +21,13 @@ public final class ScholarShellModel {
             List<EditorAction> view
     ) {
         return List.of(
-                menu("File", file),
-                grouped("Home", edit, format),
-                menu("Insert", insert),
-                grouped("Data", data, table, plot),
-                menu("Figure", figure),
-                menu("Diagram", diagram),
-                menu("View", view));
+                menu("scholar.menu.file", file),
+                grouped("scholar.menu.home", edit, format),
+                menu("scholar.menu.insert", insert),
+                grouped("scholar.menu.data", data, table, plot),
+                menu("scholar.menu.figure", figure),
+                menu("scholar.menu.diagram", diagram),
+                menu("scholar.menu.view", view));
     }
 
     private static MenuDefinition menu(String title, List<EditorAction> actions) {

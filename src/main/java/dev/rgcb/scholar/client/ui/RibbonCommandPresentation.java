@@ -29,7 +29,8 @@ public record RibbonCommandPresentation(
     }
 
     public static RibbonCommandPresentation dropdown(EditorAction selected, List<EditorAction> choices) {
-        return new RibbonCommandPresentation(selected, ScholarIcons.STYLE, RibbonCommandSize.MEDIUM, choices, null, "Style", null);
+        return new RibbonCommandPresentation(selected, ScholarIcons.STYLE, RibbonCommandSize.MEDIUM, choices,
+                null, "scholar.ribbon.group.style", null);
     }
 
     public static RibbonCommandPresentation valueDropdown(EditorAction selected, List<EditorAction> choices,
@@ -51,13 +52,15 @@ public record RibbonCommandPresentation(
 
     public String label(EditorAction presentedAction, RibbonLabelMode mode) {
         if (mode == RibbonLabelMode.ICON_ONLY) return "";
-        if (mode == RibbonLabelMode.SHORT && shortLabel != null) return shortLabel;
-        if (labelOverride != null) return labelOverride;
-        return valuePrefix == null ? presentedAction.label() : valuePrefix + ": " + presentedAction.label();
+        if (mode == RibbonLabelMode.SHORT && shortLabel != null) return ScholarTranslations.get(shortLabel);
+        if (labelOverride != null) return ScholarTranslations.get(labelOverride);
+        return valuePrefix == null ? ScholarTranslations.actionLabel(presentedAction)
+                : ScholarTranslations.get("scholar.ribbon.value", ScholarTranslations.get(valuePrefix),
+                ScholarTranslations.actionLabel(presentedAction));
     }
 
     public String tooltipText() {
-        return action.label() + "\n" + action.tooltip()
+        return ScholarTranslations.actionLabel(action) + "\n" + ScholarTranslations.actionTooltip(action)
                 + action.shortcut().map(shortcut -> "\n" + shortcut.displayText()).orElse("");
     }
 }

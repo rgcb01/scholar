@@ -194,7 +194,7 @@ public final class MenuBarWidget {
             }
             renderActionState(graphics, menuX, y, controller.selectionState(action));
             var color = enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED;
-            graphics.drawString(font, action.label(), menuX + LABEL_X, y + 5, color, false);
+            graphics.drawString(font, ScholarText.actionLabel(action), menuX + LABEL_X, y + 5, color, false);
             action.shortcut().ifPresent(shortcut -> {
                 var shortcutText = shortcut.displayText();
                 graphics.drawString(
@@ -227,7 +227,7 @@ public final class MenuBarWidget {
             ScholarShellRenderer.drawRaisedPanel(graphics, x, TITLE_Y, titleWidth, HEIGHT - TITLE_Y - 3, ScholarShellStyle.PANEL_RAISED);
         }
         var textColor = openMenuIndex == index ? 0xFFFFFFFF : ScholarShellStyle.TEXT;
-        graphics.drawString(font, menus.get(index).title(), x + 8, TITLE_Y + 3, textColor, false);
+        graphics.drawString(font, ScholarText.component(menus.get(index).title()), x + 8, TITLE_Y + 3, textColor, false);
     }
 
     private static void renderHoveredRow(GuiGraphics graphics, int menuX, int y) {
@@ -328,7 +328,7 @@ public final class MenuBarWidget {
     }
 
     private static int titleWidth(MenuDefinition menu) {
-        return Math.max(42, menu.title().length() * 6 + 16);
+        return Math.max(42, ScholarTranslations.get(menu.title()).length() * 6 + 16);
     }
 
     private static int dropdownHeight(MenuDefinition menu) {

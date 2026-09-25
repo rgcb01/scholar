@@ -9,6 +9,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import dev.rgcb.scholar.client.ui.ScholarText;
 import org.lwjgl.glfw.GLFW;
 
 /** Home rename changes document metadata without opening an editor session. */
@@ -21,7 +22,7 @@ final class ScholarHomeRenameDialog extends Screen {
 
     ScholarHomeRenameDialog(ScholarHomeScreen parent, ScholarApplication application,
                             ScholarDocumentDescriptor document) {
-        super(Component.literal("Rename Scholar Document"));
+        super(ScholarText.component("scholar.dialog.rename_document.title"));
         this.parent = parent;
         this.application = application;
         this.document = document;
@@ -30,14 +31,14 @@ final class ScholarHomeRenameDialog extends Screen {
     @Override protected void init() {
         var width = Math.min(300, this.width - 20);
         var x = (this.width - width) / 2;
-        name = new EditBox(font, x, 52, width, 20, Component.literal("Document name"));
+        name = new EditBox(font, x, 52, width, 20, ScholarText.component("scholar.document.name"));
         name.setMaxLength(64);
         name.setValue(document.displayName());
         addRenderableWidget(name);
         setInitialFocus(name);
-        addRenderableWidget(Button.builder(Component.literal("Rename"), button -> rename())
+        addRenderableWidget(Button.builder(ScholarText.component("scholar.action.file_rename"), button -> rename())
                 .bounds(x, 88, width / 2 - 3, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Cancel"), button -> onClose())
+        addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.cancel"), button -> onClose())
                 .bounds(x + width / 2 + 3, 88, width / 2 - 3, 20).build());
     }
 

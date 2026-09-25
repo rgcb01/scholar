@@ -9,6 +9,7 @@ import dev.rgcb.scholar.client.ui.ScholarShellStyle;
 import dev.rgcb.scholar.client.ui.ScholarScreenRendering;
 import dev.rgcb.scholar.client.ui.HomeDocumentCardLayout;
 import dev.rgcb.scholar.client.ui.ScholarIcons;
+import dev.rgcb.scholar.client.ui.ScholarText;
 import dev.rgcb.scholar.client.ui.ShellRect;
 import dev.rgcb.scholar.client.ui.ContextMenuLayout;
 import dev.rgcb.scholar.persistence.PersistenceResult;
@@ -25,7 +26,6 @@ import org.lwjgl.glfw.GLFW;
 
 /** Production entry point for the Scholar document library. */
 public final class ScholarHomeScreen extends Screen {
-    private static final DateTimeFormatter MODIFIED = DateTimeFormatter.ofPattern("MMM d, yyyy HH:mm");
     private final ScholarApplication application;
     private List<ScholarDocumentDescriptor> documents = List.of();
     private String message = "";
@@ -70,7 +70,7 @@ public final class ScholarHomeScreen extends Screen {
         graphics.fill(0, 0, width, 32, 0xFF292E35);
         ScholarIcons.SCHOLAR.render(graphics, 15, 11, 1, 0xFF73C4E2);
         graphics.drawString(font, "Scholar", 28, 11, 0xFFFFFFFF, false);
-        graphics.drawCenteredString(font, "Scientific document library", width / 2, 11, 0xFFB8C1CC);
+        graphics.drawCenteredString(font, ScholarText.get("scholar.home.library"), width / 2, 11, 0xFFB8C1CC);
         if (choosingTemplate) {
             renderTemplateChooser(graphics, mouseX, mouseY);
             ScholarScreenRendering.renderWidgets(renderables, graphics, mouseX, mouseY, partialTick);
@@ -86,7 +86,7 @@ public final class ScholarHomeScreen extends Screen {
         if (contextBounds != null) {
             ScholarShellRenderer.drawRaisedPanel(graphics, contextBounds.x(), contextBounds.y(),
                     contextBounds.width(), contextBounds.height(), ScholarShellStyle.PANEL);
-            var actions = new String[] {"Open", "Rename", "Delete"};
+            var actions = new String[] {"scholar.action.file_open", "scholar.action.file_rename", "scholar.action.delete"};
             for (var row = 0; row < actions.length; row++) {
                 var rowY = contextBounds.y() + row * ContextMenuLayout.ROW_HEIGHT;
                 if (contextBounds.contains(mouseX, mouseY)
@@ -94,7 +94,7 @@ public final class ScholarHomeScreen extends Screen {
                     graphics.fill(contextBounds.x() + 2, rowY + 1,
                             contextBounds.right() - 2, rowY + ContextMenuLayout.ROW_HEIGHT - 1, ScholarShellStyle.HOVER);
                 }
-                graphics.drawString(font, actions[row], contextBounds.x() + 12, rowY + 5,
+                graphics.drawString(font, ScholarText.get(actions[row]), contextBounds.x() + 12, rowY + 5,
                         row == 2 ? 0xFFFFB7AC : ScholarShellStyle.TEXT, false);
             }
         }
@@ -192,8 +192,8 @@ public final class ScholarHomeScreen extends Screen {
         var pageY = card.y() + 16;
         ScholarShellRenderer.drawRaisedPanel(graphics, pageX, pageY, 42, 55, 0xFFE8E5DA);
         ScholarIcons.NEW_DOCUMENT.render(graphics, pageX + 13, pageY + 19, 2, 0xFF24313A);
-        graphics.drawCenteredString(font, "New document", card.x() + card.width() / 2, card.bottom() - 34, 0xFFFFFFFF);
-        graphics.drawCenteredString(font, "Create a blank Scholar file", card.x() + card.width() / 2,
+        graphics.drawCenteredString(font, ScholarText.get("scholar.home.new_document"), card.x() + card.width() / 2, card.bottom() - 34, 0xFFFFFFFF);
+        graphics.drawCenteredString(font, ScholarText.get("scholar.home.new_document.description"), card.x() + card.width() / 2,
                 card.bottom() - 20, 0xFFABB4C0);
     }
 
@@ -217,7 +217,8 @@ public final class ScholarHomeScreen extends Screen {
         }
         graphics.drawString(font, clipped(descriptor.displayName(), card.width() - 16), card.x() + 8,
                 card.bottom() - 35, 0xFFFFFFFF, false);
-        var modified = descriptor.modifiedAtEpochMillis() == 0 ? "Recovered document" : MODIFIED.format(
+        var modified = descriptor.modifiedAtEpochMillis() == 0 ? ScholarText.get("scholar.home.recovered_document")
+                : DateTimeFormatter.ofPattern(ScholarText.get("scholar.home.modified_pattern")).format(
                 Instant.ofEpochMilli(descriptor.modifiedAtEpochMillis()).atZone(ZoneId.systemDefault()));
         graphics.drawString(font, clipped(modified, card.width() - 16), card.x() + 8,
                 card.bottom() - 20, 0xFFABB4C0, false);
@@ -280,10 +281,13 @@ public final class ScholarHomeScreen extends Screen {
 
     private void renderTemplateChooser(GuiGraphics graphics, int mouseX, int mouseY) {
         graphics.fill(0, 32, width, height, 0xCC20242A);
-        graphics.drawCenteredString(font, "Choose a document template", width / 2, Math.max(38, height / 2 - 98), 0xFFFFFFFF);
-        renderTemplateCard(graphics, blankTemplateCard(), "Blank Document", "A clean one-column document", false, mouseX, mouseY);
-        renderTemplateCard(graphics, ieeeTemplateCard(), "IEEE-style Scientific Paper", "Publication-oriented two-column setup", true, mouseX, mouseY);
-        renderTemplateCard(graphics, m34TemplateCard(), "M34 Readability Sample", "Scientific layout and zoom review", true, mouseX, mouseY);
+        graphics.drawCenteredString(font, ScholarText.get("scholar.template.choose"), width / 2, Math.max(38, height / 2 - 98), 0xFFFFFFFF);
+        renderTemplateCard(graphics, blankTemplateCard(), ScholarText.get("scholar.template.blank.title"),
+                ScholarText.get("scholar.template.blank.description"), false, mouseX, mouseY);
+        renderTemplateCard(graphics, ieeeTemplateCard(), ScholarText.get("scholar.template.ieee.title"),
+                ScholarText.get("scholar.template.ieee.description"), true, mouseX, mouseY);
+        renderTemplateCard(graphics, m34TemplateCard(), ScholarText.get("scholar.template.readability.title"),
+                ScholarText.get("scholar.template.readability.description"), true, mouseX, mouseY);
     }
 
     private void renderTemplateCard(GuiGraphics graphics, ShellRect card, String title, String subtitle,

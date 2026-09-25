@@ -25,6 +25,7 @@ import dev.rgcb.scholar.client.ui.ScholarIcons;
 import dev.rgcb.scholar.client.ui.ScholarShellRenderer;
 import dev.rgcb.scholar.client.ui.ScholarShellModel;
 import dev.rgcb.scholar.client.ui.ScholarShellStyle;
+import dev.rgcb.scholar.client.ui.ScholarText;
 import dev.rgcb.scholar.client.ui.ScholarRibbonModel;
 import dev.rgcb.scholar.client.ui.RibbonWidget;
 import dev.rgcb.scholar.client.ui.ShellRect;
@@ -331,31 +332,31 @@ public final class ScholarEditorScreen extends Screen {
     private TableCellTextSelection tableDragAnchor;
 
     private ScholarEditorScreen(EditorDocumentWorkspace workspace, ScholarApplication application) {
-        super(Component.literal(application == null ? "Scholar Development Editor" : "Scholar"));
+        super(ScholarText.component(application == null ? "scholar.document.editor.development_title" : "scholar.document.editor.title"));
         this.workspace = workspace;
         this.application = application;
         viewportActions = List.of(
-                fileAction(EditorActionId.VIEW_ZOOM_OUT, "Zoom Out", () -> setZoom(zoom - 0.1f)),
-                fileAction(EditorActionId.VIEW_ZOOM_IN, "Zoom In", () -> setZoom(zoom + 0.1f)),
-                fileAction(EditorActionId.VIEW_FIT_PAGE, "Fit Page", this::fitPage),
-                fileAction(EditorActionId.VIEW_FIT_WIDTH, "Fit Width", this::fitWidth));
+                fileAction(EditorActionId.VIEW_ZOOM_OUT, () -> setZoom(zoom - 0.1f)),
+                fileAction(EditorActionId.VIEW_ZOOM_IN, () -> setZoom(zoom + 0.1f)),
+                fileAction(EditorActionId.VIEW_FIT_PAGE, this::fitPage),
+                fileAction(EditorActionId.VIEW_FIT_WIDTH, this::fitWidth));
         session = workspace.session();
-        exportCsvAction = fileAction(EditorActionId.DATA_EXPORT_CSV, "Export CSV", () -> minecraft.setScreen(ScholarInterchangeDialog.exportCsv(this, session)));
+        exportCsvAction = fileAction(EditorActionId.DATA_EXPORT_CSV, () -> minecraft.setScreen(ScholarInterchangeDialog.exportCsv(this, session)));
         fileActions = List.of(
-                fileAction(EditorActionId.FILE_NEW, "New", () -> protectUnsaved(() -> {
+                fileAction(EditorActionId.FILE_NEW, () -> protectUnsaved(() -> {
                     if (application == null) {
                         ((dev.rgcb.scholar.editor.DocumentWorkspace) workspace).newDocument();
                         minecraft.setScreen(forWorkspace((dev.rgcb.scholar.editor.DocumentWorkspace) workspace));
                     } else openCreatedDocument();
                 })),
-                fileAction(EditorActionId.FILE_OPEN, application == null ? "Open..." : "Open / Home", () -> protectUnsaved(this::openHomeOrLegacyDialog)),
-                fileAction(EditorActionId.FILE_SAVE, "Save", this::saveDocument),
-                fileAction(EditorActionId.FILE_SAVE_AS, "Save As...", () -> minecraft.setScreen(ScholarFileDialog.save(this, workspace, () -> { }))),
-                fileAction(EditorActionId.FILE_RENAME, "Rename...", () -> minecraft.setScreen(ScholarFileDialog.rename(this, workspace))),
-                fileAction(EditorActionId.FILE_CLOSE, "Close", () -> protectUnsaved(this::returnFromEditor)),
-                fileAction(EditorActionId.FILE_IMPORT_CSV, "Import CSV", () -> minecraft.setScreen(ScholarInterchangeDialog.importCsv(this, session))),
-                fileAction(EditorActionId.FILE_EXPORT_MARKDOWN, "Export Markdown", () -> minecraft.setScreen(ScholarInterchangeDialog.exportMarkdown(this, session))),
-                fileAction(EditorActionId.FILE_EXPORT_PDF, "Export PDF", () -> minecraft.setScreen(ScholarInterchangeDialog.exportPdf(this, session, this::pdfLayout))));
+                fileAction(EditorActionId.FILE_OPEN, () -> protectUnsaved(this::openHomeOrLegacyDialog)),
+                fileAction(EditorActionId.FILE_SAVE, this::saveDocument),
+                fileAction(EditorActionId.FILE_SAVE_AS, () -> minecraft.setScreen(ScholarFileDialog.save(this, workspace, () -> { }))),
+                fileAction(EditorActionId.FILE_RENAME, () -> minecraft.setScreen(ScholarFileDialog.rename(this, workspace))),
+                fileAction(EditorActionId.FILE_CLOSE, () -> protectUnsaved(this::returnFromEditor)),
+                fileAction(EditorActionId.FILE_IMPORT_CSV, () -> minecraft.setScreen(ScholarInterchangeDialog.importCsv(this, session))),
+                fileAction(EditorActionId.FILE_EXPORT_MARKDOWN, () -> minecraft.setScreen(ScholarInterchangeDialog.exportMarkdown(this, session))),
+                fileAction(EditorActionId.FILE_EXPORT_PDF, () -> minecraft.setScreen(ScholarInterchangeDialog.exportPdf(this, session, this::pdfLayout))));
     }
 
     static ScholarEditorScreen forWorkspace(dev.rgcb.scholar.editor.DocumentWorkspace workspace) {
@@ -366,23 +367,13 @@ public final class ScholarEditorScreen extends Screen {
         return new ScholarEditorScreen(workspace, application);
     }
 
-    private EditorAction fileAction(EditorActionId id, String label, Runnable operation) {
+    private EditorAction fileAction(EditorActionId id, Runnable operation) {
         return new EditorAction() {
             public EditorActionId id() { return id; }
-            public String label() { return label; }
-            public String tooltip() {
-                return switch (id) {
-                    case FILE_NEW -> "Create a new Scholar document";
-                    case FILE_OPEN -> "Open a Scholar document";
-                    case FILE_SAVE -> "Save the current Scholar document";
-                    case FILE_SAVE_AS -> "Save a copy with a different name";
-                    case FILE_RENAME -> "Rename the current Scholar document";
-                    case FILE_CLOSE -> "Close the current document";
-                    default -> label;
-                };
-            }
+            public String label() { return descriptor().englishLabel(); }
+            public String tooltip() { return descriptor().englishTooltip(); }
             public java.util.Optional<ActionShortcut> shortcut() {
-                return dev.rgcb.scholar.client.ui.ScholarScreenActionShortcuts.forAction(id);
+                return descriptor().shortcut();
             }
             public boolean isEnabled(dev.rgcb.scholar.editor.EditorActionContext context) {
                 return switch (id) {
@@ -545,7 +536,8 @@ public final class ScholarEditorScreen extends Screen {
         if (toolbar != null) {
             toolbar.render(graphics, font, mouseX, mouseY);
         }
-        applicationHeader.render(graphics, font, shellLayout.applicationHeaderBounds(), workspace.name().orElse("Untitled"), workspace.isDirty());
+        applicationHeader.render(graphics, font, shellLayout.applicationHeaderBounds(),
+                workspace.name().orElseGet(() -> ScholarText.get("scholar.document.untitled")), workspace.isDirty());
         if (ribbon != null) {
             ribbon.render(graphics, font, mouseX, mouseY);
         }
@@ -1532,15 +1524,15 @@ public final class ScholarEditorScreen extends Screen {
             } else if (editorState().isBlockSelection()) {
                 pageY = laidOutDocument.blocks().get(editorState().blockSelection().blockIndex()).y();
             }
-            drawStatusText(graphics, slots.page(), "Page " + DocumentStatus.pageAt(laidOutDocument, pageY)
-                    + " of " + laidOutDocument.pages().size());
+            drawStatusText(graphics, slots.page(), ScholarText.get("scholar.status.page",
+                    DocumentStatus.pageAt(laidOutDocument, pageY), laidOutDocument.pages().size()));
         }
         var document = editorState().document();
         if (statusWordDocument != document) {
             statusWordDocument = document;
             statusWordCount = DocumentStatus.wordCount(document);
         }
-        drawStatusText(graphics, slots.words(), statusWordCount + " words");
+        drawStatusText(graphics, slots.words(), ScholarText.get("scholar.status.words", statusWordCount));
         drawStatusIcon(graphics, slots.fitPage(), ScholarIcons.FIT_PAGE, mouseX, mouseY);
         drawStatusIcon(graphics, slots.fitWidth(), ScholarIcons.FIT_WIDTH, mouseX, mouseY);
         drawStatusIcon(graphics, slots.zoomOut(), ScholarIcons.ZOOM_OUT, mouseX, mouseY);
@@ -1554,11 +1546,11 @@ public final class ScholarEditorScreen extends Screen {
         }
         drawStatusIcon(graphics, slots.zoomIn(), ScholarIcons.ZOOM_IN, mouseX, mouseY);
         drawStatusText(graphics, slots.percentage(), Math.round(zoom * 100) + "%");
-        String tooltip = slots.fitPage().contains(mouseX, mouseY) ? "Fit Page"
-                : slots.fitWidth().contains(mouseX, mouseY) ? "Fit Width"
-                : slots.zoomOut().contains(mouseX, mouseY) ? "Zoom Out"
-                : slots.zoomIn().contains(mouseX, mouseY) ? "Zoom In"
-                : slots.slider().contains(mouseX, mouseY) ? "Zoom" : null;
+        String tooltip = slots.fitPage().contains(mouseX, mouseY) ? ScholarText.get("scholar.action.view_fit_page")
+                : slots.fitWidth().contains(mouseX, mouseY) ? ScholarText.get("scholar.action.view_fit_width")
+                : slots.zoomOut().contains(mouseX, mouseY) ? ScholarText.get("scholar.action.view_zoom_out")
+                : slots.zoomIn().contains(mouseX, mouseY) ? ScholarText.get("scholar.action.view_zoom_in")
+                : slots.slider().contains(mouseX, mouseY) ? ScholarText.get("scholar.tooltip.zoom") : null;
         if (tooltip != null) {
             int tipWidth = font.width(tooltip) + 10;
             int tipX = Math.max(2, Math.min(mouseX, width - tipWidth - 2));
@@ -2351,7 +2343,7 @@ public final class ScholarEditorScreen extends Screen {
         }
         var rect = outlinePanelRect();
         ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
-        graphics.drawString(font, "Outline", rect.x() + 8, rect.y() + 9, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, ScholarText.get("scholar.action.toggle_outline"), rect.x() + 8, rect.y() + 9, ScholarShellStyle.TEXT, false);
         var closeRect = new ShellRect(rect.right() - 22, rect.y() + 5, 16, 14);
         renderDialogButton(graphics, closeRect, "x", true, contains(closeRect, mouseX, mouseY));
 
@@ -2512,15 +2504,15 @@ public final class ScholarEditorScreen extends Screen {
                     dataActions, tableActions, plotActions, figureActions, diagramActions, viewActions);
         }
         return List.of(
-                new MenuDefinition("File", fileActions.stream().map(MenuEntry::action).toList()),
-                new MenuDefinition("Edit", List.of(
+                new MenuDefinition("scholar.menu.file", fileActions.stream().map(MenuEntry::action).toList()),
+                new MenuDefinition("scholar.menu.edit", List.of(
                         MenuEntry.action(action(EditorActionId.UNDO)),
                         MenuEntry.action(action(EditorActionId.REDO)),
                         MenuEntry.separator(),
                         MenuEntry.action(action(EditorActionId.CUT)),
                         MenuEntry.action(action(EditorActionId.COPY)),
                         MenuEntry.action(action(EditorActionId.PASTE)))),
-                new MenuDefinition("Insert", List.of(
+                new MenuDefinition("scholar.menu.insert", List.of(
                         MenuEntry.action(action(EditorActionId.INSERT_EQUATION)),
                         MenuEntry.action(action(EditorActionId.INSERT_TABLE)),
                         MenuEntry.action(action(EditorActionId.INSERT_PLOT)),
@@ -2538,7 +2530,7 @@ public final class ScholarEditorScreen extends Screen {
                         MenuEntry.separator(),
                         MenuEntry.action(action(EditorActionId.MATH_CONVERT_NAMED_OPERATOR)),
                         MenuEntry.action(action(EditorActionId.MATH_CONVERT_TEXT)))),
-                new MenuDefinition("Format", List.of(
+                new MenuDefinition("scholar.menu.format", List.of(
                         MenuEntry.action(action(EditorActionId.PARAGRAPH)),
                         MenuEntry.action(action(EditorActionId.HEADING_1)),
                         MenuEntry.action(action(EditorActionId.HEADING_2)),
@@ -2549,9 +2541,9 @@ public final class ScholarEditorScreen extends Screen {
                         MenuEntry.separator(),
                         MenuEntry.action(action(EditorActionId.BOLD)),
                         MenuEntry.action(action(EditorActionId.ITALIC)))),
-                new MenuDefinition("View", List.of(
+                new MenuDefinition("scholar.menu.view", List.of(
                         MenuEntry.action(action(EditorActionId.TOGGLE_OUTLINE)))),
-                new MenuDefinition("Data", List.of(
+                new MenuDefinition("scholar.menu.data", List.of(
                         MenuEntry.action(action(EditorActionId.DATA_NEW_DATASET)),
                         MenuEntry.action(action(EditorActionId.DATA_INSERT_DATASET_TABLE)),
                         MenuEntry.action(action(EditorActionId.DATA_INSERT_ANALYSIS)),
@@ -2559,7 +2551,7 @@ public final class ScholarEditorScreen extends Screen {
                         MenuEntry.separator(),
                         MenuEntry.action(action(EditorActionId.DATA_BIND_PLOT_TO_DATASET)),
                         MenuEntry.action(action(EditorActionId.DATA_ADD_FIT_OVERLAY)))),
-                new MenuDefinition("Table", List.of(
+                new MenuDefinition("scholar.menu.table", List.of(
                         MenuEntry.action(action(EditorActionId.TABLE_INSERT_ROW_ABOVE)),
                         MenuEntry.action(action(EditorActionId.TABLE_INSERT_ROW_BELOW)),
                         MenuEntry.action(action(EditorActionId.TABLE_DELETE_ROW)),
@@ -2567,7 +2559,7 @@ public final class ScholarEditorScreen extends Screen {
                         MenuEntry.action(action(EditorActionId.TABLE_INSERT_COLUMN_LEFT)),
                         MenuEntry.action(action(EditorActionId.TABLE_INSERT_COLUMN_RIGHT)),
                         MenuEntry.action(action(EditorActionId.TABLE_DELETE_COLUMN)))),
-                new MenuDefinition("Plot", List.of(
+                new MenuDefinition("scholar.menu.plot", List.of(
                         MenuEntry.action(action(EditorActionId.PLOT_TOGGLE_GRID)),
                         MenuEntry.action(action(EditorActionId.PLOT_TOGGLE_LEGEND)),
                         MenuEntry.separator(),
@@ -2580,13 +2572,13 @@ public final class ScholarEditorScreen extends Screen {
                         MenuEntry.separator(),
                         MenuEntry.action(action(EditorActionId.PLOT_ADD_POINT)),
                         MenuEntry.action(action(EditorActionId.PLOT_DELETE_POINT)))),
-                new MenuDefinition("Figure", List.of(
+                new MenuDefinition("scholar.menu.figure", List.of(
                         MenuEntry.action(action(EditorActionId.FIGURE_WRAP_PLOT)),
                         MenuEntry.action(action(EditorActionId.FIGURE_WRAP_DIAGRAM)),
                         MenuEntry.separator(),
                         MenuEntry.action(action(EditorActionId.FIGURE_EDIT_CAPTION)),
                         MenuEntry.action(action(EditorActionId.FIGURE_UNWRAP)))),
-                new MenuDefinition("Diagram", List.of(
+                new MenuDefinition("scholar.menu.diagram", List.of(
                         MenuEntry.action(action(EditorActionId.DIAGRAM_ADD_NODE)),
                         MenuEntry.separator(),
                         MenuEntry.action(action(EditorActionId.DIAGRAM_ADD_RESISTOR)),
@@ -2766,7 +2758,7 @@ public final class ScholarEditorScreen extends Screen {
         graphics.fill(0, 0, width, height, 0x88000000);
         ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
         graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 34, ScholarShellStyle.PANEL_INSET);
-        graphics.drawString(font, "Insert Cross Reference", rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.cross_reference.title"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
         var listTop = rect.y() + 28;
         var targets = crossReferencePicker.visibleTargets();
         var visibleRows = targets.size();
@@ -2786,7 +2778,7 @@ public final class ScholarEditorScreen extends Screen {
                     rect.x() + 72, footerY + 5, ScholarShellStyle.TEXT, false);
         }
         var cancelRect = new ShellRect(rect.x() + rect.width() - 72, rect.y() + rect.height() - 27, 58, 18);
-        renderDialogButton(graphics, cancelRect, "Cancel", true, contains(cancelRect, mouseX, mouseY));
+        renderDialogButton(graphics, cancelRect, ScholarText.get("scholar.dialog.cancel"), true, contains(cancelRect, mouseX, mouseY));
     }
 
     private void applySemanticTokenPopup() {
@@ -2845,15 +2837,15 @@ public final class ScholarEditorScreen extends Screen {
         graphics.fill(0, 0, width, height, 0x88000000);
         ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
         graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_INSET);
-        graphics.drawString(font, "Semantic Math Token", rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
-        graphics.drawString(font, "Type", rect.x() + 16, rect.y() + 40, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.math_token.title"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.type"), rect.x() + 16, rect.y() + 40, ScholarShellStyle.TEXT, false);
 
         var typeRect = new ShellRect(rect.x() + 96, rect.y() + 35, 116, 18);
         ScholarShellRenderer.drawRaisedPanel(graphics, typeRect.x(), typeRect.y(), typeRect.width(), typeRect.height(), ScholarShellStyle.PANEL_RAISED);
         graphics.drawString(font, semanticTokenKind.displayName(), typeRect.x() + 6, typeRect.y() + 5, ScholarShellStyle.TEXT, false);
         renderPopupTriangle(graphics, typeRect.right() - 12, typeRect.y() + 7, ScholarShellStyle.TEXT);
 
-        graphics.drawString(font, "Content", rect.x() + 16, rect.y() + 66, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.content"), rect.x() + 16, rect.y() + 66, ScholarShellStyle.TEXT, false);
         var contentRect = new ShellRect(rect.x() + 16, rect.y() + 78, rect.width() - 32, 20);
         ScholarShellRenderer.drawInsetPanel(graphics, contentRect.x(), contentRect.y(), contentRect.width(), contentRect.height(), ScholarShellStyle.PANEL_RECESSED);
         var displayed = semanticTokenContent + (((System.currentTimeMillis() / 500) % 2 == 0) ? "_" : "");
@@ -2866,8 +2858,8 @@ public final class ScholarEditorScreen extends Screen {
 
         var cancelRect = new ShellRect(rect.x() + rect.width() - 124, rect.y() + rect.height() - 27, 52, 18);
         var applyRect = new ShellRect(rect.x() + rect.width() - 66, rect.y() + rect.height() - 27, 52, 18);
-        renderDialogButton(graphics, cancelRect, "Cancel", true, contains(cancelRect, mouseX, mouseY));
-        renderDialogButton(graphics, applyRect, "Apply", valid, contains(applyRect, mouseX, mouseY));
+        renderDialogButton(graphics, cancelRect, ScholarText.get("scholar.dialog.cancel"), true, contains(cancelRect, mouseX, mouseY));
+        renderDialogButton(graphics, applyRect, ScholarText.get("scholar.dialog.apply"), valid, contains(applyRect, mouseX, mouseY));
 
         if (semanticTokenTypeOpen) {
             renderTypeChoice(graphics, typeRect, SemanticMathTokenKind.NAMED_OPERATOR, 0, mouseX, mouseY);
@@ -3002,7 +2994,7 @@ public final class ScholarEditorScreen extends Screen {
         graphics.drawString(font, plotPopupTitle(), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
 
         var point = plotPopupTarget instanceof PlotPointTarget;
-        graphics.drawString(font, point ? "X" : "Value", rect.x() + 16, rect.y() + 45, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, point ? "X" : ScholarText.get("scholar.dialog.value"), rect.x() + 16, rect.y() + 45, ScholarShellStyle.TEXT, false);
         var primaryRect = new ShellRect(rect.x() + 70, rect.y() + 39, rect.width() - 86, 20);
         renderPlotPopupField(graphics, primaryRect, plotValuePrimary, !plotPointSecondField);
 
@@ -3014,15 +3006,15 @@ public final class ScholarEditorScreen extends Screen {
 
         var valid = isPlotPopupValid();
         if (!valid) {
-            graphics.drawString(font, "X and Y must be finite numbers.", rect.x() + 16, rect.bottom() - 47, ScholarShellStyle.TEXT_DISABLED, false);
+            graphics.drawString(font, ScholarText.get("scholar.error.plot.finite_coordinates"), rect.x() + 16, rect.bottom() - 47, ScholarShellStyle.TEXT_DISABLED, false);
         } else if (point) {
-            graphics.drawString(font, "Tab switches X/Y.", rect.x() + 16, rect.bottom() - 47, ScholarShellStyle.TEXT_DISABLED, false);
+            graphics.drawString(font, ScholarText.get("scholar.tooltip.plot.switch_coordinates"), rect.x() + 16, rect.bottom() - 47, ScholarShellStyle.TEXT_DISABLED, false);
         }
 
         var cancelRect = new ShellRect(rect.x() + rect.width() - 124, rect.y() + rect.height() - 27, 52, 18);
         var applyRect = new ShellRect(rect.x() + rect.width() - 66, rect.y() + rect.height() - 27, 52, 18);
-        renderDialogButton(graphics, cancelRect, "Cancel", true, contains(cancelRect, mouseX, mouseY));
-        renderDialogButton(graphics, applyRect, "Apply", valid, contains(applyRect, mouseX, mouseY));
+        renderDialogButton(graphics, cancelRect, ScholarText.get("scholar.dialog.cancel"), true, contains(cancelRect, mouseX, mouseY));
+        renderDialogButton(graphics, applyRect, ScholarText.get("scholar.dialog.apply"), valid, contains(applyRect, mouseX, mouseY));
     }
 
     private void renderPlotPopupField(GuiGraphics graphics, ShellRect rect, String value, boolean active) {
@@ -3036,19 +3028,19 @@ public final class ScholarEditorScreen extends Screen {
 
     private String plotPopupTitle() {
         if (plotPopupTarget instanceof PlotPointTarget pointTarget) {
-            return "Edit Plot Point " + (pointTarget.pointIndex() + 1);
+            return ScholarText.get("scholar.dialog.plot.edit_point", pointTarget.pointIndex() + 1);
         }
         if (plotPopupTarget instanceof PlotSeriesTarget) {
-            return "Edit Series Name";
+            return ScholarText.get("scholar.dialog.plot.edit_series_name");
         }
         if (plotPopupTarget instanceof PlotPropertyTarget propertyTarget) {
             return switch (propertyTarget.property()) {
-                case TITLE -> "Edit Plot Title";
-                case X_AXIS_LABEL -> "Edit X Axis Label";
-                case Y_AXIS_LABEL -> "Edit Y Axis Label";
+                case TITLE -> ScholarText.get("scholar.dialog.plot.edit_title");
+                case X_AXIS_LABEL -> ScholarText.get("scholar.dialog.plot.edit_x_axis");
+                case Y_AXIS_LABEL -> ScholarText.get("scholar.dialog.plot.edit_y_axis");
             };
         }
-        return "Edit Plot";
+        return ScholarText.get("scholar.dialog.plot.edit");
     }
 
     private ShellRect plotValuePopupRect() {
@@ -3100,7 +3092,7 @@ public final class ScholarEditorScreen extends Screen {
             var width = Double.parseDouble(diagramCanvasWidthValue);
             var height = Double.parseDouble(diagramCanvasHeightValue);
             if (!Double.isFinite(width) || !Double.isFinite(height) || width <= 0.0 || height <= 0.0) {
-                diagramCanvasValidation = "Width and height must be positive.";
+                diagramCanvasValidation = ScholarText.get("scholar.error.diagram.positive_dimensions");
                 return;
             }
             var old = controller.diagramCanvas().orElse(null);
@@ -3109,13 +3101,13 @@ public final class ScholarEditorScreen extends Screen {
                 return;
             }
             if (!controller.resizeDiagramCanvas(width, height)) {
-                diagramCanvasValidation = "Canvas is too small for an existing element.";
+                diagramCanvasValidation = ScholarText.get("scholar.error.diagram.canvas_too_small");
                 return;
             }
             fitActiveDiagramViewport();
             closeDiagramCanvasPopup();
         } catch (IllegalArgumentException exception) {
-            diagramCanvasValidation = "Enter valid positive numeric dimensions.";
+            diagramCanvasValidation = ScholarText.get("scholar.error.diagram.invalid_dimensions");
         }
     }
 
@@ -3152,12 +3144,12 @@ public final class ScholarEditorScreen extends Screen {
         graphics.fill(0, 0, width, height, 0x88000000);
         ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
         graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_INSET);
-        graphics.drawString(font, "Resize Diagram Canvas", rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.diagram.resize_canvas"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
 
         var widthField = new ShellRect(rect.x() + 88, rect.y() + 38, rect.width() - 104, 20);
         var heightField = new ShellRect(rect.x() + 88, rect.y() + 66, rect.width() - 104, 20);
-        graphics.drawString(font, "Width", rect.x() + 16, rect.y() + 44, ScholarShellStyle.TEXT, false);
-        graphics.drawString(font, "Height", rect.x() + 16, rect.y() + 72, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.width"), rect.x() + 16, rect.y() + 44, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.height"), rect.x() + 16, rect.y() + 72, ScholarShellStyle.TEXT, false);
         ScholarShellRenderer.drawInsetPanel(graphics, widthField.x(), widthField.y(), widthField.width(), widthField.height(), ScholarShellStyle.PANEL_RECESSED);
         ScholarShellRenderer.drawInsetPanel(graphics, heightField.x(), heightField.y(), heightField.width(), heightField.height(), ScholarShellStyle.PANEL_RECESSED);
         var blink = (System.currentTimeMillis() / 500) % 2 == 0 ? "_" : "";
@@ -3170,13 +3162,13 @@ public final class ScholarEditorScreen extends Screen {
         if (!diagramCanvasValidation.isEmpty()) {
             graphics.drawString(font, clipped(diagramCanvasValidation, rect.width() - 32), rect.x() + 16, rect.y() + 94, 0xFFE57373, false);
         } else {
-            graphics.drawString(font, "Tab switches fields. Canvas resize is undoable.", rect.x() + 16, rect.y() + 94, ScholarShellStyle.TEXT_DISABLED, false);
+            graphics.drawString(font, ScholarText.get("scholar.tooltip.diagram.resize_canvas"), rect.x() + 16, rect.y() + 94, ScholarShellStyle.TEXT_DISABLED, false);
         }
 
         var cancelRect = new ShellRect(rect.x() + rect.width() - 124, rect.y() + rect.height() - 27, 52, 18);
         var applyRect = new ShellRect(rect.x() + rect.width() - 66, rect.y() + rect.height() - 27, 52, 18);
-        renderDialogButton(graphics, cancelRect, "Cancel", true, contains(cancelRect, mouseX, mouseY));
-        renderDialogButton(graphics, applyRect, "Apply", true, contains(applyRect, mouseX, mouseY));
+        renderDialogButton(graphics, cancelRect, ScholarText.get("scholar.dialog.cancel"), true, contains(cancelRect, mouseX, mouseY));
+        renderDialogButton(graphics, applyRect, ScholarText.get("scholar.dialog.apply"), true, contains(applyRect, mouseX, mouseY));
     }
 
     private ShellRect diagramCanvasPopupRect() {
@@ -3258,7 +3250,7 @@ public final class ScholarEditorScreen extends Screen {
         ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
         graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_INSET);
         graphics.drawString(font, diagramLabelPopupTitle(), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
-        graphics.drawString(font, "Label", rect.x() + 16, rect.y() + 45, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.label"), rect.x() + 16, rect.y() + 45, ScholarShellStyle.TEXT, false);
         var field = new ShellRect(rect.x() + 70, rect.y() + 39, rect.width() - 86, 20);
         ScholarShellRenderer.drawInsetPanel(graphics, field.x(), field.y(), field.width(), field.height(), ScholarShellStyle.PANEL_RECESSED);
         var displayed = diagramLabelValue + ((System.currentTimeMillis() / 500) % 2 == 0 ? "_" : "");
@@ -3267,25 +3259,25 @@ public final class ScholarEditorScreen extends Screen {
 
         var cancelRect = new ShellRect(rect.x() + rect.width() - 124, rect.y() + rect.height() - 27, 52, 18);
         var applyRect = new ShellRect(rect.x() + rect.width() - 66, rect.y() + rect.height() - 27, 52, 18);
-        renderDialogButton(graphics, cancelRect, "Cancel", true, contains(cancelRect, mouseX, mouseY));
-        renderDialogButton(graphics, applyRect, "Apply", true, contains(applyRect, mouseX, mouseY));
+        renderDialogButton(graphics, cancelRect, ScholarText.get("scholar.dialog.cancel"), true, contains(cancelRect, mouseX, mouseY));
+        renderDialogButton(graphics, applyRect, ScholarText.get("scholar.dialog.apply"), true, contains(applyRect, mouseX, mouseY));
     }
 
     private String diagramLabelPopupTitle() {
         if (diagramLabelPopupTarget instanceof DiagramElementTarget) {
-            return "Edit Node Label";
+            return ScholarText.get("scholar.dialog.diagram.edit_node_label");
         }
         if (diagramLabelPopupTarget instanceof DiagramPortTarget) {
-            return "Edit Port Label";
+            return ScholarText.get("scholar.dialog.diagram.edit_port_label");
         }
         if (diagramLabelPopupTarget instanceof DiagramConnectionTarget) {
-            return "Edit Connection Label";
+            return ScholarText.get("scholar.dialog.diagram.edit_connection_label");
         }
         if (diagramLabelPopupTarget instanceof DiagramPropertyTarget propertyTarget
                 && propertyTarget.property() == DiagramProperty.TITLE) {
-            return "Edit Diagram Title";
+            return ScholarText.get("scholar.dialog.diagram.edit_title");
         }
-        return "Edit Diagram Label";
+        return ScholarText.get("scholar.dialog.diagram.edit_label");
     }
 
     private ShellRect diagramLabelPopupRect() {
@@ -3370,12 +3362,12 @@ public final class ScholarEditorScreen extends Screen {
         graphics.fill(0, 0, width, height, 0x88000000);
         ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
         graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_INSET);
-        graphics.drawString(font, "Edit Electrical Component", rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.diagram.edit_electrical_component"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
 
         var referenceField = electricalReferenceFieldRect(rect);
         var valueField = electricalValueFieldRect(rect);
-        graphics.drawString(font, "Reference", rect.x() + 16, referenceField.y() + 6, ScholarShellStyle.TEXT, false);
-        graphics.drawString(font, "Value", rect.x() + 16, valueField.y() + 6, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.reference"), rect.x() + 16, referenceField.y() + 6, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.value"), rect.x() + 16, valueField.y() + 6, ScholarShellStyle.TEXT, false);
         ScholarShellRenderer.drawInsetPanel(graphics, referenceField.x(), referenceField.y(), referenceField.width(), referenceField.height(), ScholarShellStyle.PANEL_RECESSED);
         ScholarShellRenderer.drawInsetPanel(graphics, valueField.x(), valueField.y(), valueField.width(), valueField.height(), ScholarShellStyle.PANEL_RECESSED);
 
@@ -3389,8 +3381,8 @@ public final class ScholarEditorScreen extends Screen {
 
         var cancelRect = new ShellRect(rect.x() + rect.width() - 124, rect.y() + rect.height() - 27, 52, 18);
         var applyRect = new ShellRect(rect.x() + rect.width() - 66, rect.y() + rect.height() - 27, 52, 18);
-        renderDialogButton(graphics, cancelRect, "Cancel", true, contains(cancelRect, mouseX, mouseY));
-        renderDialogButton(graphics, applyRect, "Apply", true, contains(applyRect, mouseX, mouseY));
+        renderDialogButton(graphics, cancelRect, ScholarText.get("scholar.dialog.cancel"), true, contains(cancelRect, mouseX, mouseY));
+        renderDialogButton(graphics, applyRect, ScholarText.get("scholar.dialog.apply"), true, contains(applyRect, mouseX, mouseY));
     }
 
     private ShellRect electricalComponentPopupRect() {
@@ -3441,10 +3433,10 @@ public final class ScholarEditorScreen extends Screen {
 
     private String validationMessage() {
         if (semanticTokenContent.isBlank()) {
-            return "Content must not be blank.";
+            return ScholarText.get("scholar.error.content_blank");
         }
         return semanticTokenKind == SemanticMathTokenKind.MATH_TEXT
-                ? "Math Text cannot start or end with whitespace."
+                ? ScholarText.get("scholar.error.math_text_whitespace")
                 : "";
     }
 

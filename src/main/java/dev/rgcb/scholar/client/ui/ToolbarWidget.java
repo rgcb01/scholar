@@ -84,7 +84,7 @@ public final class ToolbarWidget {
         ScholarShellRenderer.drawRaisedPanel(graphics, bounds.x(), bounds.y(), bounds.width(), bounds.height(), ScholarShellStyle.PANEL);
         graphics.fill(bounds.x(), bounds.bottom() - 1, bounds.right(), bounds.bottom(), ScholarShellStyle.DEEP_SHADOW);
 
-        itemBounds = ToolbarLayout.compute(items, bounds.width(), action -> font.width(action.label()));
+        itemBounds = ToolbarLayout.compute(items, bounds.width(), action -> font.width(ScholarText.actionLabel(action)));
         for (var itemBound : itemBounds) {
             var item = items.get(itemBound.itemIndex());
             var x = bounds.x() + itemBound.x();
@@ -144,7 +144,7 @@ public final class ToolbarWidget {
             renderPopupState(graphics, popupX, y, controller.selectionState(action));
             graphics.drawString(
                     font,
-                    action.label(),
+                    ScholarText.actionLabelText(action),
                     popupX + 18,
                     y + 5,
                     enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED,
@@ -339,9 +339,9 @@ public final class ToolbarWidget {
             }
         }
         var color = enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED;
-        var textX = x + Math.max(4, (width - font.width(action.label())) / 2);
+        var textX = x + Math.max(4, (width - font.width(ScholarText.actionLabel(action))) / 2);
         var textY = y + 5 + (pressed ? 1 : 0);
-        graphics.drawString(font, action.label(), textX, textY, color, false);
+        graphics.drawString(font, ScholarText.actionLabel(action), textX, textY, color, false);
     }
 
     private void renderBlockStyleControl(
@@ -358,8 +358,8 @@ public final class ToolbarWidget {
         var hovered = itemBound.contains(mouseX - bounds.x(), mouseY - bounds.y());
         var label = switch (styleState.kind()) {
             case SINGLE -> styleState.style().orElseThrow().displayName();
-            case MIXED -> "Mixed";
-            case NOT_APPLICABLE -> "Style";
+            case MIXED -> ScholarText.get("scholar.status.mixed");
+            case NOT_APPLICABLE -> ScholarText.get("scholar.ribbon.group.style");
         };
         if (blockStyleOpen && enabled) {
             ScholarShellRenderer.drawInsetPanel(graphics, x, y, itemBound.width(), itemBound.height(), ScholarShellStyle.PRESSED);
@@ -388,7 +388,8 @@ public final class ToolbarWidget {
             var fill = hovered && enabled ? ScholarShellStyle.PANEL_RAISED : ScholarShellStyle.PANEL;
             ScholarShellRenderer.drawRaisedPanel(graphics, x, y, itemBound.width(), itemBound.height(), fill);
         }
-        graphics.drawString(font, "Convert", x + 6, y + 5, enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED, false);
+        graphics.drawString(font, ScholarText.get("scholar.ribbon.short.convert"), x + 6, y + 5,
+                enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED, false);
         renderTriangle(graphics, x + itemBound.width() - 12, y + 7, enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED);
     }
 
@@ -409,7 +410,8 @@ public final class ToolbarWidget {
             var fill = hovered && enabled ? ScholarShellStyle.PANEL_RAISED : ScholarShellStyle.PANEL;
             ScholarShellRenderer.drawRaisedPanel(graphics, x, y, itemBound.width(), itemBound.height(), fill);
         }
-        graphics.drawString(font, "Group", x + 6, y + 5, enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED, false);
+        graphics.drawString(font, ScholarText.get("scholar.ribbon.short.group"), x + 6, y + 5,
+                enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED, false);
         renderTriangle(graphics, x + itemBound.width() - 12, y + 7, enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED);
     }
 
@@ -439,7 +441,7 @@ public final class ToolbarWidget {
             }
             graphics.drawString(
                     font,
-                    action.label(),
+                    ScholarText.actionLabelText(action),
                     popupX + 8,
                     y + 5,
                     enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED,
@@ -473,7 +475,7 @@ public final class ToolbarWidget {
             }
             graphics.drawString(
                     font,
-                    action.label(),
+                    ScholarText.actionLabelText(action),
                     popupX + 8,
                     y + 5,
                     enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED,
