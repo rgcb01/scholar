@@ -1,0 +1,24 @@
+Scholar Addon Linking Exception
+
+This is an additional permission under section 7 of the GNU General Public
+License, version 3 or any later version (GPL-3.0-or-later). It applies only to
+Scholar material for which its copyright holders can grant this permission.
+
+As a special exception, those copyright holders permit an independent Minecraft
+mod or addon to combine with unmodified Scholar solely through Scholar's
+documented public API (`dev.rgcb.scholar.api` and its documented subpackages),
+and permit distribution of that combination without requiring the independent
+addon itself to be licensed under GPL-3.0-or-later solely because of the
+combination. The terms of every component must still be respected.
+
+An independent addon is a separate work that does not incorporate Scholar
+source code or internal implementation and does not include or redistribute a
+modified Scholar core. Using Scholar's internal or undocumented interfaces is
+not covered by this exception.
+
+Scholar itself, including modified or derivative distributions of Scholar core,
+remains subject to GPL-3.0-or-later. This exception does not relicense Scholar
+core, waive GPL obligations for that core, or override any third-party license.
+
+This project-specific wording is modeled on the GNU Classpath linking exception
+and requires final review by the project owner before public distribution.

@@ -1,6 +1,6 @@
 # Scholar 1.0.0 release notes
 
-Release preparation only. Scholar 1.0.0 has not been tagged or published. The project license and NeoForge author display name require owner decisions before the final artifact can be built and verified.
+Release notes prepared for owner review. Scholar 1.0.0 has not been tagged or published. Author: Rómulo Colorado (rgcb0).
 
 Scholar is a scientific document editor inside Minecraft Java. Create readable, structured local documents with prose, headings, equations, quantities, datasets, tables, plots, analyses, figures, diagrams, cross-references and a derived table of contents. Page layout, reference labels and calculations derive from a semantic document model. Scholar is independent of any future STEM Lab mod.
 
@@ -24,4 +24,4 @@ Back up the `scholar` data directory before upgrading. The accepted RC installat
 
 The documented client-side API under `dev.rgcb.scholar.api` lets addons create/edit supported Scholar content; see [M35 API](M35_SCHOLAR_API.md). V1 does not offer arbitrary addon-defined blocks, a custom unit-registry plugin system, server-side document editing, or a programming notebook. Full layout and PDF preparation are synchronous for very large documents. Documents are stored locally by the Minecraft client.
 
-Bundled fonts have separate SIL OFL notices. The Scholar project license remains an owner decision; do not infer it from the font or PDFBox licenses. The final JAR checksum and release tag must be recorded only after final artifact qualification. Do not use the accepted RC checksum for the 1.0.0 JAR.
+Scholar core is [GPL-3.0-or-later](../LICENSE). A [separate linking exception](../LICENSE-EXCEPTION) covers independent addons using only the documented public API; its final wording requires owner review before publication. The [reference addon](../examples/reference-addon/) is CC0-1.0. Bundled fonts retain separate SIL OFL notices, and bundled PDFBox components retain their own licenses and notices. The final JAR checksum and release tag must be recorded only after final artifact qualification. Do not use the accepted RC checksum for the 1.0.0 JAR.

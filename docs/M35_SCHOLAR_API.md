@@ -22,6 +22,8 @@ Scholar remains the owner of documents, scientific semantics, persistence, histo
 
 The only supported compatibility namespace is `dev.rgcb.scholar.api` and its `document`, `data`, `quantity` and `event` subpackages. Everything else is implementation, even if a Java class is currently `public` for inter-package use. The API is included in the normal Scholar mod JAR; there is no separate API artifact in V1.
 
+Scholar core is GPL-3.0-or-later. The [Scholar addon linking exception](../LICENSE-EXCEPTION) is a separate additional permission for independent addons using only this documented public API; it does not relicense Scholar core or override third-party terms. The separate [reference addon](../examples/reference-addon/) is CC0-1.0.
+
 ## Getting the API and versioning
 
 `ScholarApi.get()` returns the active client API after Minecraft client initialization. It does not initialize Scholar on a dedicated server. `majorVersion()` and `minorVersion()` currently report **1.0**. Major changes may break signatures/semantics; minor additions preserve existing public contracts. This is independent of the Scholar mod version. A regular NeoForge required dependency on `scholar` is the recommended integration; optional integration must avoid loading API classes when Scholar is absent. Addon registration is unnecessary: NeoForge already identifies the mod. No plugin manager, dynamic JAR loading, marketplace or custom classloader exists.

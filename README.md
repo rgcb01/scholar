@@ -1,4 +1,4 @@
-# Scholar
+# Scholar 1.0.0
 
 Scholar is a scientific document editor and document engine inside Minecraft Java Edition. It lets players create, edit, save, and read structured scientific work in the game. The engine is intended to support future educational and scientific addons, but it is not an experiment pack, a set of STEM minigames, a Minecraft Word clone, or a notebook programming environment.
 
@@ -18,7 +18,7 @@ Scholar keeps a semantic document model as its source of truth. Layout, referenc
 
 ## Installation
 
-Scholar `1.0.0` targets Minecraft Java Edition `1.21.1`, NeoForge `21.1.249` through the `21.1.x` line (below `21.2`), and Java `21`. Install a compatible NeoForge client, place `scholar-1.0.0.jar` in that instance's `mods/` directory, launch Minecraft, enter a world, and run `/scholar`. The reference addon is optional and is not included in the Scholar JAR. The final JAR is not available until the remaining release decisions and artifact checks are complete.
+Scholar `1.0.0` targets Minecraft Java Edition `1.21.1`, NeoForge `[21.1.249,21.2)`, and Java `21`. Install a compatible NeoForge client, place `scholar-1.0.0.jar` in that instance's `mods/` directory, launch Minecraft, enter a world, and run `/scholar`. The reference addon is optional and is not included in the Scholar JAR. The final artifact remains subject to release verification and owner approval.
 
 To build from source on Windows, run `.\gradlew.bat clean build`; on Unix-like systems run `./gradlew clean build`. The Gradle `9.2.1` wrapper uses a Java 21 toolchain and produces the mod JAR in `build/libs/`. `runClient` is for development, not installation proof.
 
@@ -30,7 +30,7 @@ Enter a Minecraft world and run `/scholar`. Home lets you create a blank or temp
 
 The semantic `Document` and its resources are canonical. Validation and editor transactions preserve invariants; layout derives pages, columns, geometry and labels; the Minecraft client renders that layout. Transfer and versioned persistence are separate boundaries, neither of which serializes transient view state. See [Architecture](docs/ARCHITECTURE.md) for the current layer map and ownership rules.
 
-M35 adds a deliberately small client-side addon API for documents, datasets, measurements, units, variables, analyses, and dataset-backed visuals. Only `dev.rgcb.scholar.api` and its documented subpackages are supported integration contracts; see [Scholar Addon API](docs/M35_SCHOLAR_API.md).
+M35 adds a deliberately small client-side addon API for documents, datasets, measurements, units, variables, analyses, and dataset-backed visuals. Only `dev.rgcb.scholar.api` and its documented subpackages are supported integration contracts; see [Scholar Addon API](docs/M35_SCHOLAR_API.md) and the [addon linking exception](LICENSE-EXCEPTION).
 
 ## Developing Scholar Addons
 
@@ -50,4 +50,4 @@ There is no separate contribution policy yet. For proposed changes, include focu
 
 ## License
 
-The mod metadata declares `All Rights Reserved`; the owner has not selected a general project license and the repository contains no project `LICENSE` file. This requires an explicit owner decision before public 1.0.0 publication. Bundled Source Sans 3 and Noto Sans Math fonts retain their own [OFL license texts](docs/licenses/fonts/), also included in the mod JAR. Bundled PDFBox components carry their own Apache license and notices inside their nested JARs.
+Scholar core is licensed under [GNU GPL-3.0-or-later](LICENSE) (`SPDX-License-Identifier: GPL-3.0-or-later`), with a [narrow linking exception](LICENSE-EXCEPTION) for independent addons using the documented public API. The separate [reference addon](examples/reference-addon/) is CC0-1.0; this does not relicense Scholar core. Bundled Source Sans 3 and Noto Sans Math fonts retain their own [OFL license texts](docs/licenses/fonts/), also included in the mod JAR. Bundled PDFBox components carry their own Apache license and notices inside their nested JARs. Author: Rómulo Colorado (rgcb0). The exception's final wording requires owner review before publication.

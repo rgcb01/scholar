@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0 - Release preparation
+## 1.0.0
 
 - **Document authoring:** local Home library, structured prose, headings, outline, TOC, cross-references, editing history, semantic clipboard, and save/reopen.
 - **Scientific typesetting:** equations, quantities, page settings, one/two columns, figures and captions, high-resolution readable document surface.
@@ -11,7 +11,7 @@
 - **Addon integration:** versioned client-side V1 API for supported Scholar content; separate reference addon remains an example.
 - **Reliability:** validated document format V2 with V1 loading, atomic-save attempt, bounded history, dirty-close protection, stress regression and bounded CSV import.
 
-The 1.0.0 release retains the accepted RC functionality. Final legal/author metadata, artifact verification and installation smoke test remain release gates; no release has been published.
+The 1.0.0 release retains the accepted RC functionality. Scholar core is GPL-3.0-or-later with a narrow documented-API addon linking exception; the separate reference example is CC0-1.0. Final artifact qualification and owner approval remain release gates; no release has been published.
 
 ## 1.0.0-rc.1 - Accepted release candidate
 
