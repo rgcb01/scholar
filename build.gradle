@@ -94,6 +94,12 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
 }
 
 tasks.named('processResources', ProcessResources) {
+    from('LICENSE') {
+        into 'META-INF/licenses/scholar'
+    }
+    from('LICENSE-EXCEPTION') {
+        into 'META-INF/licenses/scholar'
+    }
     from('docs/licenses/fonts') {
         into 'META-INF/licenses/fonts'
     }

@@ -44,7 +44,7 @@ The repository has advanced substantially beyond the original early-milestone ou
 
 ## Current Forward Milestone Plan
 
-M38 V1 Product Hardening is complete and manually accepted under feature freeze. See [M38_V1_HARDENING.md](M38_V1_HARDENING.md). M39 V1 Release Candidate is active on `codex/m39-v1-release-candidate`; installed-artifact qualification and manual acceptance remain open. Scholar 1.0 remains unreleased.
+M38 V1 Product Hardening and M39 V1 Release Candidate are complete and manually accepted under feature freeze. M39's installed-artifact qualification passed; see [M39_RELEASE_CANDIDATE.md](M39_RELEASE_CANDIDATE.md). Scholar 1.0 remains unreleased pending final artifact qualification and owner approval. There is no M40.
 
 The M25-M30 entries below are retained as historical plans and implementation checkpoints. For current acceptance, use the status list above and [MILESTONE_HISTORY.md](MILESTONE_HISTORY.md).
 

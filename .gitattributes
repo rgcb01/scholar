@@ -1,2 +1,6 @@
 src/main/resources/assets/scholar/font/*.json text eol=lf
 docs/licenses/fonts/*.txt text eol=lf
+src/main/templates/META-INF/neoforge.mods.toml text eol=lf
+LICENSE text eol=lf
+LICENSE-EXCEPTION text eol=lf
+examples/reference-addon/LICENSE text eol=lf

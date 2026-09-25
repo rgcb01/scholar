@@ -1,6 +1,6 @@
 # M39 - Scholar V1 Release Candidate
 
-Status: RC preparation on `codex/m39-v1-release-candidate`; **not manually accepted and not released**. M38 was accepted and merged to `main` as `8f9659a34b9ceb37a8b7cf96b066263aff491e25`; `main` matched `origin/main` and was clean before this branch. Absolute feature freeze remains in effect.
+Status: **manually accepted RC; final 1.0.0 not released**. This report records the original qualification checkpoint on `codex/m39-v1-release-candidate`. M38 was accepted and merged to `main` as `8f9659a34b9ceb37a8b7cf96b066263aff491e25`; `main` matched `origin/main` and was clean before the RC branch. Absolute feature freeze remains in effect.
 
 ## RC environment and artifact
 
@@ -33,7 +33,7 @@ There is no project `LICENSE` file. Repository README and mod TOML both say `All
 
 Current native writes remain `.scholar.json` schema V2; V1 is supported for loading. M39 does not bump the document schema or add release metadata to semantic files. Existing V1/V2 decode, M30-M34 content, corrupt-file rejection, atomic-save fault injection and M38 repeated save/load tests run in the full suite. This is automated compatibility evidence, not an installed-artifact upgrade test.
 
-No clean Minecraft installation or true process-exit/restart with the RC JAR has been performed by this report. Consequently there is **no clean-boot log, runtime crash report, verified mod-list entry, or installed-artifact API result** to classify yet. Do not mark M39 accepted or publish this artifact until the manual procedure below succeeds. A Scholar-caused clean-boot failure, data loss, unsupported document load, common workflow crash, fundamental PDF/CSV failure, broken supported addon, or license/notice violation is a release blocker. Cosmetic imperfections and deliberate V1 limits are not automatically blockers.
+At the time of this initial report, clean installation and process-exit/restart had not yet been performed. The owner subsequently accepted the exact RC artifact after independent-installation QA, including clean boot, restart/reopen, interchange, diagrams, GUI scale, reference-addon compatibility and upgrade compatibility. This acceptance does not replace final 1.0.0 artifact qualification. A Scholar-caused clean-boot failure, data loss, unsupported document load, common workflow crash, fundamental PDF/CSV failure, broken supported addon, or license/notice violation remains a release blocker.
 
 ## Clean-install and upgrade procedure
 
@@ -58,7 +58,7 @@ CSV import is bounded at 16 MiB; Markdown is lossy interchange, not native backu
 - Clean build, package inspection, metadata/notice audit: passed; final artifact identity is recorded above. Editing only this report does not change the JAR.
 - Fresh detached worktree build from committed RC source: passed with a byte-identical JAR. Worktree path is a temporary qualification checkout, not the user artifact path.
 - Full suite: 1706 tests, 0 failures. Transfer (3), Persistence (1), Application (1), Production Surface (6), Scholar API (3) boundary tests all passed in the clean build.
-- Clean installed-artifact boot, restart, interchange, addon and upgrade: **pending manual RC qualification**.
+- Clean installed-artifact boot, restart, interchange, addon and upgrade: **accepted by the owner for the exact RC artifact above**.
 - Project license and authors display: **human decisions pending**.
 
-Do not merge M39, tag 1.0.0, publish or start post-V1 work before manual acceptance.
+M39 was merged into `main` after manual acceptance. Do not tag or publish 1.0.0 before the separate final-release gates pass.
