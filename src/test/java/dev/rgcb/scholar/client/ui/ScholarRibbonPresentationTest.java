@@ -90,6 +90,15 @@ class ScholarRibbonPresentationTest {
                 .anyMatch(RibbonCommandPresentation::dropdown));
     }
 
+    @Test void layoutResolvesGroupTranslationKeysExactlyOnce() {
+        var home = tab(productionTabs(BuiltInEditorActions.viewMenuActions()), "scholar.menu.home");
+
+        var layout = RibbonLayout.compute(home, 1600);
+
+        assertEquals("Clipboard", layout.groups().getFirst().label());
+        assertFalse(layout.groups().stream().anyMatch(group -> group.label().startsWith("scholar.")));
+    }
+
     @Test void productionNeverExposesAnEmptyViewTab() {
         var withoutView = productionTabs(List.of());
         var withView = productionTabs(BuiltInEditorActions.viewMenuActions());

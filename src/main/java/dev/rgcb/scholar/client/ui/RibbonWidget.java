@@ -66,7 +66,7 @@ public final class RibbonWidget {
                 if (group.groupIndex() > 0) {
                     ScholarShellRenderer.drawVerticalSeparator(graphics, bounds.x(), bounds.y() + 2, 43);
                 }
-                var label = font.plainSubstrByWidth(ScholarText.get(group.label()), Math.max(8, bounds.width() - 6));
+                var label = font.plainSubstrByWidth(group.label(), Math.max(8, bounds.width() - 6));
                 graphics.drawCenteredString(font, label, bounds.x() + bounds.width() / 2,
                         commandBounds.bottom() - 10, 0xFFABB4C0);
             }
