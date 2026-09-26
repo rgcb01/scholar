@@ -2,6 +2,7 @@ package dev.rgcb.scholar.client.screen;
 
 import dev.rgcb.scholar.application.ScholarDocumentDescriptor;
 import dev.rgcb.scholar.client.ui.ScholarScreenRendering;
+import dev.rgcb.scholar.client.ui.ScholarText;
 import dev.rgcb.scholar.client.ui.ScholarShellRenderer;
 import dev.rgcb.scholar.client.ui.ScholarShellStyle;
 import net.minecraft.client.gui.GuiGraphics;
@@ -16,7 +17,7 @@ final class ScholarDeleteDialog extends Screen {
     private final ScholarDocumentDescriptor document;
 
     ScholarDeleteDialog(ScholarHomeScreen home, ScholarDocumentDescriptor document) {
-        super(Component.literal("Delete document?"));
+        super(ScholarText.component("scholar.confirm.delete_document"));
         this.home = home;
         this.document = document;
     }
@@ -24,8 +25,8 @@ final class ScholarDeleteDialog extends Screen {
     @Override protected void init() {
         var x = width / 2 - 102;
         var y = height / 2 + 22;
-        addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> onClose()).bounds(x, y, 98, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Delete").withStyle(ChatFormatting.RED), b -> {
+        addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.cancel"), b -> onClose()).bounds(x, y, 98, 20).build());
+        addRenderableWidget(Button.builder(ScholarText.component("scholar.action.delete").copy().withStyle(ChatFormatting.RED), b -> {
             home.confirmDelete(document.id());
             minecraft.setScreen(home);
         }).bounds(x + 106, y, 98, 20).build());
@@ -36,10 +37,10 @@ final class ScholarDeleteDialog extends Screen {
         var x = width / 2 - 126;
         var y = height / 2 - 54;
         ScholarShellRenderer.drawRaisedPanel(graphics, x, y, 252, 122, ScholarShellStyle.PANEL);
-        graphics.drawCenteredString(font, "Delete document?", width / 2, y + 15, 0xFFFFC0B7);
+        graphics.drawCenteredString(font, ScholarText.get("scholar.confirm.delete_document"), width / 2, y + 15, 0xFFFFC0B7);
         graphics.drawCenteredString(font, font.plainSubstrByWidth("\"" + document.displayName() + "\"", 232),
                 width / 2, y + 38, 0xFFFFFFFF);
-        graphics.drawCenteredString(font, "will be permanently deleted.", width / 2, y + 53, 0xFFFFFFFF);
+        graphics.drawCenteredString(font, ScholarText.get("scholar.confirm.delete_document.detail"), width / 2, y + 53, 0xFFFFFFFF);
         ScholarScreenRendering.renderWidgets(renderables, graphics, mouseX, mouseY, partialTick);
     }
 

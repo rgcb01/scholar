@@ -20,7 +20,7 @@ class MenuInputHardeningTest {
             public String getText() { return ""; }
             public boolean setText(String text) { return true; }
         }, () -> { }, () -> { });
-        var definitions = java.util.stream.IntStream.range(0, 12).mapToObj(i -> new MenuDefinition("Menu" + i,
+        var definitions = java.util.stream.IntStream.range(0, 12).mapToObj(i -> new MenuDefinition("scholar.menu.file",
                 List.of(MenuEntry.action(action(true, count))))).toList();
         var menu = new MenuBarWidget(controller, definitions);
         menu.setViewportSize(320, 180);
@@ -41,7 +41,7 @@ class MenuInputHardeningTest {
             public boolean setText(String text) { return true; }
         };
         var controller = new ScholarEditorController(session, clipboard, () -> { }, () -> { });
-        var menu = new MenuBarWidget(controller, List.of(new MenuDefinition("Edit", List.of(
+        var menu = new MenuBarWidget(controller, List.of(new MenuDefinition("scholar.menu.edit", List.of(
                 MenuEntry.action(action(false, count)), MenuEntry.separator(), MenuEntry.action(action(true, count))))));
         menu.setViewportSize(320, 240);
         assertTrue(menu.mouseClicked(8, 5));

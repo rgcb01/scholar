@@ -17,7 +17,8 @@ class ScholarShellModelTest {
                 BuiltInEditorActions.figureMenuActions(), BuiltInEditorActions.diagramMenuActions(),
                 BuiltInEditorActions.viewMenuActions());
 
-        assertEquals(List.of("File", "Home", "Insert", "Data", "Figure", "Diagram", "View"),
+        assertEquals(List.of("scholar.menu.file", "scholar.menu.home", "scholar.menu.insert",
+                        "scholar.menu.data", "scholar.menu.figure", "scholar.menu.diagram", "scholar.menu.view"),
                 tabs.stream().map(MenuDefinition::title).toList());
         assertEquals(file.getFirst(), tabs.getFirst().entries().getFirst().action().orElseThrow());
     }

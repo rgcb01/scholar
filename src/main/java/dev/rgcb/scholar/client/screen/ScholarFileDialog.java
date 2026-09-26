@@ -3,6 +3,7 @@ package dev.rgcb.scholar.client.screen;
 import dev.rgcb.scholar.editor.DocumentWorkspace;
 import dev.rgcb.scholar.editor.EditorDocumentWorkspace;
 import dev.rgcb.scholar.persistence.PersistenceResult;
+import dev.rgcb.scholar.client.ui.ScholarText;
 import dev.rgcb.scholar.client.ui.ScholarScreenRendering;
 import java.util.List;
 import net.minecraft.client.gui.GuiGraphics;
@@ -25,12 +26,12 @@ final class ScholarFileDialog extends Screen {
     private EditBox name;
 
     private ScholarFileDialog(ScholarEditorScreen parent, EditorDocumentWorkspace workspace, Mode mode, Runnable continuation) {
-        super(Component.literal(switch (mode) {
-            case OPEN -> "Open Scholar Document";
-            case SAVE -> "Save Scholar Document";
-            case RENAME -> "Rename Scholar Document";
-            case UNSAVED -> "Unsaved Changes";
-            case ERROR -> "Scholar Document Error";
+        super(ScholarText.component(switch (mode) {
+            case OPEN -> "scholar.dialog.open_document.title";
+            case SAVE -> "scholar.dialog.save_document.title";
+            case RENAME -> "scholar.dialog.rename_document.title";
+            case UNSAVED -> "scholar.dialog.unsaved.title";
+            case ERROR -> "scholar.error.document.title";
         }));
         this.parent = parent;
         this.workspace = workspace;
@@ -68,7 +69,7 @@ final class ScholarFileDialog extends Screen {
             var result = legacy.list();
             if (result instanceof PersistenceResult.Success<List<String>> success) {
                 names = success.value();
-                if (names.isEmpty()) message = "No saved Scholar documents.";
+                if (names.isEmpty()) message = ScholarText.get("scholar.document.none_saved");
             } else message = result.diagnostics().getFirst().message();
             var rows = Math.max(1, Math.min(8, (height - 112) / 24));
             page = Math.max(0, Math.min(page, Math.max(0, (names.size() - 1) / rows)));
@@ -86,19 +87,20 @@ final class ScholarFileDialog extends Screen {
             previous.active = page > 0;
             var next = addRenderableWidget(Button.builder(Component.literal(">"), b -> { page++; rebuildWidgets(); }).bounds(x + 36, y, 30, 20).build());
             next.active = (page + 1) * rows < names.size();
-            addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> onClose()).bounds(x + w - 80, y, 80, 20).build());
+            addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.cancel"), b -> onClose()).bounds(x + w - 80, y, 80, 20).build());
         } else if (mode == Mode.SAVE || mode == Mode.RENAME) {
-            name = new EditBox(font, x, 52, w, 20, Component.literal("Document Name"));
+            name = new EditBox(font, x, 52, w, 20, ScholarText.component("scholar.document.name"));
             name.setMaxLength(64);
             name.setValue(draft);
             name.setResponder(value -> draft = value);
             addRenderableWidget(name);
             setInitialFocus(name);
-            addRenderableWidget(Button.builder(Component.literal(mode == Mode.RENAME ? "Rename" : "Save"), b -> saveNamedDocument()).bounds(x, 88, w / 2 - 3, 20).build());
-            addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> onClose()).bounds(x + w / 2 + 3, 88, w / 2 - 3, 20).build());
+            addRenderableWidget(Button.builder(ScholarText.component(mode == Mode.RENAME
+                    ? "scholar.action.file_rename" : "scholar.action.file_save"), b -> saveNamedDocument()).bounds(x, 88, w / 2 - 3, 20).build());
+            addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.cancel"), b -> onClose()).bounds(x + w / 2 + 3, 88, w / 2 - 3, 20).build());
         } else if (mode == Mode.UNSAVED) {
-            message = "Save changes before continuing?";
-            addRenderableWidget(Button.builder(Component.literal("Save"), b -> {
+            message = ScholarText.get("scholar.confirm.save_changes");
+            addRenderableWidget(Button.builder(ScholarText.component("scholar.action.file_save"), b -> {
                 if (workspace.name().isEmpty()) minecraft.setScreen(save(parent, workspace, continuation));
                 else {
                     var result = workspace.save();
@@ -106,10 +108,10 @@ final class ScholarFileDialog extends Screen {
                     else message = result.diagnostics().getFirst().message();
                 }
             }).bounds(x, 78, w / 3 - 4, 20).build());
-            addRenderableWidget(Button.builder(Component.literal("Discard"), b -> continuation.run()).bounds(x + w / 3, 78, w / 3 - 4, 20).build());
-            addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> onClose()).bounds(x + w * 2 / 3, 78, w / 3, 20).build());
+            addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.discard"), b -> continuation.run()).bounds(x + w / 3, 78, w / 3 - 4, 20).build());
+            addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.cancel"), b -> onClose()).bounds(x + w * 2 / 3, 78, w / 3, 20).build());
         } else {
-            addRenderableWidget(Button.builder(Component.literal("Back"), b -> onClose()).bounds(x, 88, w, 20).build());
+            addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.back"), b -> onClose()).bounds(x, 88, w, 20).build());
         }
     }
 
@@ -150,7 +152,7 @@ final class ScholarFileDialog extends Screen {
                 minecraft.setScreen(new net.minecraft.client.gui.screens.ConfirmScreen(confirmed -> {
                     minecraft.setScreen(this);
                     if (confirmed) commitSave(selected);
-                }, Component.literal("Replace Saved Document?"), Component.literal(selected)));
+                }, ScholarText.component("scholar.confirm.replace_document"), Component.literal(selected)));
                 return;
             }
         }

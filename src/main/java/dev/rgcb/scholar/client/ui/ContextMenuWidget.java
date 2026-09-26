@@ -58,7 +58,7 @@ public final class ContextMenuWidget {
             }
             renderActionState(graphics, y, controller.selectionState(action));
             var color = enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED;
-            graphics.drawString(font, action.label(), bounds.x() + LABEL_X, y + 5, color, false);
+            graphics.drawString(font, ScholarText.actionLabel(action), bounds.x() + LABEL_X, y + 5, color, false);
             action.shortcut().ifPresent(shortcut -> {
                 var shortcutText = shortcut.displayText();
                 graphics.drawString(

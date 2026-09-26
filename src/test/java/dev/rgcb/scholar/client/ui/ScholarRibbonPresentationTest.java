@@ -55,11 +55,15 @@ class ScholarRibbonPresentationTest {
     @Test void responsiveLayoutUsesFullThenShortThenIconLabelsWithoutDroppingCommands() {
         var commands = Arrays.stream(EditorActionId.values()).limit(6)
                 .map(id -> RibbonCommandPresentation.action(action(id, "Long Command Name", null),
-                        RibbonCommandSize.MEDIUM, "Command")).toList();
-        var tab = new RibbonTabDefinition("Data", List.of(new RibbonGroupDefinition("Commands", commands)));
+                        RibbonCommandSize.MEDIUM, "scholar.ribbon.short.open")).toList();
+        var tab = new RibbonTabDefinition("scholar.menu.data", List.of(
+                new RibbonGroupDefinition("scholar.ribbon.group.document", commands)));
 
         var wide = RibbonLayout.compute(tab, 1200);
-        var shortened = RibbonLayout.compute(tab, 260);
+        var shortened = java.util.stream.IntStream.rangeClosed(81, 1199)
+                .mapToObj(width -> RibbonLayout.compute(tab, width))
+                .filter(layout -> layout.labelMode() == RibbonLabelMode.SHORT)
+                .findFirst().orElseThrow();
         var narrow = RibbonLayout.compute(tab, 80);
 
         assertEquals(RibbonLabelMode.FULL, wide.labelMode());
@@ -67,16 +71,18 @@ class ScholarRibbonPresentationTest {
         assertEquals(RibbonLabelMode.ICON_ONLY, narrow.labelMode());
         assertEquals(commands.size(), narrow.commands().size());
         assertTrue(wide.commands().getFirst().bounds().width()
-                >= RibbonLayout.estimatedTextWidth("Long Command Name") + 28);
+                >= RibbonLayout.estimatedTextWidth("New") + 28);
     }
 
     @Test void productionModelProvidesIntentionalTabsGroupsAndCommandHierarchy() {
         var tabs = productionTabs(BuiltInEditorActions.viewMenuActions());
 
-        assertEquals(List.of("File", "Home", "Insert", "Data", "Figure", "Diagram", "Layout", "View"),
+        assertEquals(List.of("scholar.menu.file", "scholar.menu.home", "scholar.menu.insert", "scholar.menu.data",
+                        "scholar.menu.figure", "scholar.menu.diagram", "scholar.menu.layout", "scholar.menu.view"),
                 tabs.stream().map(RibbonTabDefinition::label).toList());
         var home = tabs.get(1);
-        assertEquals(List.of("Clipboard", "History", "Style", "Font", "Paragraph"),
+        assertEquals(List.of("scholar.ribbon.group.clipboard", "scholar.ribbon.group.history",
+                        "scholar.ribbon.group.style", "scholar.ribbon.group.font", "scholar.ribbon.group.paragraph"),
                 home.groups().stream().map(RibbonGroupDefinition::label).toList());
         assertTrue(home.groups().stream().flatMap(group -> group.commands().stream())
                 .anyMatch(command -> command.size() == RibbonCommandSize.LARGE));
@@ -88,21 +94,21 @@ class ScholarRibbonPresentationTest {
         var withoutView = productionTabs(List.of());
         var withView = productionTabs(BuiltInEditorActions.viewMenuActions());
 
-        assertFalse(withoutView.stream().anyMatch(tab -> tab.label().equals("View")));
-        assertTrue(withView.stream().filter(tab -> tab.label().equals("View"))
+        assertFalse(withoutView.stream().anyMatch(tab -> tab.label().equals("scholar.menu.view")));
+        assertTrue(withView.stream().filter(tab -> tab.label().equals("scholar.menu.view"))
                 .allMatch(tab -> tab.groups().stream().anyMatch(group -> !group.commands().isEmpty())));
         assertTrue(withView.stream().allMatch(tab -> tab.groups().stream().anyMatch(group -> !group.commands().isEmpty())));
     }
 
     @Test void dataTabGroupsAnalysisCommands() {
-        var data = tab(productionTabs(BuiltInEditorActions.viewMenuActions()), "Data");
-        var analysis = data.groups().stream().filter(group -> group.label().equals("Analysis")).findFirst().orElseThrow();
+        var data = tab(productionTabs(BuiltInEditorActions.viewMenuActions()), "scholar.menu.data");
+        var analysis = data.groups().stream().filter(group -> group.label().equals("scholar.ribbon.group.analysis")).findFirst().orElseThrow();
         assertEquals(List.of(EditorActionId.DATA_INSERT_ANALYSIS, EditorActionId.DATA_EDIT_ANALYSIS,
                 EditorActionId.DATA_ADD_FIT_OVERLAY), analysis.commands().stream().map(command -> command.action().id()).toList());
     }
 
     @Test void homeUsesReadableValueControlsAndDistinctScientificFormattingIcons() {
-        var home = tab(productionTabs(BuiltInEditorActions.viewMenuActions()), "Home");
+        var home = tab(productionTabs(BuiltInEditorActions.viewMenuActions()), "scholar.menu.home");
         var commands = home.groups().stream().flatMap(group -> group.commands().stream()).toList();
         assertTrue(commands.stream().anyMatch(command -> command.label(command.action(), RibbonLabelMode.FULL)
                 .startsWith("Style: ")));
@@ -137,9 +143,10 @@ class ScholarRibbonPresentationTest {
 
     @Test void diagramUsesPurposePalettesAndPreservesEveryActionExactlyOnce() {
         var tabs = productionTabs(BuiltInEditorActions.viewMenuActions());
-        var diagram = tabs.stream().filter(tab -> tab.label().equals("Diagram")).findFirst().orElseThrow();
+        var diagram = tabs.stream().filter(tab -> tab.label().equals("scholar.menu.diagram")).findFirst().orElseThrow();
 
-        assertEquals(List.of("Create", "Electrical", "Mechanical", "Workspace"),
+        assertEquals(List.of("scholar.ribbon.group.create", "scholar.ribbon.group.electrical",
+                        "scholar.ribbon.group.mechanical", "scholar.ribbon.group.workspace"),
                 diagram.groups().stream().map(RibbonGroupDefinition::label).toList());
         assertTrue(diagram.groups().get(1).commands().stream().allMatch(RibbonCommandPresentation::palette));
         assertTrue(diagram.groups().get(2).commands().stream().allMatch(RibbonCommandPresentation::palette));
@@ -155,27 +162,27 @@ class ScholarRibbonPresentationTest {
 
     @Test void wideFileInsertAndDataLayoutsKeepImportantLabelsInFull() {
         var tabs = productionTabs(BuiltInEditorActions.viewMenuActions());
-        for (var tabName : List.of("File", "Insert", "Data")) {
+        for (var tabName : List.of("scholar.menu.file", "scholar.menu.insert", "scholar.menu.data")) {
             assertEquals(RibbonLabelMode.FULL,
                     RibbonLayout.compute(tab(tabs, tabName), 1600).labelMode(), tabName);
         }
-        assertTrue(labels(tab(tabs, "File")).containsAll(List.of("New", "Open / Home", "Save", "Save As...", "Rename...", "Close")));
-        assertTrue(labels(tab(tabs, "Insert")).containsAll(List.of("New Dataset", "Cross Reference", "Table of Contents")));
-        assertTrue(labels(tab(tabs, "Data")).contains("New Dataset"));
+        assertTrue(labels(tab(tabs, "scholar.menu.file")).containsAll(List.of("New", "Open", "Save", "Save As", "Rename", "Close")));
+        assertTrue(labels(tab(tabs, "scholar.menu.insert")).containsAll(List.of("New Dataset", "Cross Reference", "Table of Contents")));
+        assertTrue(labels(tab(tabs, "scholar.menu.data")).contains("New Dataset"));
     }
 
     @Test void scientificUnitsUseCompactContextualPalettes() {
         var tabs = productionTabs(BuiltInEditorActions.viewMenuActions());
-        var insert = tab(tabs, "Insert");
-        var data = tab(tabs, "Data");
+        var insert = tab(tabs, "scholar.menu.insert");
+        var data = tab(tabs, "scholar.menu.data");
         var quantity = insert.groups().stream().flatMap(group -> group.commands().stream())
-                .filter(command -> "Quantity".equals(command.labelOverride())).findFirst().orElseThrow();
+                .filter(command -> "scholar.ribbon.palette.quantity".equals(command.labelOverride())).findFirst().orElseThrow();
         var columnUnit = data.groups().stream().flatMap(group -> group.commands().stream())
-                .filter(command -> "Column Unit".equals(command.labelOverride())).findFirst().orElseThrow();
+                .filter(command -> "scholar.ribbon.palette.column_unit".equals(command.labelOverride())).findFirst().orElseThrow();
         var xAxisUnit = data.groups().stream().flatMap(group -> group.commands().stream())
-                .filter(command -> "X Axis Unit".equals(command.labelOverride())).findFirst().orElseThrow();
+                .filter(command -> "scholar.ribbon.palette.x_axis_unit".equals(command.labelOverride())).findFirst().orElseThrow();
         var yAxisUnit = data.groups().stream().flatMap(group -> group.commands().stream())
-                .filter(command -> "Y Axis Unit".equals(command.labelOverride())).findFirst().orElseThrow();
+                .filter(command -> "scholar.ribbon.palette.y_axis_unit".equals(command.labelOverride())).findFirst().orElseThrow();
         assertTrue(quantity.palette());
         assertEquals(ScholarIcons.UNIT, quantity.icon());
         assertTrue(quantity.choices().stream().map(EditorAction::id).toList().contains(EditorActionId.INSERT_QUANTITY_ACCELERATION));

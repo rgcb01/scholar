@@ -1,6 +1,7 @@
 package dev.rgcb.scholar.client.screen;
 
 import dev.rgcb.scholar.client.ui.ScholarScreenRendering;
+import dev.rgcb.scholar.client.ui.ScholarText;
 import dev.rgcb.scholar.data.ScientificDataset;
 import dev.rgcb.scholar.editor.EditorSession;
 import dev.rgcb.scholar.interchange.CsvDatasetInterchange;
@@ -48,11 +49,11 @@ final class ScholarInterchangeDialog extends Screen {
 
     private ScholarInterchangeDialog(ScholarEditorScreen parent, EditorSession session, Mode mode,
                                      Supplier<LaidOutDocument> layout) {
-        super(Component.literal(switch (mode) {
-            case IMPORT_CSV -> "Import CSV dataset";
-            case EXPORT_CSV -> "Export dataset as CSV";
-            case EXPORT_MARKDOWN -> "Export Markdown";
-            case EXPORT_PDF -> "Export PDF";
+        super(ScholarText.component(switch (mode) {
+            case IMPORT_CSV -> "scholar.import.csv.title";
+            case EXPORT_CSV -> "scholar.export.csv.title";
+            case EXPORT_MARKDOWN -> "scholar.export.markdown.title";
+            case EXPORT_PDF -> "scholar.export.pdf.title";
         }));
         this.parent = parent;
         this.session = session;
@@ -96,7 +97,7 @@ final class ScholarInterchangeDialog extends Screen {
                 addRenderableWidget(Button.builder(Component.literal(file.getFileName().toString()), b -> selectFile(index))
                         .bounds(x, 46 + i * 23, w, 20).build());
             }
-            if (csvFiles.isEmpty() && message.isEmpty()) message = "Place a .csv file in " + directory;
+            if (csvFiles.isEmpty() && message.isEmpty()) message = ScholarText.get("scholar.import.csv.place_file", directory);
         } else {
             if (mode == Mode.EXPORT_CSV) {
                 var datasets = session.current().document().datasets();
@@ -106,7 +107,7 @@ final class ScholarInterchangeDialog extends Screen {
                     addRenderableWidget(Button.builder(Component.literal(dataset.displayLabel()), b -> selectDataset(index))
                             .bounds(x, 46 + i * 23, w, 20).build());
                 }
-                if (datasets.isEmpty()) message = "This document has no datasets to export.";
+                if (datasets.isEmpty()) message = ScholarText.get("scholar.export.no_datasets");
             }
         }
         var count = mode == Mode.IMPORT_CSV ? csvFiles.size()
@@ -123,7 +124,8 @@ final class ScholarInterchangeDialog extends Screen {
         inputY = mode == Mode.EXPORT_MARKDOWN || mode == Mode.EXPORT_PDF
                 ? Math.min(height - 104, 100) : Math.min(height - 104, navigationY + 25);
         previewTop = inputY + 58;
-        name = new EditBox(font, x, inputY, w, 20, Component.literal(mode == Mode.IMPORT_CSV ? "Dataset name" : "Export filename"));
+        name = new EditBox(font, x, inputY, w, 20, ScholarText.component(mode == Mode.IMPORT_CSV
+                ? "scholar.dataset.name" : "scholar.export.filename"));
         name.setMaxLength(120);
         var defaultName = switch (mode) {
             case IMPORT_CSV -> "Imported dataset";
@@ -134,9 +136,10 @@ final class ScholarInterchangeDialog extends Screen {
         name.setValue(nameDraft == null ? defaultName : nameDraft);
         name.setResponder(value -> nameDraft = value);
         addRenderableWidget(name);
-        addRenderableWidget(Button.builder(Component.literal(mode == Mode.IMPORT_CSV ? "Import" : "Export"), b -> submit())
+        addRenderableWidget(Button.builder(ScholarText.component(mode == Mode.IMPORT_CSV
+                ? "scholar.import.action" : "scholar.export.action"), b -> submit())
                 .bounds(x, inputY + 28, w / 2 - 3, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> onClose())
+        addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.cancel"), b -> onClose())
                 .bounds(x + w / 2 + 3, inputY + 28, w / 2 - 3, 20).build());
         if (mode == Mode.IMPORT_CSV && preview != null && preview.columns().size() > visibleColumns()) {
             var previous = addRenderableWidget(Button.builder(Component.literal("<"), b -> changeColumnPage(-1))
@@ -158,7 +161,7 @@ final class ScholarInterchangeDialog extends Screen {
         var request = ++previewRequest;
         preview = null;
         fileIndex = -1;
-        message = "Reading " + selected.getFileName() + "...";
+        message = ScholarText.get("scholar.import.reading", selected.getFileName());
         java.util.concurrent.CompletableFuture.supplyAsync(() -> {
             try { return interchange.previewCsv(selected); }
             catch (IOException failed) { throw new java.io.UncheckedIOException(failed); }
@@ -166,7 +169,7 @@ final class ScholarInterchangeDialog extends Screen {
             if (request != previewRequest) return;
             if (error != null) {
                 var cause = error.getCause() == null ? error : error.getCause();
-                message = "CSV import failed: " + cause.getMessage();
+                message = ScholarText.get("scholar.error.import_csv", cause.getMessage());
                 return;
             }
             preview = result;
@@ -186,14 +189,14 @@ final class ScholarInterchangeDialog extends Screen {
     private void submit() {
         if (busy) return;
         if (directory == null) {
-            message = "Interchange directory is unavailable.";
+            message = ScholarText.get("scholar.error.interchange_directory");
             return;
         }
         if (mode == Mode.IMPORT_CSV) {
-            if (preview == null || fileIndex < 0) { message = "Select a valid CSV file first."; return; }
+            if (preview == null || fileIndex < 0) { message = ScholarText.get("scholar.error.select_csv"); return; }
             try {
                 if (!interchange.importCsv(session, preview, name.getValue())) {
-                    message = "Dataset import is unavailable in the current editing scope.";
+                    message = ScholarText.get("scholar.error.dataset_import_scope");
                     return;
                 }
                 minecraft.setScreen(parent);
@@ -202,7 +205,7 @@ final class ScholarInterchangeDialog extends Screen {
         }
         var raw = name.getValue().trim();
         if (raw.isEmpty() || raw.equals(".") || raw.equals("..") || raw.contains("/") || raw.contains("\\") || raw.contains(":")) {
-            message = "Enter a filename without path separators.";
+            message = ScholarText.get("scholar.error.filename_path_separators");
             return;
         }
         var extension = mode == Mode.EXPORT_CSV ? ".csv" : mode == Mode.EXPORT_PDF ? ".pdf" : ".md";
@@ -213,7 +216,7 @@ final class ScholarInterchangeDialog extends Screen {
             minecraft.setScreen(new ConfirmScreen(confirmed -> {
                 minecraft.setScreen(this);
                 if (confirmed) export(target, true);
-            }, Component.literal("Replace export?"), Component.literal(confirmedName)));
+            }, ScholarText.component("scholar.confirm.replace_export"), Component.literal(confirmedName)));
         } else export(target, false);
     }
 
@@ -221,24 +224,24 @@ final class ScholarInterchangeDialog extends Screen {
         var document = session.current().document();
         var dataset = mode == Mode.EXPORT_CSV && !document.datasets().isEmpty()
                 ? document.datasets().get(Math.min(datasetIndex, document.datasets().size() - 1)) : null;
-        if (mode == Mode.EXPORT_CSV && dataset == null) { message = "No dataset selected."; return; }
+        if (mode == Mode.EXPORT_CSV && dataset == null) { message = ScholarText.get("scholar.error.no_dataset_selected"); return; }
         LaidOutDocument pages;
         try { pages = mode == Mode.EXPORT_PDF ? layout.get() : null; }
         catch (RuntimeException failed) {
-            message = "Document layout failed: " + failed.getMessage();
+            message = ScholarText.get("scholar.error.document_layout", failed.getMessage());
             return;
         }
-        if (mode == Mode.EXPORT_PDF && pages == null) { message = "Document layout is not ready."; return; }
+        if (mode == Mode.EXPORT_PDF && pages == null) { message = ScholarText.get("scholar.error.document_layout_not_ready"); return; }
         busy = true;
-        message = "Exporting...";
+        message = ScholarText.get("scholar.export.progress");
         java.util.concurrent.CompletableFuture.runAsync(() -> {
             try {
                 if (mode == Mode.EXPORT_CSV) interchange.exportCsv(dataset, target, overwrite);
                 else if (mode == Mode.EXPORT_MARKDOWN) interchange.exportMarkdown(document, target, overwrite);
                 else interchange.exportPdf(document, pages, target, overwrite);
-                minecraft.execute(() -> { busy = false; message = "Exported to " + target; });
+                minecraft.execute(() -> { busy = false; message = ScholarText.get("scholar.export.success", target); });
             } catch (Exception failed) {
-                minecraft.execute(() -> { busy = false; message = "Export failed: " + failed.getMessage(); });
+                minecraft.execute(() -> { busy = false; message = ScholarText.get("scholar.error.export", failed.getMessage()); });
             }
         });
     }
@@ -249,11 +252,12 @@ final class ScholarInterchangeDialog extends Screen {
         ScholarScreenRendering.renderWidgets(renderables, graphics, mouseX, mouseY, partialTick);
         var x = Math.max(12, (width - 430) / 2);
         if (mode == Mode.IMPORT_CSV && preview != null) {
-            graphics.drawString(font, "Rows: " + preview.rows().size(), x, previewTop, 0xFFE0E0E0);
+            graphics.drawString(font, ScholarText.get("scholar.dataset.rows", preview.rows().size()), x, previewTop, 0xFFE0E0E0);
             for (var i = columnPage * visibleColumns(); i < Math.min((columnPage + 1) * visibleColumns(), preview.columns().size()); i++) {
                 var column = preview.columns().get(i);
                 var y = previewTop + 16 + (i - columnPage * visibleColumns()) * 12;
-                if (y < height - 48) graphics.drawString(font, column.displayName() + " - " + column.type()
+                if (y < height - 48) graphics.drawString(font, column.displayName() + " - "
+                                + ScholarText.get("scholar.dataset.column_type." + column.type().name().toLowerCase(java.util.Locale.ROOT))
                                 + column.unit().map(unit -> " [" + column.quantitySemantics().valuePrefix(true)
                                         + dev.rgcb.scholar.quantity.UnitRegistry.builtIn().displaySymbol(unit, true) + "]").orElse(""),
                         x, y, 0xFFE0E0E0);

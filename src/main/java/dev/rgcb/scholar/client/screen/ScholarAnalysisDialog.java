@@ -11,6 +11,7 @@ import dev.rgcb.scholar.quantity.UnitExpression;
 import dev.rgcb.scholar.quantity.UnitParser;
 import dev.rgcb.scholar.client.ui.ScholarScreenRendering;
 import dev.rgcb.scholar.client.ui.AnalysisChoiceLabels;
+import dev.rgcb.scholar.client.ui.ScholarText;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -40,10 +41,10 @@ final class ScholarAnalysisDialog extends Screen {
     private String error = "";
 
     ScholarAnalysisDialog(ScholarEditorScreen parent, EditorSession session, ComputationDialogKind mode) {
-        super(Component.literal(switch (mode) {
-            case INSERT_ANALYSIS -> "Insert Analysis";
-            case EDIT_ANALYSIS -> "Edit Analysis";
-            case ADD_FIT_OVERLAY -> "Add Fit to Plot";
+        super(ScholarText.component(switch (mode) {
+            case INSERT_ANALYSIS -> "scholar.dialog.analysis.insert";
+            case EDIT_ANALYSIS -> "scholar.dialog.analysis.edit";
+            case ADD_FIT_OVERLAY -> "scholar.dialog.analysis.add_fit";
             default -> throw new IllegalArgumentException("Not an analysis dialog mode.");
         }));
         this.parent = parent;
@@ -59,9 +60,9 @@ final class ScholarAnalysisDialog extends Screen {
         if (mode == ComputationDialogKind.ADD_FIT_OVERLAY) {
             selectors.add(addRenderableWidget(Button.builder(Component.empty(), button -> toggle(0))
                     .bounds(x, y + 28, w, 20).build()));
-            addRenderableWidget(Button.builder(Component.literal("Add Fit"), button -> apply())
+            addRenderableWidget(Button.builder(ScholarText.component("scholar.action.data_add_fit_overlay"), button -> apply())
                     .bounds(x, y + 66, w / 2 - 3, 20).build());
-            addRenderableWidget(Button.builder(Component.literal("Cancel"), button -> onClose())
+            addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.cancel"), button -> onClose())
                     .bounds(x + w / 2 + 3, y + 66, w / 2 - 3, 20).build());
         } else {
             for (var i = 0; i < 4; i++) {
@@ -71,8 +72,8 @@ final class ScholarAnalysisDialog extends Screen {
             }
             selectors.add(addRenderableWidget(Button.builder(Component.empty(), button -> toggle(4))
                     .bounds(x, y + 144, w, 20).build()));
-            displayUnit = new EditBox(font, x, y + 179, w, 20, Component.literal("Display unit (optional)"));
-            displayUnit.setHint(Component.literal("Display unit (optional)"));
+            displayUnit = new EditBox(font, x, y + 179, w, 20, ScholarText.component("scholar.dataset.display_unit_optional"));
+            displayUnit.setHint(ScholarText.component("scholar.dataset.display_unit_optional"));
             displayUnit.setMaxLength(64);
             addRenderableWidget(displayUnit);
             if (mode == ComputationDialogKind.EDIT_ANALYSIS) {
@@ -80,9 +81,9 @@ final class ScholarAnalysisDialog extends Screen {
                 displayUnit.setValue(block.displayUnit().map(value -> value.displaySymbol(
                         dev.rgcb.scholar.quantity.UnitRegistry.builtIn())).orElse(""));
             }
-            addRenderableWidget(Button.builder(Component.literal("Apply"), button -> apply())
+            addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.apply"), button -> apply())
                     .bounds(x, y + 207, w / 2 - 3, 20).build());
-            addRenderableWidget(Button.builder(Component.literal("Cancel"), button -> onClose())
+            addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.cancel"), button -> onClose())
                     .bounds(x + w / 2 + 3, y + 207, w / 2 - 3, 20).build());
         }
         refreshLabels();
@@ -122,10 +123,17 @@ final class ScholarAnalysisDialog extends Screen {
                 .map(value -> AnalysisChoiceLabels.fit(session.current().document(), value)).toList();
         return switch (field) {
             case 0 -> session.current().document().datasets().stream().map(value -> value.displayLabel()).toList();
-            case 1 -> List.of("Descriptive Statistics", "Linear Regression", "Quadratic Fit", "Cubic Fit");
+            case 1 -> List.of(
+                    ScholarText.get("scholar.dataset.analysis.descriptive"),
+                    ScholarText.get("scholar.dataset.analysis.linear_regression"),
+                    ScholarText.get("scholar.dataset.analysis.quadratic_fit"),
+                    ScholarText.get("scholar.dataset.analysis.cubic_fit"));
             case 2, 3 -> numericColumns().stream().map(value -> value.displayName()
                     + value.unit().map(unit -> " (" + unit.displaySymbol(dev.rgcb.scholar.quantity.UnitRegistry.builtIn()) + ")").orElse("")).toList();
-            case 4 -> List.of("Decimal", "Scientific", "Engineering");
+            case 4 -> List.of(
+                    ScholarText.get("scholar.dataset.number_format.decimal"),
+                    ScholarText.get("scholar.dataset.number_format.scientific"),
+                    ScholarText.get("scholar.dataset.number_format.engineering"));
             default -> List.of();
         };
     }
@@ -159,12 +167,16 @@ final class ScholarAnalysisDialog extends Screen {
 
     private void refreshLabels() {
         var names = mode == ComputationDialogKind.ADD_FIT_OVERLAY
-                ? List.of("Fit") : List.of("Dataset", "Analysis", "X column", "Y column", "Number format");
+                ? List.of(ScholarText.get("scholar.dataset.fit")) : List.of(
+                ScholarText.get("scholar.dataset.dataset"), ScholarText.get("scholar.dataset.analysis"),
+                ScholarText.get("scholar.dataset.x_column"), ScholarText.get("scholar.dataset.y_column"),
+                ScholarText.get("scholar.dataset.number_format"));
         for (var i = 0; i < selectors.size(); i++) {
             var values = options(i);
             var index = selected(i);
-            var label = i == 2 && kindIndex == 0 ? "X column: not used" : names.get(i) + ": "
-                    + (values.isEmpty() ? "[none]" : values.get(Math.min(index, values.size() - 1)));
+            var label = i == 2 && kindIndex == 0 ? ScholarText.get("scholar.dataset.x_column_unused")
+                    : ScholarText.get("scholar.dataset.selector", names.get(i),
+                    values.isEmpty() ? ScholarText.get("scholar.dataset.none") : values.get(Math.min(index, values.size() - 1)));
             selectors.get(i).setMessage(Component.literal(label + "  v"));
             selectors.get(i).active = !(i == 2 && kindIndex == 0);
         }
@@ -180,12 +192,13 @@ final class ScholarAnalysisDialog extends Screen {
             boolean changed;
             if (mode == ComputationDialogKind.ADD_FIT_OVERLAY) {
                 var available = fits();
-                if (available.isEmpty()) throw new IllegalArgumentException("Insert a regression analysis first.");
+                if (available.isEmpty()) throw new IllegalArgumentException(ScholarText.get("scholar.error.analysis.insert_regression_first"));
                 changed = session.addFitOverlay(available.get(Math.min(fitIndex, available.size() - 1)).id());
             } else {
                 var datasets = session.current().document().datasets();
                 var columns = numericColumns();
-                if (datasets.isEmpty() || columns.isEmpty()) throw new IllegalArgumentException("Select a dataset with numeric columns.");
+                if (datasets.isEmpty() || columns.isEmpty()) throw new IllegalArgumentException(
+                        ScholarText.get("scholar.error.analysis.select_numeric_dataset"));
                 var kind = AnalysisKind.values()[kindIndex];
                 var x = kind.isFit() ? Optional.of(columns.get(Math.min(xIndex, columns.size() - 1)).id()) : Optional.<String>empty();
                 var y = columns.get(Math.min(yIndex, columns.size() - 1)).id();
@@ -197,7 +210,7 @@ final class ScholarAnalysisDialog extends Screen {
                         ? session.insertAnalysis(datasets.get(datasetIndex).id(), kind, x, y, unit, notation)
                         : session.editAnalysis(datasets.get(datasetIndex).id(), kind, x, y, unit, notation);
             }
-            if (!changed) throw new IllegalArgumentException("Analysis is not computable or no document change was made.");
+            if (!changed) throw new IllegalArgumentException(ScholarText.get("scholar.error.analysis.not_computable"));
             parent.refreshComputationLayout();
             onClose();
         } catch (IllegalArgumentException exception) { error = exception.getMessage(); }

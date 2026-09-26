@@ -12,19 +12,22 @@ public final class AnalysisChoiceLabels {
     public static String fit(Document document, DatasetAnalysisBlock fit) {
         var dataset = document.datasets().stream().filter(value -> value.id().equals(fit.datasetId()))
                 .findFirst();
-        var datasetName = dataset.map(ScientificDataset::displayLabel).orElse("Missing dataset");
+        var datasetName = dataset.map(ScientificDataset::displayLabel)
+                .orElseGet(() -> ScholarTranslations.get("scholar.dataset.missing"));
         var xName = dataset.flatMap(value -> value.columns().stream()
                 .filter(column -> fit.xColumnId().filter(column.id()::equals).isPresent())
-                .findFirst()).map(DatasetColumn::displayName).orElse("Missing X column");
+                .findFirst()).map(DatasetColumn::displayName)
+                .orElseGet(() -> ScholarTranslations.get("scholar.dataset.missing_x_column"));
         var yName = dataset.flatMap(value -> value.columns().stream()
                 .filter(column -> column.id().equals(fit.yColumnId())).findFirst())
-                .map(DatasetColumn::displayName).orElse("Missing Y column");
+                .map(DatasetColumn::displayName)
+                .orElseGet(() -> ScholarTranslations.get("scholar.dataset.missing_y_column"));
         var kind = switch (fit.kind()) {
-            case DESCRIPTIVE -> "Descriptive statistics";
-            case LINEAR_REGRESSION -> "Linear regression";
-            case QUADRATIC_FIT -> "Quadratic fit";
-            case CUBIC_FIT -> "Cubic fit";
+            case DESCRIPTIVE -> ScholarTranslations.get("scholar.dataset.analysis.descriptive");
+            case LINEAR_REGRESSION -> ScholarTranslations.get("scholar.dataset.analysis.linear_regression");
+            case QUADRATIC_FIT -> ScholarTranslations.get("scholar.dataset.analysis.quadratic_fit");
+            case CUBIC_FIT -> ScholarTranslations.get("scholar.dataset.analysis.cubic_fit");
         };
-        return kind + " - " + datasetName + " (" + yName + " vs " + xName + ")";
+        return ScholarTranslations.get("scholar.dataset.analysis.choice", kind, datasetName, yName, xName);
     }
 }

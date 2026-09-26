@@ -55,8 +55,9 @@ public final class RibbonLayout {
                 }
                 columnX += columnWidth + COMMAND_GAP;
             }
-            var groupWidth = Math.max(estimatedTextWidth(group.label()) + 10, columnX - groupStart + 2);
-            groupBounds.add(new GroupBounds(groupIndex, group.label(), new ShellRect(groupStart, 1, groupWidth, 55)));
+            var groupLabel = ScholarTranslations.get(group.label());
+            var groupWidth = Math.max(estimatedTextWidth(groupLabel) + 10, columnX - groupStart + 2);
+            groupBounds.add(new GroupBounds(groupIndex, groupLabel, new ShellRect(groupStart, 1, groupWidth, 55)));
             x = groupStart + groupWidth + GROUP_GAP;
         }
         return new Result(List.copyOf(groupBounds), List.copyOf(commandBounds), Math.max(0, x + 2), labelMode);

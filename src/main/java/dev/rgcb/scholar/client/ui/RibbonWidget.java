@@ -66,7 +66,7 @@ public final class RibbonWidget {
                 if (group.groupIndex() > 0) {
                     ScholarShellRenderer.drawVerticalSeparator(graphics, bounds.x(), bounds.y() + 2, 43);
                 }
-                var label = font.plainSubstrByWidth(group.label(), Math.max(8, bounds.width() - 6));
+                var label = font.plainSubstrByWidth(ScholarText.get(group.label()), Math.max(8, bounds.width() - 6));
                 graphics.drawCenteredString(font, label, bounds.x() + bounds.width() / 2,
                         commandBounds.bottom() - 10, 0xFFABB4C0);
             }
@@ -88,8 +88,9 @@ public final class RibbonWidget {
         var action = presentedAction(command);
         var lines = new ArrayList<String>();
         lines.add(command.label(action, RibbonLabelMode.FULL));
-        if (command.palette()) lines.add("Choose a diagram command");
-        else if (!action.tooltip().equals(action.label())) lines.add(action.tooltip());
+        if (command.palette()) lines.add(ScholarText.get("scholar.tooltip.choose_command"));
+        else if (!ScholarText.actionTooltipText(action).equals(ScholarText.actionLabelText(action)))
+            lines.add(ScholarText.actionTooltipText(action));
         action.shortcut().ifPresent(shortcut -> lines.add(shortcut.displayText()));
         var width = lines.stream().mapToInt(font::width).max().orElse(40) + 10;
         var height = lines.size() * 11 + 6;
@@ -174,7 +175,7 @@ public final class RibbonWidget {
         try {
             for (var index = 0; index < tabs.size(); index++) {
                 var tab = tabs.get(index);
-                var width = font.width(tab.label()) + 18;
+                var width = font.width(ScholarText.get(tab.label())) + 18;
                 var bounds = new ShellRect(x, tabBounds.y() + 1, width, tabBounds.height() - 1);
                 result.add(bounds);
                 var hovered = bounds.contains(mouseX, mouseY);
@@ -184,7 +185,7 @@ public final class RibbonWidget {
                 } else if (hovered) {
                     graphics.fill(bounds.x(), bounds.y(), bounds.right(), bounds.bottom(), ScholarShellStyle.HOVER);
                 }
-                graphics.drawCenteredString(font, tab.label(), bounds.x() + bounds.width() / 2, bounds.y() + 6,
+                graphics.drawCenteredString(font, ScholarText.get(tab.label()), bounds.x() + bounds.width() / 2, bounds.y() + 6,
                         ScholarShellStyle.TEXT);
                 x += width + 2;
             }
@@ -262,7 +263,7 @@ public final class RibbonWidget {
             if (controller.selectionState(action) == ActionSelectionState.ON) {
                 graphics.fill(x + 4, rowY + 5, x + 8, rowY + 13, 0xFF65B5D2);
             }
-            graphics.drawString(font, action.label(), x + 12, rowY + 5,
+            graphics.drawString(font, ScholarText.actionLabel(action), x + 12, rowY + 5,
                     enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED, false);
         }
     }
@@ -325,7 +326,8 @@ public final class RibbonWidget {
     }
 
     private static int popupWidth(List<EditorAction> choices) {
-        var labelWidth = choices.stream().mapToInt(action -> RibbonLayout.estimatedTextWidth(action.label())).max().orElse(0);
+        var labelWidth = choices.stream().mapToInt(action -> RibbonLayout.estimatedTextWidth(
+                ScholarText.actionLabelText(action))).max().orElse(0);
         return Math.max(POPUP_WIDTH, Math.min(220, labelWidth + 24));
     }
 

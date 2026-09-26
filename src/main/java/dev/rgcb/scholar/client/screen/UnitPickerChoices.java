@@ -8,6 +8,7 @@ import dev.rgcb.scholar.quantity.UnitConverter;
 import dev.rgcb.scholar.quantity.UnitExpression;
 import dev.rgcb.scholar.quantity.UnitParser;
 import dev.rgcb.scholar.quantity.UnitRegistry;
+import dev.rgcb.scholar.client.ui.ScholarTranslations;
 import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -33,7 +34,7 @@ final class UnitPickerChoices {
 
     public static List<Choice> available() {
         var choices = new LinkedHashMap<String, Choice>();
-        add(choices, "Dimensionless / No unit", Optional.empty(), QuantitySemantics.LINEAR);
+        add(choices, ScholarTranslations.get("scholar.dataset.unit.none"), Optional.empty(), QuantitySemantics.LINEAR);
         var units = REGISTRY.units().stream()
                 .sorted(Comparator.comparing(unit -> unit.symbol()))
                 .toList();
@@ -63,9 +64,9 @@ final class UnitPickerChoices {
     private static void addSymbol(LinkedHashMap<String, Choice> choices, String symbol) {
         var expression = PARSER.parseRequired(symbol);
         if (expression.dimension(REGISTRY).equals(PhysicalDimension.TEMPERATURE)) {
-            add(choices, expression.displaySymbol(REGISTRY) + " · absolute", Optional.of(expression),
+            add(choices, ScholarTranslations.get("scholar.dataset.unit.absolute", expression.displaySymbol(REGISTRY)), Optional.of(expression),
                     QuantitySemantics.ABSOLUTE_TEMPERATURE);
-            add(choices, "Δ" + expression.displaySymbol(REGISTRY) + " · difference", Optional.of(expression),
+            add(choices, ScholarTranslations.get("scholar.dataset.unit.difference", "Δ" + expression.displaySymbol(REGISTRY)), Optional.of(expression),
                     QuantitySemantics.TEMPERATURE_DIFFERENCE);
         } else {
             add(choices, expression.displaySymbol(REGISTRY), Optional.of(expression), QuantitySemantics.LINEAR);
