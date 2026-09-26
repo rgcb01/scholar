@@ -25,6 +25,7 @@ import dev.rgcb.scholar.client.ui.ScholarIcons;
 import dev.rgcb.scholar.client.ui.ScholarShellRenderer;
 import dev.rgcb.scholar.client.ui.ScholarShellModel;
 import dev.rgcb.scholar.client.ui.ScholarShellStyle;
+import dev.rgcb.scholar.client.ui.ScholarControlState;
 import dev.rgcb.scholar.client.ui.ScholarText;
 import dev.rgcb.scholar.client.ui.ScholarRibbonModel;
 import dev.rgcb.scholar.client.ui.RibbonWidget;
@@ -96,7 +97,6 @@ import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 public final class ScholarEditorScreen extends Screen {
-    private static final int BACKGROUND_COLOR = 0xFF202020;
     private static final int CARET_COLOR = 0xFF1F2933;
     private static final int SELECTION_COLOR = 0x663B82F6;
     private static final int OBJECT_SELECTION_FILL = 0x333B82F6;
@@ -502,7 +502,7 @@ public final class ScholarEditorScreen extends Screen {
                         && (toolbar == null || !toolbar.isPopupOpen())
                         && (ribbon == null || !ribbon.isPopupOpen()),
                 editorState().document(), editorState().selection());
-        graphics.fill(0, 0, width, height, BACKGROUND_COLOR);
+        graphics.fill(0, 0, width, height, ScholarShellStyle.WORKSPACE_BACKGROUND);
         if (laidOutDocument != null && typographyResolver != null && textMeasurer != null
                 && viewportWidth > 0 && viewportHeight > 0) {
             graphics.enableScissor(viewportX, viewportY, viewportX + viewportWidth, viewportY + viewportHeight);
@@ -1515,7 +1515,7 @@ public final class ScholarEditorScreen extends Screen {
     private void renderStatusBar(GuiGraphics graphics, int mouseX, int mouseY) {
         var bar = shellLayout.statusBarBounds();
         if (bar.height() < 18) return;
-        ScholarShellRenderer.drawRaisedPanel(graphics, bar.x(), bar.y(), bar.width(), bar.height(), ScholarShellStyle.PANEL);
+        ScholarShellRenderer.drawRaisedPanel(graphics, bar.x(), bar.y(), bar.width(), bar.height(), ScholarShellStyle.PANEL_BACKGROUND);
         var slots = ScholarStatusBarLayout.compute(bar);
         if (laidOutDocument != null) {
             int pageY = scrollOffset + logicalViewportHeight() / 2;
@@ -1538,11 +1538,8 @@ public final class ScholarEditorScreen extends Screen {
         drawStatusIcon(graphics, slots.zoomOut(), ScholarIcons.ZOOM_OUT, mouseX, mouseY);
         if (slots.slider().width() > 0) {
             var slot = slots.slider();
-            int trackY = slot.y() + slot.height() / 2;
-            graphics.fill(slot.x(), trackY, slot.right(), trackY + 2, ScholarShellStyle.SEPARATOR_DARK);
             int thumbX = ScholarStatusBarLayout.thumbX(slot, zoom);
-            ScholarShellRenderer.drawRaisedPanel(graphics, thumbX - 3, slot.y() + 2, 7, 14,
-                    ScholarShellStyle.HIGHLIGHT);
+            ScholarShellRenderer.drawSlider(graphics, slot, thumbX, slot.contains(mouseX, mouseY));
         }
         drawStatusIcon(graphics, slots.zoomIn(), ScholarIcons.ZOOM_IN, mouseX, mouseY);
         drawStatusText(graphics, slots.percentage(), Math.round(zoom * 100) + "%");
@@ -1554,21 +1551,23 @@ public final class ScholarEditorScreen extends Screen {
         if (tooltip != null) {
             int tipWidth = font.width(tooltip) + 10;
             int tipX = Math.max(2, Math.min(mouseX, width - tipWidth - 2));
-            graphics.fill(tipX, bar.y() - 18, tipX + tipWidth, bar.y() - 2, ScholarShellStyle.PANEL_RECESSED);
-            graphics.drawString(font, tooltip, tipX + 5, bar.y() - 14, ScholarShellStyle.TEXT, false);
+            ScholarShellRenderer.drawTooltipFrame(graphics,
+                    new ShellRect(tipX, bar.y() - 18, tipWidth, 16));
+            graphics.drawString(font, tooltip, tipX + 5, bar.y() - 14, ScholarShellStyle.TEXT_PRIMARY, false);
         }
     }
 
     private void drawStatusText(GuiGraphics graphics, ShellRect slot, String text) {
-        if (slot.width() > 0) graphics.drawString(font, text, slot.x(), slot.y() + 5, ScholarShellStyle.TEXT, false);
+        if (slot.width() > 0) graphics.drawString(font, text, slot.x(), slot.y() + 5, ScholarShellStyle.TEXT_PRIMARY, false);
     }
 
     private void drawStatusIcon(GuiGraphics graphics, ShellRect slot, dev.rgcb.scholar.client.ui.ScholarIcon icon,
                                 int mouseX, int mouseY) {
         if (slot.width() == 0) return;
-        if (slot.contains(mouseX, mouseY)) graphics.fill(slot.x(), slot.y(), slot.right(), slot.bottom(), ScholarShellStyle.HOVER);
+        ScholarShellRenderer.drawControl(graphics, slot,
+                slot.contains(mouseX, mouseY) ? ScholarControlState.HOVERED : ScholarControlState.NORMAL);
         icon.render(graphics, slot.x() + (slot.width() - icon.width()) / 2,
-                slot.y() + (slot.height() - icon.height()) / 2, 1, ScholarShellStyle.TEXT);
+                slot.y() + (slot.height() - icon.height()) / 2, 1, ScholarShellStyle.TEXT_PRIMARY);
     }
 
     private void statusBarClicked(double mouseX, double mouseY) {
@@ -2342,13 +2341,13 @@ public final class ScholarEditorScreen extends Screen {
             return;
         }
         var rect = outlinePanelRect();
-        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
-        graphics.drawString(font, ScholarText.get("scholar.action.toggle_outline"), rect.x() + 8, rect.y() + 9, ScholarShellStyle.TEXT, false);
+        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL_BACKGROUND);
+        graphics.drawString(font, ScholarText.get("scholar.action.toggle_outline"), rect.x() + 8, rect.y() + 9, ScholarShellStyle.TEXT_PRIMARY, false);
         var closeRect = new ShellRect(rect.right() - 22, rect.y() + 5, 16, 14);
         renderDialogButton(graphics, closeRect, "x", true, contains(closeRect, mouseX, mouseY));
 
         var contentTop = rect.y() + 26;
-        graphics.fill(rect.x() + 4, contentTop - 2, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_INSET);
+        graphics.fill(rect.x() + 4, contentTop - 2, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
         graphics.enableScissor(rect.x() + 4, contentTop, rect.right() - 4, rect.bottom() - 4);
         try {
             var rowHeight = 18;
@@ -2357,7 +2356,7 @@ public final class ScholarEditorScreen extends Screen {
                 var row = new ShellRect(rect.x() + 6, y, rect.width() - 12, rowHeight);
                 if (row.bottom() >= contentTop && row.y() <= rect.bottom() - 4) {
                     if (contains(row, mouseX, mouseY)) {
-                        graphics.fill(row.x(), row.y(), row.right(), row.bottom(), ScholarShellStyle.HOVER);
+                        graphics.fill(row.x(), row.y(), row.right(), row.bottom(), ScholarShellStyle.HOVER_BACKGROUND);
                     }
                     var indent = Math.max(0, section.level() - 1) * 10;
                     graphics.drawString(
@@ -2365,7 +2364,7 @@ public final class ScholarEditorScreen extends Screen {
                             clippedFromEnd(section.displayText(), row.width() - indent - 6),
                             row.x() + indent + 3,
                             row.y() + 5,
-                            section.id().isPresent() ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED,
+                            section.id().isPresent() ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED,
                             false);
                 }
                 y += rowHeight;
@@ -2755,27 +2754,27 @@ public final class ScholarEditorScreen extends Screen {
             return;
         }
         var rect = crossReferencePopupRect();
-        graphics.fill(0, 0, width, height, 0x88000000);
-        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
-        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 34, ScholarShellStyle.PANEL_INSET);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.cross_reference.title"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
+        graphics.fill(0, 0, width, height, ScholarShellStyle.WORKSPACE_OVERLAY);
+        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL_BACKGROUND);
+        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 34, ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.cross_reference.title"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT_PRIMARY, false);
         var listTop = rect.y() + 28;
         var targets = crossReferencePicker.visibleTargets();
         var visibleRows = targets.size();
         for (var i = 0; i < visibleRows; i++) {
             var row = new ShellRect(rect.x() + 8, listTop + i * 20, rect.width() - 16, 20);
             if (contains(row, mouseX, mouseY) || i == crossReferencePicker.selectedRow()) {
-                graphics.fill(row.x(), row.y(), row.right(), row.bottom(), ScholarShellStyle.HOVER);
+                graphics.fill(row.x(), row.y(), row.right(), row.bottom(), ScholarShellStyle.HOVER_BACKGROUND);
             }
             var target = targets.get(i);
-            graphics.drawString(font, clippedFromEnd(target.pickerLabel(), row.width() - 10), row.x() + 5, row.y() + 6, ScholarShellStyle.TEXT, false);
+            graphics.drawString(font, clippedFromEnd(target.pickerLabel(), row.width() - 10), row.x() + 5, row.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
         }
         if (crossReferencePicker.pageCount() > 1) {
             var footerY = rect.bottom() - 27;
-            graphics.drawString(font, "<", rect.x() + 18, footerY + 5, ScholarShellStyle.TEXT, false);
-            graphics.drawString(font, ">", rect.x() + 47, footerY + 5, ScholarShellStyle.TEXT, false);
+            graphics.drawString(font, "<", rect.x() + 18, footerY + 5, ScholarShellStyle.TEXT_PRIMARY, false);
+            graphics.drawString(font, ">", rect.x() + 47, footerY + 5, ScholarShellStyle.TEXT_PRIMARY, false);
             graphics.drawString(font, (crossReferencePicker.page() + 1) + " / " + crossReferencePicker.pageCount(),
-                    rect.x() + 72, footerY + 5, ScholarShellStyle.TEXT, false);
+                    rect.x() + 72, footerY + 5, ScholarShellStyle.TEXT_PRIMARY, false);
         }
         var cancelRect = new ShellRect(rect.x() + rect.width() - 72, rect.y() + rect.height() - 27, 58, 18);
         renderDialogButton(graphics, cancelRect, ScholarText.get("scholar.dialog.cancel"), true, contains(cancelRect, mouseX, mouseY));
@@ -2834,22 +2833,22 @@ public final class ScholarEditorScreen extends Screen {
             return;
         }
         var rect = semanticTokenPopupRect();
-        graphics.fill(0, 0, width, height, 0x88000000);
-        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
-        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_INSET);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.math_token.title"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.type"), rect.x() + 16, rect.y() + 40, ScholarShellStyle.TEXT, false);
+        graphics.fill(0, 0, width, height, ScholarShellStyle.WORKSPACE_OVERLAY);
+        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL_BACKGROUND);
+        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.math_token.title"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT_PRIMARY, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.type"), rect.x() + 16, rect.y() + 40, ScholarShellStyle.TEXT_PRIMARY, false);
 
         var typeRect = new ShellRect(rect.x() + 96, rect.y() + 35, 116, 18);
-        ScholarShellRenderer.drawRaisedPanel(graphics, typeRect.x(), typeRect.y(), typeRect.width(), typeRect.height(), ScholarShellStyle.PANEL_RAISED);
-        graphics.drawString(font, semanticTokenKind.displayName(), typeRect.x() + 6, typeRect.y() + 5, ScholarShellStyle.TEXT, false);
-        renderPopupTriangle(graphics, typeRect.right() - 12, typeRect.y() + 7, ScholarShellStyle.TEXT);
+        ScholarShellRenderer.drawRaisedPanel(graphics, typeRect.x(), typeRect.y(), typeRect.width(), typeRect.height(), ScholarShellStyle.PANEL_ELEVATED_BACKGROUND);
+        graphics.drawString(font, semanticTokenKind.displayName(), typeRect.x() + 6, typeRect.y() + 5, ScholarShellStyle.TEXT_PRIMARY, false);
+        renderPopupTriangle(graphics, typeRect.right() - 12, typeRect.y() + 7, ScholarShellStyle.TEXT_PRIMARY);
 
-        graphics.drawString(font, ScholarText.get("scholar.dialog.content"), rect.x() + 16, rect.y() + 66, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.content"), rect.x() + 16, rect.y() + 66, ScholarShellStyle.TEXT_PRIMARY, false);
         var contentRect = new ShellRect(rect.x() + 16, rect.y() + 78, rect.width() - 32, 20);
-        ScholarShellRenderer.drawInsetPanel(graphics, contentRect.x(), contentRect.y(), contentRect.width(), contentRect.height(), ScholarShellStyle.PANEL_RECESSED);
+        ScholarShellRenderer.drawInsetPanel(graphics, contentRect.x(), contentRect.y(), contentRect.width(), contentRect.height(), ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
         var displayed = semanticTokenContent + (((System.currentTimeMillis() / 500) % 2 == 0) ? "_" : "");
-        graphics.drawString(font, clipped(displayed, contentRect.width() - 10), contentRect.x() + 5, contentRect.y() + 6, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, clipped(displayed, contentRect.width() - 10), contentRect.x() + 5, contentRect.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
 
         var valid = controller.isValidSemanticTokenContent(semanticTokenKind, semanticTokenContent);
         if (!valid) {
@@ -2988,18 +2987,18 @@ public final class ScholarEditorScreen extends Screen {
             return;
         }
         var rect = plotValuePopupRect();
-        graphics.fill(0, 0, width, height, 0x88000000);
-        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
-        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_INSET);
-        graphics.drawString(font, plotPopupTitle(), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
+        graphics.fill(0, 0, width, height, ScholarShellStyle.WORKSPACE_OVERLAY);
+        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL_BACKGROUND);
+        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
+        graphics.drawString(font, plotPopupTitle(), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT_PRIMARY, false);
 
         var point = plotPopupTarget instanceof PlotPointTarget;
-        graphics.drawString(font, point ? "X" : ScholarText.get("scholar.dialog.value"), rect.x() + 16, rect.y() + 45, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, point ? "X" : ScholarText.get("scholar.dialog.value"), rect.x() + 16, rect.y() + 45, ScholarShellStyle.TEXT_PRIMARY, false);
         var primaryRect = new ShellRect(rect.x() + 70, rect.y() + 39, rect.width() - 86, 20);
         renderPlotPopupField(graphics, primaryRect, plotValuePrimary, !plotPointSecondField);
 
         if (point) {
-            graphics.drawString(font, "Y", rect.x() + 16, rect.y() + 74, ScholarShellStyle.TEXT, false);
+            graphics.drawString(font, "Y", rect.x() + 16, rect.y() + 74, ScholarShellStyle.TEXT_PRIMARY, false);
             var secondaryRect = new ShellRect(rect.x() + 70, rect.y() + 68, rect.width() - 86, 20);
             renderPlotPopupField(graphics, secondaryRect, plotValueSecondary, plotPointSecondField);
         }
@@ -3018,9 +3017,9 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void renderPlotPopupField(GuiGraphics graphics, ShellRect rect, String value, boolean active) {
-        ScholarShellRenderer.drawInsetPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL_RECESSED);
+        ScholarShellRenderer.drawInsetPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
         var displayed = value + (active && (System.currentTimeMillis() / 500) % 2 == 0 ? "_" : "");
-        graphics.drawString(font, clipped(displayed, rect.width() - 10), rect.x() + 5, rect.y() + 6, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, clipped(displayed, rect.width() - 10), rect.x() + 5, rect.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
         if (active) {
             graphics.renderOutline(rect.x(), rect.y(), rect.width(), rect.height(), PLOT_TARGET_BORDER);
         }
@@ -3141,22 +3140,22 @@ public final class ScholarEditorScreen extends Screen {
             return;
         }
         var rect = diagramCanvasPopupRect();
-        graphics.fill(0, 0, width, height, 0x88000000);
-        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
-        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_INSET);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.diagram.resize_canvas"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
+        graphics.fill(0, 0, width, height, ScholarShellStyle.WORKSPACE_OVERLAY);
+        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL_BACKGROUND);
+        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.diagram.resize_canvas"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT_PRIMARY, false);
 
         var widthField = new ShellRect(rect.x() + 88, rect.y() + 38, rect.width() - 104, 20);
         var heightField = new ShellRect(rect.x() + 88, rect.y() + 66, rect.width() - 104, 20);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.width"), rect.x() + 16, rect.y() + 44, ScholarShellStyle.TEXT, false);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.height"), rect.x() + 16, rect.y() + 72, ScholarShellStyle.TEXT, false);
-        ScholarShellRenderer.drawInsetPanel(graphics, widthField.x(), widthField.y(), widthField.width(), widthField.height(), ScholarShellStyle.PANEL_RECESSED);
-        ScholarShellRenderer.drawInsetPanel(graphics, heightField.x(), heightField.y(), heightField.width(), heightField.height(), ScholarShellStyle.PANEL_RECESSED);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.width"), rect.x() + 16, rect.y() + 44, ScholarShellStyle.TEXT_PRIMARY, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.height"), rect.x() + 16, rect.y() + 72, ScholarShellStyle.TEXT_PRIMARY, false);
+        ScholarShellRenderer.drawInsetPanel(graphics, widthField.x(), widthField.y(), widthField.width(), widthField.height(), ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
+        ScholarShellRenderer.drawInsetPanel(graphics, heightField.x(), heightField.y(), heightField.width(), heightField.height(), ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
         var blink = (System.currentTimeMillis() / 500) % 2 == 0 ? "_" : "";
         var widthText = diagramCanvasWidthValue + (!diagramCanvasSecondField ? blink : "");
         var heightText = diagramCanvasHeightValue + (diagramCanvasSecondField ? blink : "");
-        graphics.drawString(font, clipped(widthText, widthField.width() - 10), widthField.x() + 5, widthField.y() + 6, ScholarShellStyle.TEXT, false);
-        graphics.drawString(font, clipped(heightText, heightField.width() - 10), heightField.x() + 5, heightField.y() + 6, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, clipped(widthText, widthField.width() - 10), widthField.x() + 5, widthField.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
+        graphics.drawString(font, clipped(heightText, heightField.width() - 10), heightField.x() + 5, heightField.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
         var active = diagramCanvasSecondField ? heightField : widthField;
         graphics.renderOutline(active.x(), active.y(), active.width(), active.height(), DIAGRAM_TARGET_BORDER);
         if (!diagramCanvasValidation.isEmpty()) {
@@ -3246,15 +3245,15 @@ public final class ScholarEditorScreen extends Screen {
             return;
         }
         var rect = diagramLabelPopupRect();
-        graphics.fill(0, 0, width, height, 0x88000000);
-        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
-        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_INSET);
-        graphics.drawString(font, diagramLabelPopupTitle(), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.label"), rect.x() + 16, rect.y() + 45, ScholarShellStyle.TEXT, false);
+        graphics.fill(0, 0, width, height, ScholarShellStyle.WORKSPACE_OVERLAY);
+        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL_BACKGROUND);
+        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
+        graphics.drawString(font, diagramLabelPopupTitle(), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT_PRIMARY, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.label"), rect.x() + 16, rect.y() + 45, ScholarShellStyle.TEXT_PRIMARY, false);
         var field = new ShellRect(rect.x() + 70, rect.y() + 39, rect.width() - 86, 20);
-        ScholarShellRenderer.drawInsetPanel(graphics, field.x(), field.y(), field.width(), field.height(), ScholarShellStyle.PANEL_RECESSED);
+        ScholarShellRenderer.drawInsetPanel(graphics, field.x(), field.y(), field.width(), field.height(), ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
         var displayed = diagramLabelValue + ((System.currentTimeMillis() / 500) % 2 == 0 ? "_" : "");
-        graphics.drawString(font, clipped(displayed, field.width() - 10), field.x() + 5, field.y() + 6, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, clipped(displayed, field.width() - 10), field.x() + 5, field.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
         graphics.renderOutline(field.x(), field.y(), field.width(), field.height(), DIAGRAM_TARGET_BORDER);
 
         var cancelRect = new ShellRect(rect.x() + rect.width() - 124, rect.y() + rect.height() - 27, 52, 18);
@@ -3359,23 +3358,23 @@ public final class ScholarEditorScreen extends Screen {
             return;
         }
         var rect = electricalComponentPopupRect();
-        graphics.fill(0, 0, width, height, 0x88000000);
-        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
-        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_INSET);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.diagram.edit_electrical_component"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
+        graphics.fill(0, 0, width, height, ScholarShellStyle.WORKSPACE_OVERLAY);
+        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL_BACKGROUND);
+        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.diagram.edit_electrical_component"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT_PRIMARY, false);
 
         var referenceField = electricalReferenceFieldRect(rect);
         var valueField = electricalValueFieldRect(rect);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.reference"), rect.x() + 16, referenceField.y() + 6, ScholarShellStyle.TEXT, false);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.value"), rect.x() + 16, valueField.y() + 6, ScholarShellStyle.TEXT, false);
-        ScholarShellRenderer.drawInsetPanel(graphics, referenceField.x(), referenceField.y(), referenceField.width(), referenceField.height(), ScholarShellStyle.PANEL_RECESSED);
-        ScholarShellRenderer.drawInsetPanel(graphics, valueField.x(), valueField.y(), valueField.width(), valueField.height(), ScholarShellStyle.PANEL_RECESSED);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.reference"), rect.x() + 16, referenceField.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.value"), rect.x() + 16, valueField.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
+        ScholarShellRenderer.drawInsetPanel(graphics, referenceField.x(), referenceField.y(), referenceField.width(), referenceField.height(), ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
+        ScholarShellRenderer.drawInsetPanel(graphics, valueField.x(), valueField.y(), valueField.width(), valueField.height(), ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
 
         var blink = (System.currentTimeMillis() / 500) % 2 == 0 ? "_" : "";
         var referenceDisplayed = electricalReferenceValue + (!electricalComponentSecondField ? blink : "");
         var valueDisplayed = electricalComponentValue + (electricalComponentSecondField ? blink : "");
-        graphics.drawString(font, clipped(referenceDisplayed, referenceField.width() - 10), referenceField.x() + 5, referenceField.y() + 6, ScholarShellStyle.TEXT, false);
-        graphics.drawString(font, clipped(valueDisplayed, valueField.width() - 10), valueField.x() + 5, valueField.y() + 6, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, clipped(referenceDisplayed, referenceField.width() - 10), referenceField.x() + 5, referenceField.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
+        graphics.drawString(font, clipped(valueDisplayed, valueField.width() - 10), valueField.x() + 5, valueField.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
         var active = electricalComponentSecondField ? valueField : referenceField;
         graphics.renderOutline(active.x(), active.y(), active.width(), active.height(), DIAGRAM_TARGET_BORDER);
 
@@ -3401,18 +3400,18 @@ public final class ScholarEditorScreen extends Screen {
 
     private void renderTypeChoice(GuiGraphics graphics, ShellRect typeRect, SemanticMathTokenKind kind, int row, int mouseX, int mouseY) {
         var option = new ShellRect(typeRect.x(), typeRect.bottom() + 2 + row * 18, typeRect.width(), 18);
-        ScholarShellRenderer.drawRaisedPanel(graphics, option.x(), option.y(), option.width(), option.height(), ScholarShellStyle.PANEL_RECESSED);
+        ScholarShellRenderer.drawRaisedPanel(graphics, option.x(), option.y(), option.width(), option.height(), ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
         if (contains(option, mouseX, mouseY)) {
-            graphics.fill(option.x() + 2, option.y() + 1, option.right() - 2, option.bottom() - 1, ScholarShellStyle.HOVER);
+            graphics.fill(option.x() + 2, option.y() + 1, option.right() - 2, option.bottom() - 1, ScholarShellStyle.HOVER_BACKGROUND);
         }
-        graphics.drawString(font, kind.displayName(), option.x() + 6, option.y() + 5, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, kind.displayName(), option.x() + 6, option.y() + 5, ScholarShellStyle.TEXT_PRIMARY, false);
     }
 
     private void renderDialogButton(GuiGraphics graphics, ShellRect rect, String label, boolean enabled, boolean hovered) {
-        var fill = hovered && enabled ? ScholarShellStyle.PANEL_RAISED : ScholarShellStyle.PANEL;
+        var fill = hovered && enabled ? ScholarShellStyle.PANEL_ELEVATED_BACKGROUND : ScholarShellStyle.PANEL_BACKGROUND;
         ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), fill);
         graphics.drawString(font, label, rect.x() + Math.max(4, (rect.width() - font.width(label)) / 2), rect.y() + 5,
-                enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED, false);
+                enabled ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED, false);
     }
 
     private ShellRect semanticTokenPopupRect() {

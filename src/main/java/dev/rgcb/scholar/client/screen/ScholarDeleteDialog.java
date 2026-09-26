@@ -1,5 +1,6 @@
 package dev.rgcb.scholar.client.screen;
 
+import dev.rgcb.scholar.client.ui.ScholarButton;
 import dev.rgcb.scholar.application.ScholarDocumentDescriptor;
 import dev.rgcb.scholar.client.ui.ScholarScreenRendering;
 import dev.rgcb.scholar.client.ui.ScholarText;
@@ -25,18 +26,18 @@ final class ScholarDeleteDialog extends Screen {
     @Override protected void init() {
         var x = width / 2 - 102;
         var y = height / 2 + 22;
-        addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.cancel"), b -> onClose()).bounds(x, y, 98, 20).build());
-        addRenderableWidget(Button.builder(ScholarText.component("scholar.action.delete").copy().withStyle(ChatFormatting.RED), b -> {
+        addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.dialog.cancel"), b -> onClose()).bounds(x, y, 98, 20).build());
+        addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.action.delete").copy().withStyle(ChatFormatting.RED), b -> {
             home.confirmDelete(document.id());
             minecraft.setScreen(home);
         }).bounds(x + 106, y, 98, 20).build());
     }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        graphics.fill(0, 0, width, height, 0xFF20242A);
+        ScholarShellRenderer.drawScreenBackground(graphics, width, height);
         var x = width / 2 - 126;
         var y = height / 2 - 54;
-        ScholarShellRenderer.drawRaisedPanel(graphics, x, y, 252, 122, ScholarShellStyle.PANEL);
+        ScholarShellRenderer.drawRaisedPanel(graphics, x, y, 252, 122, ScholarShellStyle.PANEL_BACKGROUND);
         graphics.drawCenteredString(font, ScholarText.get("scholar.confirm.delete_document"), width / 2, y + 15, 0xFFFFC0B7);
         graphics.drawCenteredString(font, font.plainSubstrByWidth("\"" + document.displayName() + "\"", 232),
                 width / 2, y + 38, 0xFFFFFFFF);

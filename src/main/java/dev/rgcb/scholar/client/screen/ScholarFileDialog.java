@@ -1,5 +1,9 @@
 package dev.rgcb.scholar.client.screen;
 
+import dev.rgcb.scholar.client.ui.ScholarButton;
+import dev.rgcb.scholar.client.ui.ScholarShellRenderer;
+import dev.rgcb.scholar.client.ui.ShellRect;
+
 import dev.rgcb.scholar.editor.DocumentWorkspace;
 import dev.rgcb.scholar.editor.EditorDocumentWorkspace;
 import dev.rgcb.scholar.persistence.PersistenceResult;
@@ -75,7 +79,7 @@ final class ScholarFileDialog extends Screen {
             page = Math.max(0, Math.min(page, Math.max(0, (names.size() - 1) / rows)));
             for (var i = page * rows; i < Math.min(names.size(), (page + 1) * rows); i++) {
                 var selected = names.get(i);
-                addRenderableWidget(Button.builder(Component.literal(selected), b -> {
+                addRenderableWidget(ScholarButton.create(Component.literal(selected), b -> {
                     var loaded = legacy.open(selected);
                     if (loaded instanceof PersistenceResult.Success<?>) {
                         minecraft.setScreen(ScholarEditorScreen.forWorkspace(legacy));
@@ -83,11 +87,11 @@ final class ScholarFileDialog extends Screen {
                 }).bounds(x, 38 + (i - page * rows) * 24, w, 20).build());
             }
             var y = height - 56;
-            var previous = addRenderableWidget(Button.builder(Component.literal("<"), b -> { page--; rebuildWidgets(); }).bounds(x, y, 30, 20).build());
+            var previous = addRenderableWidget(ScholarButton.create(Component.literal("<"), b -> { page--; rebuildWidgets(); }).bounds(x, y, 30, 20).build());
             previous.active = page > 0;
-            var next = addRenderableWidget(Button.builder(Component.literal(">"), b -> { page++; rebuildWidgets(); }).bounds(x + 36, y, 30, 20).build());
+            var next = addRenderableWidget(ScholarButton.create(Component.literal(">"), b -> { page++; rebuildWidgets(); }).bounds(x + 36, y, 30, 20).build());
             next.active = (page + 1) * rows < names.size();
-            addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.cancel"), b -> onClose()).bounds(x + w - 80, y, 80, 20).build());
+            addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.dialog.cancel"), b -> onClose()).bounds(x + w - 80, y, 80, 20).build());
         } else if (mode == Mode.SAVE || mode == Mode.RENAME) {
             name = new EditBox(font, x, 52, w, 20, ScholarText.component("scholar.document.name"));
             name.setMaxLength(64);
@@ -95,12 +99,12 @@ final class ScholarFileDialog extends Screen {
             name.setResponder(value -> draft = value);
             addRenderableWidget(name);
             setInitialFocus(name);
-            addRenderableWidget(Button.builder(ScholarText.component(mode == Mode.RENAME
+            addRenderableWidget(ScholarButton.create(ScholarText.component(mode == Mode.RENAME
                     ? "scholar.action.file_rename" : "scholar.action.file_save"), b -> saveNamedDocument()).bounds(x, 88, w / 2 - 3, 20).build());
-            addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.cancel"), b -> onClose()).bounds(x + w / 2 + 3, 88, w / 2 - 3, 20).build());
+            addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.dialog.cancel"), b -> onClose()).bounds(x + w / 2 + 3, 88, w / 2 - 3, 20).build());
         } else if (mode == Mode.UNSAVED) {
             message = ScholarText.get("scholar.confirm.save_changes");
-            addRenderableWidget(Button.builder(ScholarText.component("scholar.action.file_save"), b -> {
+            addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.action.file_save"), b -> {
                 if (workspace.name().isEmpty()) minecraft.setScreen(save(parent, workspace, continuation));
                 else {
                     var result = workspace.save();
@@ -108,15 +112,19 @@ final class ScholarFileDialog extends Screen {
                     else message = result.diagnostics().getFirst().message();
                 }
             }).bounds(x, 78, w / 3 - 4, 20).build());
-            addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.discard"), b -> continuation.run()).bounds(x + w / 3, 78, w / 3 - 4, 20).build());
-            addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.cancel"), b -> onClose()).bounds(x + w * 2 / 3, 78, w / 3, 20).build());
+            addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.dialog.discard"), b -> continuation.run()).bounds(x + w / 3, 78, w / 3 - 4, 20).build());
+            addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.dialog.cancel"), b -> onClose()).bounds(x + w * 2 / 3, 78, w / 3, 20).build());
         } else {
-            addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.back"), b -> onClose()).bounds(x, 88, w, 20).build());
+            addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.dialog.back"), b -> onClose()).bounds(x, 88, w, 20).build());
         }
     }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        graphics.fill(0, 0, width, height, 0xFF202020);
+        ScholarShellRenderer.drawScreenBackground(graphics, width, height);
+        var frameWidth = Math.min(320, width - 8);
+        var frameHeight = mode == Mode.OPEN ? Math.max(116, height - 16) : 122;
+        ScholarShellRenderer.drawDialogFrame(graphics,
+                new ShellRect((width - frameWidth) / 2, 6, frameWidth, Math.min(height - 12, frameHeight)));
         graphics.drawCenteredString(font, title, width / 2, 16, 0xFFFFFFFF);
         ScholarScreenRendering.renderWidgets(renderables, graphics, mouseX, mouseY, partialTick);
         if (!message.isEmpty()) {

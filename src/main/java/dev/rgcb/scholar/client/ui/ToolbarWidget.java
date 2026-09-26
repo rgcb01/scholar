@@ -8,14 +8,12 @@ import java.util.List;
 import java.util.Objects;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 public final class ToolbarWidget {
     public static final int HEIGHT = 24;
 
-    private static final int TOOLTIP_BACKGROUND = 0xF0100010;
-    private static final int TOOLTIP_BORDER = 0xFF6B7280;
-    private static final int TOOLTIP_TEXT = 0xFFFFFFFF;
     private static final int POPUP_ROW_HEIGHT = 18;
     private static final int POPUP_WIDTH = ToolbarLayout.BLOCK_STYLE_WIDTH + 28;
     private static final int GROUP_POPUP_WIDTH = 104;
@@ -81,8 +79,8 @@ public final class ToolbarWidget {
     }
 
     public void render(GuiGraphics graphics, Font font, int mouseX, int mouseY) {
-        ScholarShellRenderer.drawRaisedPanel(graphics, bounds.x(), bounds.y(), bounds.width(), bounds.height(), ScholarShellStyle.PANEL);
-        graphics.fill(bounds.x(), bounds.bottom() - 1, bounds.right(), bounds.bottom(), ScholarShellStyle.DEEP_SHADOW);
+        ScholarShellRenderer.drawRaisedPanel(graphics, bounds.x(), bounds.y(), bounds.width(), bounds.height(), ScholarShellStyle.PANEL_BACKGROUND);
+        graphics.fill(bounds.x(), bounds.bottom() - 1, bounds.right(), bounds.bottom(), ScholarShellStyle.SUBTLE_SEPARATOR);
 
         itemBounds = ToolbarLayout.compute(items, bounds.width(), action -> font.width(ScholarText.actionLabel(action)));
         for (var itemBound : itemBounds) {
@@ -128,8 +126,7 @@ public final class ToolbarWidget {
         var popupX = popupX(control, POPUP_WIDTH);
         var popupY = popupY(control, blockStyleActions.size());
         var popupHeight = blockStyleActions.size() * POPUP_ROW_HEIGHT;
-        ScholarShellRenderer.drawRaisedPanel(graphics, popupX, popupY, POPUP_WIDTH, popupHeight, ScholarShellStyle.PANEL_RECESSED);
-        graphics.fill(popupX + 3, popupY + 3, popupX + POPUP_WIDTH - 3, popupY + popupHeight - 3, ScholarShellStyle.PANEL_INSET);
+        ScholarShellRenderer.drawPopupPanel(graphics, new ShellRect(popupX, popupY, POPUP_WIDTH, popupHeight));
 
         for (var index = 0; index < blockStyleActions.size(); index++) {
             var action = blockStyleActions.get(index);
@@ -137,17 +134,15 @@ public final class ToolbarWidget {
             var enabled = controller.isEnabled(action);
             var hovered = mouseX >= popupX && mouseX < popupX + POPUP_WIDTH
                     && mouseY >= y && mouseY < y + POPUP_ROW_HEIGHT;
-            if (hovered && enabled) {
-                graphics.fill(popupX + 4, y + 1, popupX + POPUP_WIDTH - 4, y + POPUP_ROW_HEIGHT - 1, ScholarShellStyle.HOVER);
-                graphics.fill(popupX + 4, y + 1, popupX + POPUP_WIDTH - 4, y + 2, ScholarShellStyle.HOVER_TOP);
-            }
+            ScholarShellRenderer.drawMenuRow(graphics,
+                    new ShellRect(popupX + 4, y + 1, POPUP_WIDTH - 8, POPUP_ROW_HEIGHT - 2), hovered && enabled);
             renderPopupState(graphics, popupX, y, controller.selectionState(action));
             graphics.drawString(
                     font,
                     ScholarText.actionLabelText(action),
                     popupX + 18,
                     y + 5,
-                    enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED,
+                    enabled ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED,
                     false);
         }
         renderGroupPopup(graphics, font, mouseX, mouseY);
@@ -160,20 +155,20 @@ public final class ToolbarWidget {
             return;
         }
 
-        var firstLine = hovered.tooltip();
-        var secondLine = hovered.shortcut().map(shortcut -> shortcut.displayText()).orElse("");
-        var textWidth = secondLine.isEmpty()
-                ? font.width(firstLine)
-                : Math.max(font.width(firstLine), font.width(secondLine));
+        var tooltip = ScholarText.actionTooltipText(hovered);
+        var wrapWidth = Math.max(80, Math.min(220, bounds.width() - 20));
+        var lines = new java.util.ArrayList<>(font.split(Component.literal(tooltip), wrapWidth));
+        hovered.shortcut().ifPresent(shortcut -> lines.addAll(font.split(
+                Component.literal(shortcut.displayText()), wrapWidth)));
+        var textWidth = lines.stream().mapToInt(font::width).max().orElse(40);
         var tooltipWidth = textWidth + 10;
-        var tooltipHeight = secondLine.isEmpty() ? 17 : 28;
+        var tooltipHeight = lines.size() * 11 + 6;
         var x = Math.max(0, Math.min(mouseX + 10, bounds.right() - tooltipWidth));
         var y = Math.max(0, Math.min(mouseY + 12, viewportHeight - tooltipHeight));
-        graphics.fill(x, y, x + tooltipWidth, y + tooltipHeight, TOOLTIP_BACKGROUND);
-        graphics.renderOutline(x, y, tooltipWidth, tooltipHeight, TOOLTIP_BORDER);
-        graphics.drawString(font, firstLine, x + 5, y + 5, TOOLTIP_TEXT, false);
-        if (!secondLine.isEmpty()) {
-            graphics.drawString(font, secondLine, x + 5, y + 16, ScholarShellStyle.TEXT_DISABLED, false);
+        ScholarShellRenderer.drawTooltipFrame(graphics, new ShellRect(x, y, tooltipWidth, tooltipHeight));
+        for (var index = 0; index < lines.size(); index++) {
+            graphics.drawString(font, lines.get(index), x + ScholarShellStyle.TOOLTIP_PADDING, y + 4 + index * 11,
+                    index == 0 ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED, false);
         }
     }
 
@@ -324,23 +319,11 @@ public final class ToolbarWidget {
             int width,
             int height
     ) {
-        if (pressed) {
-            ScholarShellRenderer.drawInsetPanel(graphics, x, y, width, height, ScholarShellStyle.PRESSED);
-        } else if (enabled && selectionState == ActionSelectionState.ON) {
-            ScholarShellRenderer.drawInsetPanel(graphics, x, y, width, height, ScholarShellStyle.SELECTED);
-        } else if (enabled && selectionState == ActionSelectionState.MIXED) {
-            ScholarShellRenderer.drawRaisedPanel(graphics, x, y, width, height, ScholarShellStyle.MIXED);
-            graphics.fill(x + 3, y + height - 4, x + width - 3, y + height - 3, ScholarShellStyle.TEXT_DISABLED);
-        } else {
-            var fill = hovered && enabled ? ScholarShellStyle.PANEL_RAISED : ScholarShellStyle.PANEL;
-            ScholarShellRenderer.drawRaisedPanel(graphics, x, y, width, height, fill);
-            if (hovered && enabled) {
-                graphics.fill(x + 2, y + 2, x + width - 2, y + 3, ScholarShellStyle.HOVER_TOP);
-            }
-        }
-        var color = enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED;
+        var state = ScholarControlState.resolve(enabled, selectionState, hovered, pressed);
+        ScholarShellRenderer.drawControl(graphics, new ShellRect(x, y, width, height), state);
+        var color = enabled ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED;
         var textX = x + Math.max(4, (width - font.width(ScholarText.actionLabel(action))) / 2);
-        var textY = y + 5 + (pressed ? 1 : 0);
+        var textY = y + 5 + state.contentOffset();
         graphics.drawString(font, ScholarText.actionLabel(action), textX, textY, color, false);
     }
 
@@ -361,14 +344,12 @@ public final class ToolbarWidget {
             case MIXED -> ScholarText.get("scholar.status.mixed");
             case NOT_APPLICABLE -> ScholarText.get("scholar.ribbon.group.style");
         };
-        if (blockStyleOpen && enabled) {
-            ScholarShellRenderer.drawInsetPanel(graphics, x, y, itemBound.width(), itemBound.height(), ScholarShellStyle.PRESSED);
-        } else {
-            var fill = hovered && enabled ? ScholarShellStyle.PANEL_RAISED : ScholarShellStyle.PANEL;
-            ScholarShellRenderer.drawRaisedPanel(graphics, x, y, itemBound.width(), itemBound.height(), fill);
-        }
-        graphics.drawString(font, label, x + 6, y + 5, enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED, false);
-        renderTriangle(graphics, x + itemBound.width() - 12, y + 7, enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED);
+        var state = !enabled ? ScholarControlState.DISABLED
+                : blockStyleOpen ? ScholarControlState.PRESSED
+                : hovered ? ScholarControlState.HOVERED : ScholarControlState.NORMAL;
+        ScholarShellRenderer.drawControl(graphics, new ShellRect(x, y, itemBound.width(), itemBound.height()), state);
+        graphics.drawString(font, label, x + 6, y + 5, enabled ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED, false);
+        renderTriangle(graphics, x + itemBound.width() - 12, y + 7, enabled ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED);
     }
 
     private void renderSemanticConvertControl(
@@ -382,15 +363,13 @@ public final class ToolbarWidget {
     ) {
         var enabled = semanticConversionActions.stream().anyMatch(controller::isEnabled);
         var hovered = itemBound.contains(mouseX - bounds.x(), mouseY - bounds.y());
-        if (semanticConvertOpen && enabled) {
-            ScholarShellRenderer.drawInsetPanel(graphics, x, y, itemBound.width(), itemBound.height(), ScholarShellStyle.PRESSED);
-        } else {
-            var fill = hovered && enabled ? ScholarShellStyle.PANEL_RAISED : ScholarShellStyle.PANEL;
-            ScholarShellRenderer.drawRaisedPanel(graphics, x, y, itemBound.width(), itemBound.height(), fill);
-        }
+        var state = !enabled ? ScholarControlState.DISABLED
+                : semanticConvertOpen ? ScholarControlState.PRESSED
+                : hovered ? ScholarControlState.HOVERED : ScholarControlState.NORMAL;
+        ScholarShellRenderer.drawControl(graphics, new ShellRect(x, y, itemBound.width(), itemBound.height()), state);
         graphics.drawString(font, ScholarText.get("scholar.ribbon.short.convert"), x + 6, y + 5,
-                enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED, false);
-        renderTriangle(graphics, x + itemBound.width() - 12, y + 7, enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED);
+                enabled ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED, false);
+        renderTriangle(graphics, x + itemBound.width() - 12, y + 7, enabled ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED);
     }
 
     private void renderGroupControl(
@@ -404,15 +383,13 @@ public final class ToolbarWidget {
     ) {
         var enabled = groupActions.stream().anyMatch(controller::isEnabled);
         var hovered = itemBound.contains(mouseX - bounds.x(), mouseY - bounds.y());
-        if (groupOpen && enabled) {
-            ScholarShellRenderer.drawInsetPanel(graphics, x, y, itemBound.width(), itemBound.height(), ScholarShellStyle.PRESSED);
-        } else {
-            var fill = hovered && enabled ? ScholarShellStyle.PANEL_RAISED : ScholarShellStyle.PANEL;
-            ScholarShellRenderer.drawRaisedPanel(graphics, x, y, itemBound.width(), itemBound.height(), fill);
-        }
+        var state = !enabled ? ScholarControlState.DISABLED
+                : groupOpen ? ScholarControlState.PRESSED
+                : hovered ? ScholarControlState.HOVERED : ScholarControlState.NORMAL;
+        ScholarShellRenderer.drawControl(graphics, new ShellRect(x, y, itemBound.width(), itemBound.height()), state);
         graphics.drawString(font, ScholarText.get("scholar.ribbon.short.group"), x + 6, y + 5,
-                enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED, false);
-        renderTriangle(graphics, x + itemBound.width() - 12, y + 7, enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED);
+                enabled ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED, false);
+        renderTriangle(graphics, x + itemBound.width() - 12, y + 7, enabled ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED);
     }
 
     private void renderGroupPopup(GuiGraphics graphics, Font font, int mouseX, int mouseY) {
@@ -427,24 +404,21 @@ public final class ToolbarWidget {
         var popupX = popupX(control, GROUP_POPUP_WIDTH);
         var popupY = popupY(control, groupActions.size());
         var popupHeight = groupActions.size() * POPUP_ROW_HEIGHT;
-        ScholarShellRenderer.drawRaisedPanel(graphics, popupX, popupY, GROUP_POPUP_WIDTH, popupHeight, ScholarShellStyle.PANEL_RECESSED);
-        graphics.fill(popupX + 3, popupY + 3, popupX + GROUP_POPUP_WIDTH - 3, popupY + popupHeight - 3, ScholarShellStyle.PANEL_INSET);
+        ScholarShellRenderer.drawPopupPanel(graphics, new ShellRect(popupX, popupY, GROUP_POPUP_WIDTH, popupHeight));
         for (var index = 0; index < groupActions.size(); index++) {
             var action = groupActions.get(index);
             var y = popupY + index * POPUP_ROW_HEIGHT;
             var enabled = controller.isEnabled(action);
             var hovered = mouseX >= popupX && mouseX < popupX + GROUP_POPUP_WIDTH
                     && mouseY >= y && mouseY < y + POPUP_ROW_HEIGHT;
-            if (hovered && enabled) {
-                graphics.fill(popupX + 4, y + 1, popupX + GROUP_POPUP_WIDTH - 4, y + POPUP_ROW_HEIGHT - 1, ScholarShellStyle.HOVER);
-                graphics.fill(popupX + 4, y + 1, popupX + GROUP_POPUP_WIDTH - 4, y + 2, ScholarShellStyle.HOVER_TOP);
-            }
+            ScholarShellRenderer.drawMenuRow(graphics,
+                    new ShellRect(popupX + 4, y + 1, GROUP_POPUP_WIDTH - 8, POPUP_ROW_HEIGHT - 2), hovered && enabled);
             graphics.drawString(
                     font,
                     ScholarText.actionLabelText(action),
                     popupX + 8,
                     y + 5,
-                    enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED,
+                    enabled ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED,
                     false);
         }
     }
@@ -461,24 +435,21 @@ public final class ToolbarWidget {
         var popupX = popupX(control, CONVERT_POPUP_WIDTH);
         var popupY = popupY(control, semanticConversionActions.size());
         var popupHeight = semanticConversionActions.size() * POPUP_ROW_HEIGHT;
-        ScholarShellRenderer.drawRaisedPanel(graphics, popupX, popupY, CONVERT_POPUP_WIDTH, popupHeight, ScholarShellStyle.PANEL_RECESSED);
-        graphics.fill(popupX + 3, popupY + 3, popupX + CONVERT_POPUP_WIDTH - 3, popupY + popupHeight - 3, ScholarShellStyle.PANEL_INSET);
+        ScholarShellRenderer.drawPopupPanel(graphics, new ShellRect(popupX, popupY, CONVERT_POPUP_WIDTH, popupHeight));
         for (var index = 0; index < semanticConversionActions.size(); index++) {
             var action = semanticConversionActions.get(index);
             var y = popupY + index * POPUP_ROW_HEIGHT;
             var enabled = controller.isEnabled(action);
             var hovered = mouseX >= popupX && mouseX < popupX + CONVERT_POPUP_WIDTH
                     && mouseY >= y && mouseY < y + POPUP_ROW_HEIGHT;
-            if (hovered && enabled) {
-                graphics.fill(popupX + 4, y + 1, popupX + CONVERT_POPUP_WIDTH - 4, y + POPUP_ROW_HEIGHT - 1, ScholarShellStyle.HOVER);
-                graphics.fill(popupX + 4, y + 1, popupX + CONVERT_POPUP_WIDTH - 4, y + 2, ScholarShellStyle.HOVER_TOP);
-            }
+            ScholarShellRenderer.drawMenuRow(graphics,
+                    new ShellRect(popupX + 4, y + 1, CONVERT_POPUP_WIDTH - 8, POPUP_ROW_HEIGHT - 2), hovered && enabled);
             graphics.drawString(
                     font,
                     ScholarText.actionLabelText(action),
                     popupX + 8,
                     y + 5,
-                    enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED,
+                    enabled ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED,
                     false);
         }
     }
@@ -491,7 +462,7 @@ public final class ToolbarWidget {
 
     private static void renderPopupState(GuiGraphics graphics, int popupX, int y, ActionSelectionState state) {
         if (state == ActionSelectionState.ON) {
-            graphics.fill(popupX + 9, y + 5, popupX + 14, y + 10, ScholarShellStyle.TEXT);
+            graphics.fill(popupX + 9, y + 5, popupX + 14, y + 10, ScholarShellStyle.TEXT_PRIMARY);
         }
     }
 

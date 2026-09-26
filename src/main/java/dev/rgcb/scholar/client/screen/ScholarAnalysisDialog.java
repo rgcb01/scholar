@@ -1,5 +1,9 @@
 package dev.rgcb.scholar.client.screen;
 
+import dev.rgcb.scholar.client.ui.ScholarButton;
+import dev.rgcb.scholar.client.ui.ScholarShellRenderer;
+import dev.rgcb.scholar.client.ui.ShellRect;
+
 import dev.rgcb.scholar.analysis.AnalysisFormatter;
 import dev.rgcb.scholar.analysis.AnalysisKind;
 import dev.rgcb.scholar.data.DatasetColumnType;
@@ -58,19 +62,19 @@ final class ScholarAnalysisDialog extends Screen {
         var y = Math.max(26, height / 2 - 118);
         if (mode == ComputationDialogKind.EDIT_ANALYSIS) preselect();
         if (mode == ComputationDialogKind.ADD_FIT_OVERLAY) {
-            selectors.add(addRenderableWidget(Button.builder(Component.empty(), button -> toggle(0))
+            selectors.add(addRenderableWidget(ScholarButton.create(Component.empty(), button -> toggle(0))
                     .bounds(x, y + 28, w, 20).build()));
-            addRenderableWidget(Button.builder(ScholarText.component("scholar.action.data_add_fit_overlay"), button -> apply())
+            addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.action.data_add_fit_overlay"), button -> apply())
                     .bounds(x, y + 66, w / 2 - 3, 20).build());
-            addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.cancel"), button -> onClose())
+            addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.dialog.cancel"), button -> onClose())
                     .bounds(x + w / 2 + 3, y + 66, w / 2 - 3, 20).build());
         } else {
             for (var i = 0; i < 4; i++) {
                 var field = i;
-                selectors.add(addRenderableWidget(Button.builder(Component.empty(), button -> toggle(field))
+                selectors.add(addRenderableWidget(ScholarButton.create(Component.empty(), button -> toggle(field))
                         .bounds(x, y + 20 + i * 31, w, 20).build()));
             }
-            selectors.add(addRenderableWidget(Button.builder(Component.empty(), button -> toggle(4))
+            selectors.add(addRenderableWidget(ScholarButton.create(Component.empty(), button -> toggle(4))
                     .bounds(x, y + 144, w, 20).build()));
             displayUnit = new EditBox(font, x, y + 179, w, 20, ScholarText.component("scholar.dataset.display_unit_optional"));
             displayUnit.setHint(ScholarText.component("scholar.dataset.display_unit_optional"));
@@ -81,9 +85,9 @@ final class ScholarAnalysisDialog extends Screen {
                 displayUnit.setValue(block.displayUnit().map(value -> value.displaySymbol(
                         dev.rgcb.scholar.quantity.UnitRegistry.builtIn())).orElse(""));
             }
-            addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.apply"), button -> apply())
+            addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.dialog.apply"), button -> apply())
                     .bounds(x, y + 207, w / 2 - 3, 20).build());
-            addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.cancel"), button -> onClose())
+            addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.dialog.cancel"), button -> onClose())
                     .bounds(x + w / 2 + 3, y + 207, w / 2 - 3, 20).build());
         }
         refreshLabels();
@@ -220,7 +224,11 @@ final class ScholarAnalysisDialog extends Screen {
     private int popupRows() { return Math.min(6, options(openSelector).size()); }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        graphics.fill(0, 0, width, height, 0xFF202020);
+        ScholarShellRenderer.drawScreenBackground(graphics, width, height);
+        var frameWidth = Math.min(380, width - 12);
+        ScholarShellRenderer.drawDialogFrame(graphics,
+                new ShellRect((width - frameWidth) / 2, Math.max(4, height / 2 - 150), frameWidth,
+                        Math.min(height - 8, 300)));
         graphics.drawCenteredString(font, title, width / 2, Math.max(12, height / 2 - 145), 0xFFFFFFFF);
         ScholarScreenRendering.renderWidgets(renderables, graphics, mouseX, mouseY, partialTick);
         if (mode != ComputationDialogKind.ADD_FIT_OVERLAY && !session.current().document().datasets().isEmpty()
@@ -251,13 +259,13 @@ final class ScholarAnalysisDialog extends Screen {
                 var button = selectors.get(openSelector);
                 var top = popupTop();
                 var rows = popupRows();
-                graphics.fill(button.getX() - 2, top - 2, button.getX() + button.getWidth() + 2,
-                        top + rows * 20 + 2, 0xFFAAAAAA);
-                graphics.fill(button.getX(), top, button.getX() + button.getWidth(), top + rows * 20, 0xFF252B30);
+                ScholarShellRenderer.drawPopupPanel(graphics,
+                        new ShellRect(button.getX() - 2, top - 2, button.getWidth() + 4, rows * 20 + 4));
                 var values = options(openSelector);
                 for (var row = 0; row < rows && scroll + row < values.size(); row++) {
-                    if (scroll + row == selected(openSelector)) graphics.fill(button.getX() + 2, top + row * 20,
-                            button.getX() + button.getWidth() - 2, top + (row + 1) * 20, 0xFF405A69);
+                    ScholarShellRenderer.drawMenuRow(graphics,
+                            new ShellRect(button.getX() + 2, top + row * 20 + 1, button.getWidth() - 4, 18),
+                            scroll + row == selected(openSelector));
                     graphics.drawString(font, values.get(scroll + row), button.getX() + 7, top + row * 20 + 6, 0xFFFFFFFF);
                 }
                 graphics.flush();

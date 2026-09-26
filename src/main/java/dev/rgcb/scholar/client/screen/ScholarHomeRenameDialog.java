@@ -1,5 +1,9 @@
 package dev.rgcb.scholar.client.screen;
 
+import dev.rgcb.scholar.client.ui.ScholarButton;
+import dev.rgcb.scholar.client.ui.ScholarShellRenderer;
+import dev.rgcb.scholar.client.ui.ShellRect;
+
 import dev.rgcb.scholar.application.ScholarApplication;
 import dev.rgcb.scholar.application.ScholarDocumentDescriptor;
 import dev.rgcb.scholar.client.ui.ScholarScreenRendering;
@@ -36,9 +40,9 @@ final class ScholarHomeRenameDialog extends Screen {
         name.setValue(document.displayName());
         addRenderableWidget(name);
         setInitialFocus(name);
-        addRenderableWidget(Button.builder(ScholarText.component("scholar.action.file_rename"), button -> rename())
+        addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.action.file_rename"), button -> rename())
                 .bounds(x, 88, width / 2 - 3, 20).build());
-        addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.cancel"), button -> onClose())
+        addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.dialog.cancel"), button -> onClose())
                 .bounds(x + width / 2 + 3, 88, width / 2 - 3, 20).build());
     }
 
@@ -57,7 +61,10 @@ final class ScholarHomeRenameDialog extends Screen {
     }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        graphics.fill(0, 0, width, height, 0xFF202020);
+        ScholarShellRenderer.drawScreenBackground(graphics, width, height);
+        var frameWidth = Math.min(320, width - 8);
+        ScholarShellRenderer.drawDialogFrame(graphics,
+                new ShellRect((width - frameWidth) / 2, 6, frameWidth, Math.min(height - 12, 118)));
         graphics.drawCenteredString(font, title, width / 2, 16, 0xFFFFFFFF);
         ScholarScreenRendering.renderWidgets(renderables, graphics, mouseX, mouseY, partialTick);
         if (!message.isEmpty()) graphics.drawCenteredString(font, message, width / 2, height - 28, 0xFFFFDD88);
