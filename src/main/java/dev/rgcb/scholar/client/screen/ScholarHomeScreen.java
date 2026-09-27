@@ -1,11 +1,13 @@
 package dev.rgcb.scholar.client.screen;
 
+import dev.rgcb.scholar.client.ui.ScholarButton;
 import dev.rgcb.scholar.integration.ScholarApiRuntime;
 import dev.rgcb.scholar.application.ScholarApplication;
 import dev.rgcb.scholar.application.ScholarDocumentDescriptor;
 import dev.rgcb.scholar.application.ScholarDocumentId;
 import dev.rgcb.scholar.client.ui.ScholarShellRenderer;
 import dev.rgcb.scholar.client.ui.ScholarShellStyle;
+import dev.rgcb.scholar.client.ui.ScholarControlState;
 import dev.rgcb.scholar.client.ui.ScholarScreenRendering;
 import dev.rgcb.scholar.client.ui.HomeDocumentCardLayout;
 import dev.rgcb.scholar.client.ui.ScholarIcons;
@@ -56,21 +58,21 @@ public final class ScholarHomeScreen extends Screen {
         page = layout.page();
         if (layout.maxPage() > 0) {
             var y = height - 28;
-            var previous = addRenderableWidget(Button.builder(Component.literal("<"), b -> { page--; rebuildWidgets(); })
+            var previous = addRenderableWidget(ScholarButton.create(Component.literal("<"), b -> { page--; rebuildWidgets(); })
                     .bounds(width / 2 - 32, y, 28, 20).build());
             previous.active = page > 0;
-            var next = addRenderableWidget(Button.builder(Component.literal(">"), b -> { page++; rebuildWidgets(); })
+            var next = addRenderableWidget(ScholarButton.create(Component.literal(">"), b -> { page++; rebuildWidgets(); })
                     .bounds(width / 2 + 4, y, 28, 20).build());
             next.active = page < layout.maxPage();
         }
     }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        graphics.fill(0, 0, width, height, 0xFF20242A);
-        graphics.fill(0, 0, width, 32, 0xFF292E35);
-        ScholarIcons.SCHOLAR.render(graphics, 15, 11, 1, 0xFF73C4E2);
-        graphics.drawString(font, "Scholar", 28, 11, 0xFFFFFFFF, false);
-        graphics.drawCenteredString(font, ScholarText.get("scholar.home.library"), width / 2, 11, 0xFFB8C1CC);
+        ScholarShellRenderer.drawScreenBackground(graphics, width, height);
+        ScholarShellRenderer.drawRaisedPanel(graphics, 0, 0, width, 32, ScholarShellStyle.HEADER_BACKGROUND);
+        ScholarIcons.SCHOLAR.render(graphics, 15, 11, 1, ScholarShellStyle.SCIENTIFIC_ACCENT);
+        graphics.drawString(font, "Scholar", 28, 11, ScholarShellStyle.TEXT_PRIMARY, false);
+        graphics.drawCenteredString(font, ScholarText.get("scholar.home.library"), width / 2, 11, ScholarShellStyle.TEXT_SECONDARY);
         if (choosingTemplate) {
             renderTemplateChooser(graphics, mouseX, mouseY);
             ScholarScreenRendering.renderWidgets(renderables, graphics, mouseX, mouseY, partialTick);
@@ -84,18 +86,17 @@ public final class ScholarHomeScreen extends Screen {
         }
         ScholarScreenRendering.renderWidgets(renderables, graphics, mouseX, mouseY, partialTick);
         if (contextBounds != null) {
-            ScholarShellRenderer.drawRaisedPanel(graphics, contextBounds.x(), contextBounds.y(),
-                    contextBounds.width(), contextBounds.height(), ScholarShellStyle.PANEL);
+            ScholarShellRenderer.drawPopupPanel(graphics, contextBounds);
             var actions = new String[] {"scholar.action.file_open", "scholar.action.file_rename", "scholar.action.delete"};
             for (var row = 0; row < actions.length; row++) {
                 var rowY = contextBounds.y() + row * ContextMenuLayout.ROW_HEIGHT;
                 if (contextBounds.contains(mouseX, mouseY)
                         && mouseY >= rowY && mouseY < rowY + ContextMenuLayout.ROW_HEIGHT) {
-                    graphics.fill(contextBounds.x() + 2, rowY + 1,
-                            contextBounds.right() - 2, rowY + ContextMenuLayout.ROW_HEIGHT - 1, ScholarShellStyle.HOVER);
+                    ScholarShellRenderer.drawMenuRow(graphics, new ShellRect(contextBounds.x() + 4, rowY + 1,
+                            contextBounds.width() - 8, ContextMenuLayout.ROW_HEIGHT - 2), true);
                 }
                 graphics.drawString(font, ScholarText.get(actions[row]), contextBounds.x() + 12, rowY + 5,
-                        row == 2 ? 0xFFFFB7AC : ScholarShellStyle.TEXT, false);
+                        row == 2 ? ScholarShellStyle.TEXT_DANGER : ScholarShellStyle.TEXT_PRIMARY, false);
             }
         }
         if (!message.isEmpty()) graphics.drawCenteredString(font, message, width / 2, height - 14, 0xFFFFB86B);
@@ -225,9 +226,12 @@ public final class ScholarHomeScreen extends Screen {
     }
 
     private static void renderCardSurface(GuiGraphics graphics, ShellRect card, boolean hovered) {
-        ScholarShellRenderer.drawRaisedPanel(graphics, card.x(), card.y(), card.width(), card.height(),
-                hovered ? ScholarShellStyle.HOVER : ScholarShellStyle.PANEL);
-        if (hovered) graphics.renderOutline(card.x() + 1, card.y() + 1, card.width() - 2, card.height() - 2, 0xFF73C4E2);
+        ScholarShellRenderer.drawPanel(graphics, card, ScholarShellStyle.PANEL_ELEVATED_BACKGROUND, true);
+        if (hovered) {
+            ScholarShellRenderer.drawControl(graphics, card, ScholarControlState.HOVERED);
+            graphics.fill(card.x(), card.y() + 3, card.x() + 2, card.bottom() - 3,
+                    ScholarShellStyle.ACTIVE_INDICATOR);
+        }
     }
 
     private void createDocument(dev.rgcb.scholar.document.DocumentTemplateId template) {
@@ -280,7 +284,7 @@ public final class ScholarHomeScreen extends Screen {
     }
 
     private void renderTemplateChooser(GuiGraphics graphics, int mouseX, int mouseY) {
-        graphics.fill(0, 32, width, height, 0xCC20242A);
+        graphics.fill(0, 32, width, height, ScholarShellStyle.MODAL_OVERLAY);
         graphics.drawCenteredString(font, ScholarText.get("scholar.template.choose"), width / 2, Math.max(38, height / 2 - 98), 0xFFFFFFFF);
         renderTemplateCard(graphics, blankTemplateCard(), ScholarText.get("scholar.template.blank.title"),
                 ScholarText.get("scholar.template.blank.description"), false, mouseX, mouseY);

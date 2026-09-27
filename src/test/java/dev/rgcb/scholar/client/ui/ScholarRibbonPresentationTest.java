@@ -45,11 +45,11 @@ class ScholarRibbonPresentationTest {
     }
 
     @Test void visualStatesRepresentToggleHoverPressAndDisabledWithoutTextColorAlone() {
-        assertEquals(RibbonWidget.VisualState.NORMAL, RibbonWidget.visualState(true, ActionSelectionState.OFF, false, false));
-        assertEquals(RibbonWidget.VisualState.HOVERED, RibbonWidget.visualState(true, ActionSelectionState.OFF, true, false));
-        assertEquals(RibbonWidget.VisualState.PRESSED, RibbonWidget.visualState(true, ActionSelectionState.OFF, true, true));
-        assertEquals(RibbonWidget.VisualState.ACTIVE, RibbonWidget.visualState(true, ActionSelectionState.ON, false, false));
-        assertEquals(RibbonWidget.VisualState.DISABLED, RibbonWidget.visualState(false, ActionSelectionState.ON, true, true));
+        assertEquals(ScholarControlState.NORMAL, ScholarControlState.resolve(true, ActionSelectionState.OFF, false, false));
+        assertEquals(ScholarControlState.HOVERED, ScholarControlState.resolve(true, ActionSelectionState.OFF, true, false));
+        assertEquals(ScholarControlState.PRESSED, ScholarControlState.resolve(true, ActionSelectionState.OFF, true, true));
+        assertEquals(ScholarControlState.SELECTED, ScholarControlState.resolve(true, ActionSelectionState.ON, false, false));
+        assertEquals(ScholarControlState.DISABLED, ScholarControlState.resolve(false, ActionSelectionState.ON, true, true));
     }
 
     @Test void responsiveLayoutUsesFullThenShortThenIconLabelsWithoutDroppingCommands() {
@@ -88,6 +88,15 @@ class ScholarRibbonPresentationTest {
                 .anyMatch(command -> command.size() == RibbonCommandSize.LARGE));
         assertTrue(home.groups().stream().flatMap(group -> group.commands().stream())
                 .anyMatch(RibbonCommandPresentation::dropdown));
+    }
+
+    @Test void layoutResolvesGroupTranslationKeysExactlyOnce() {
+        var home = tab(productionTabs(BuiltInEditorActions.viewMenuActions()), "scholar.menu.home");
+
+        var layout = RibbonLayout.compute(home, 1600);
+
+        assertEquals("Clipboard", layout.groups().getFirst().label());
+        assertFalse(layout.groups().stream().anyMatch(group -> group.label().startsWith("scholar.")));
     }
 
     @Test void productionNeverExposesAnEmptyViewTab() {

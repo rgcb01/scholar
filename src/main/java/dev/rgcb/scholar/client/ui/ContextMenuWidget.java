@@ -39,8 +39,7 @@ public final class ContextMenuWidget {
         bounds = ContextMenuLayout.compute(pointerX, pointerY, viewportWidth, viewportHeight, entries.size());
         clampScrollRow();
         highlightedRow = itemIndexAt(mouseX, mouseY);
-        ScholarShellRenderer.drawRaisedPanel(graphics, bounds.x(), bounds.y(), bounds.width(), bounds.height(), ScholarShellStyle.PANEL_RECESSED);
-        graphics.fill(bounds.x() + 3, bounds.y() + 3, bounds.right() - 3, bounds.bottom() - 3, ScholarShellStyle.PANEL_INSET);
+        ScholarShellRenderer.drawPopupPanel(graphics, bounds);
 
         var visibleRows = visibleRowCount();
         var endRow = Math.min(entries.size(), scrollRow + visibleRows);
@@ -57,7 +56,7 @@ public final class ContextMenuWidget {
                 renderHoveredRow(graphics, y);
             }
             renderActionState(graphics, y, controller.selectionState(action));
-            var color = enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED;
+            var color = enabled ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED;
             graphics.drawString(font, ScholarText.actionLabel(action), bounds.x() + LABEL_X, y + 5, color, false);
             action.shortcut().ifPresent(shortcut -> {
                 var shortcutText = shortcut.displayText();
@@ -70,12 +69,7 @@ public final class ContextMenuWidget {
                         false);
             });
         }
-        if (scrollRow > 0) {
-            graphics.drawString(font, "^", bounds.right() - 12, bounds.y() + 4, ScholarShellStyle.TEXT_DISABLED, false);
-        }
-        if (scrollRow < maxScrollRow()) {
-            graphics.drawString(font, "v", bounds.right() - 12, bounds.bottom() - 12, ScholarShellStyle.TEXT_DISABLED, false);
-        }
+        ScholarShellRenderer.drawScrollbar(graphics, bounds, entries.size(), visibleRows, scrollRow);
     }
 
     public boolean mouseClicked(double mouseX, double mouseY) {
@@ -172,16 +166,13 @@ public final class ContextMenuWidget {
     }
 
     private void renderHoveredRow(GuiGraphics graphics, int y) {
-        var x = bounds.x() + 4;
-        var width = bounds.width() - 8;
-        graphics.fill(x, y + 1, x + width, y + ContextMenuLayout.ROW_HEIGHT - 1, ScholarShellStyle.HOVER);
-        graphics.fill(x, y + 1, x + width, y + 2, ScholarShellStyle.HOVER_TOP);
-        graphics.fill(x, y + ContextMenuLayout.ROW_HEIGHT - 2, x + width, y + ContextMenuLayout.ROW_HEIGHT - 1, ScholarShellStyle.SHADOW);
+        ScholarShellRenderer.drawMenuRow(graphics,
+                new ShellRect(bounds.x() + 4, y + 1, bounds.width() - 8, ContextMenuLayout.ROW_HEIGHT - 2), true);
     }
 
     private void renderActionState(GuiGraphics graphics, int y, ActionSelectionState state) {
         if (state == ActionSelectionState.ON) {
-            graphics.fill(bounds.x() + STATE_MARK_X, y + 5, bounds.x() + STATE_MARK_X + 5, y + 10, ScholarShellStyle.TEXT);
+            graphics.fill(bounds.x() + STATE_MARK_X, y + 5, bounds.x() + STATE_MARK_X + 5, y + 10, ScholarShellStyle.TEXT_PRIMARY);
         } else if (state == ActionSelectionState.MIXED) {
             graphics.fill(bounds.x() + STATE_MARK_X, y + 7, bounds.x() + STATE_MARK_X + 5, y + 9, ScholarShellStyle.TEXT_DISABLED);
         }

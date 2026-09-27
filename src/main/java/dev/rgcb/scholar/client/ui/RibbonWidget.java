@@ -8,9 +8,10 @@ import java.util.List;
 import java.util.Objects;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
-/** Minecraft-native production ribbon backed exclusively by existing EditorActions. */
+/** Scientific-instrument ribbon backed exclusively by existing EditorActions. */
 public final class RibbonWidget {
     public static final int TAB_HEIGHT = 20;
     public static final int COMMAND_HEIGHT = 58;
@@ -57,18 +58,16 @@ public final class RibbonWidget {
     public void render(GuiGraphics graphics, Font font, int mouseX, int mouseY) {
         renderTabs(graphics, font, mouseX, mouseY);
         ScholarShellRenderer.drawRaisedPanel(graphics, commandBounds.x(), commandBounds.y(),
-                commandBounds.width(), commandBounds.height(), ScholarShellStyle.PANEL);
+                commandBounds.width(), commandBounds.height(), ScholarShellStyle.PANEL_BACKGROUND);
         graphics.enableScissor(commandBounds.x(), commandBounds.y(), commandBounds.right(), commandBounds.bottom());
         try {
             for (var group : layout.groups()) {
                 var bounds = translated(group.bounds());
                 if (bounds.right() < commandBounds.x() || bounds.x() > commandBounds.right()) continue;
-                if (group.groupIndex() > 0) {
-                    ScholarShellRenderer.drawVerticalSeparator(graphics, bounds.x(), bounds.y() + 2, 43);
-                }
-                var label = font.plainSubstrByWidth(ScholarText.get(group.label()), Math.max(8, bounds.width() - 6));
+                ScholarShellRenderer.drawGroupPanel(graphics, bounds);
+                var label = font.plainSubstrByWidth(group.label(), Math.max(8, bounds.width() - 6));
                 graphics.drawCenteredString(font, label, bounds.x() + bounds.width() / 2,
-                        commandBounds.bottom() - 10, 0xFFABB4C0);
+                        commandBounds.bottom() - 10, ScholarShellStyle.TEXT_SECONDARY);
             }
             for (var index = 0; index < layout.commands().size(); index++) {
                 renderCommand(graphics, font, index, layout.commands().get(index), mouseX, mouseY);
@@ -86,21 +85,22 @@ public final class RibbonWidget {
         if (hovered < 0) return;
         var command = layout.commands().get(hovered).command();
         var action = presentedAction(command);
-        var lines = new ArrayList<String>();
-        lines.add(command.label(action, RibbonLabelMode.FULL));
-        if (command.palette()) lines.add(ScholarText.get("scholar.tooltip.choose_command"));
+        var rawLines = new ArrayList<String>();
+        rawLines.add(command.label(action, RibbonLabelMode.FULL));
+        if (command.palette()) rawLines.add(ScholarText.get("scholar.tooltip.choose_command"));
         else if (!ScholarText.actionTooltipText(action).equals(ScholarText.actionLabelText(action)))
-            lines.add(ScholarText.actionTooltipText(action));
-        action.shortcut().ifPresent(shortcut -> lines.add(shortcut.displayText()));
+            rawLines.add(ScholarText.actionTooltipText(action));
+        action.shortcut().ifPresent(shortcut -> rawLines.add(shortcut.displayText()));
+        var wrapWidth = Math.max(80, Math.min(220, commandBounds.width() - 20));
+        var lines = rawLines.stream().flatMap(line -> font.split(Component.literal(line), wrapWidth).stream()).toList();
         var width = lines.stream().mapToInt(font::width).max().orElse(40) + 10;
         var height = lines.size() * 11 + 6;
         var x = Math.max(0, Math.min(mouseX + 10, commandBounds.right() - width));
         var y = Math.max(0, Math.min(mouseY + 12, viewportHeight - height));
-        graphics.fill(x, y, x + width, y + height, 0xF0100010);
-        graphics.renderOutline(x, y, width, height, 0xFF6B7280);
+        ScholarShellRenderer.drawTooltipFrame(graphics, new ShellRect(x, y, width, height));
         for (var index = 0; index < lines.size(); index++) {
             graphics.drawString(font, lines.get(index), x + 5, y + 4 + index * 11,
-                    index == 0 ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED, false);
+                    index == 0 ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED, false);
         }
     }
 
@@ -159,16 +159,9 @@ public final class RibbonWidget {
         return true;
     }
 
-    public static VisualState visualState(boolean enabled, ActionSelectionState selected, boolean hovered, boolean pressed) {
-        if (!enabled) return VisualState.DISABLED;
-        if (pressed) return VisualState.PRESSED;
-        if (selected == ActionSelectionState.ON || selected == ActionSelectionState.MIXED) return VisualState.ACTIVE;
-        if (hovered) return VisualState.HOVERED;
-        return VisualState.NORMAL;
-    }
-
     private void renderTabs(GuiGraphics graphics, Font font, int mouseX, int mouseY) {
-        graphics.fill(tabBounds.x(), tabBounds.y(), tabBounds.right(), tabBounds.bottom(), ScholarShellStyle.PANEL_RECESSED);
+        ScholarShellRenderer.drawInsetPanel(graphics, tabBounds.x(), tabBounds.y(), tabBounds.width(),
+                tabBounds.height(), ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
         var result = new ArrayList<ShellRect>();
         var x = tabBounds.x() + 5 - tabScrollOffset;
         graphics.enableScissor(tabBounds.x(), tabBounds.y(), tabBounds.right(), tabBounds.bottom());
@@ -179,14 +172,9 @@ public final class RibbonWidget {
                 var bounds = new ShellRect(x, tabBounds.y() + 1, width, tabBounds.height() - 1);
                 result.add(bounds);
                 var hovered = bounds.contains(mouseX, mouseY);
-                if (index == activeTab) {
-                    graphics.fill(bounds.x(), bounds.y(), bounds.right(), bounds.bottom(), ScholarShellStyle.PANEL);
-                    graphics.fill(bounds.x() + 2, bounds.bottom() - 2, bounds.right() - 2, bounds.bottom(), 0xFF65B5D2);
-                } else if (hovered) {
-                    graphics.fill(bounds.x(), bounds.y(), bounds.right(), bounds.bottom(), ScholarShellStyle.HOVER);
-                }
+                ScholarShellRenderer.drawTab(graphics, bounds, index == activeTab, hovered);
                 graphics.drawCenteredString(font, ScholarText.get(tab.label()), bounds.x() + bounds.width() / 2, bounds.y() + 6,
-                        ScholarShellStyle.TEXT);
+                        ScholarShellStyle.TEXT_PRIMARY);
                 x += width + 2;
             }
         } finally {
@@ -205,43 +193,40 @@ public final class RibbonWidget {
                 ? entry.command().choices().stream().anyMatch(controller::isEnabled)
                 : controller.isEnabled(action);
         var hovered = bounds.contains(mouseX, mouseY);
-        var state = visualState(enabled, controller.selectionState(action), hovered, pressedCommand == index && hovered);
+        var state = ScholarControlState.resolve(
+                enabled, controller.selectionState(action), hovered, pressedCommand == index && hovered);
         renderSurface(graphics, bounds, state);
+        var contentOffset = state.contentOffset();
         var iconScale = entry.command().size() == RibbonCommandSize.LARGE ? 2 : 1;
         var icon = entry.command().icon();
         var labelVisible = entry.labelMode() != RibbonLabelMode.ICON_ONLY
                 && entry.command().size() != RibbonCommandSize.SMALL;
         var iconX = entry.command().size() == RibbonCommandSize.LARGE
-                ? bounds.x() + (bounds.width() - icon.width() * iconScale) / 2
-                : bounds.x() + 5;
-        var iconY = entry.command().size() == RibbonCommandSize.LARGE ? bounds.y() + 5 : bounds.y() + 6;
+                ? bounds.x() + (bounds.width() - icon.width() * iconScale) / 2 + contentOffset
+                : bounds.x() + ScholarShellStyle.ICON_PADDING + contentOffset;
+        var iconY = (entry.command().size() == RibbonCommandSize.LARGE ? bounds.y() + 5 : bounds.y() + 6) + contentOffset;
         icon.render(graphics, iconX, iconY, iconScale,
-                enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED);
+                enabled ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED);
         if (labelVisible) {
             if (entry.command().size() == RibbonCommandSize.LARGE) {
                 var label = font.plainSubstrByWidth(entry.command().label(action, entry.labelMode()), bounds.width() - 4);
-                graphics.drawCenteredString(font, label, bounds.x() + bounds.width() / 2, bounds.bottom() - 11,
-                        enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED);
+                graphics.drawCenteredString(font, label, bounds.x() + bounds.width() / 2 + contentOffset,
+                        bounds.bottom() - 11 + contentOffset,
+                        enabled ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED);
             } else {
                 var reserved = entry.command().dropdown() ? 12 : 5;
                 var label = font.plainSubstrByWidth(entry.command().label(action, entry.labelMode()),
                         bounds.width() - 20 - reserved);
-                graphics.drawString(font, label, bounds.x() + 17, bounds.y() + 6,
-                        enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED, false);
+                graphics.drawString(font, label, bounds.x() + 17 + contentOffset, bounds.y() + 6 + contentOffset,
+                        enabled ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED, false);
                 if (entry.command().dropdown()) drawDropdownChevron(graphics, bounds.right() - 8, bounds.y() + 8,
-                        enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED);
+                        enabled ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED);
             }
         }
     }
 
-    private void renderSurface(GuiGraphics graphics, ShellRect bounds, VisualState state) {
-        switch (state) {
-            case NORMAL -> { }
-            case HOVERED -> ScholarShellRenderer.drawRaisedPanel(graphics, bounds.x(), bounds.y(), bounds.width(), bounds.height(), ScholarShellStyle.HOVER);
-            case PRESSED, ACTIVE -> ScholarShellRenderer.drawInsetPanel(graphics, bounds.x(), bounds.y(), bounds.width(), bounds.height(),
-                    state == VisualState.ACTIVE ? ScholarShellStyle.SELECTED : ScholarShellStyle.PRESSED);
-            case DISABLED -> graphics.fill(bounds.x(), bounds.y(), bounds.right(), bounds.bottom(), 0x2220242A);
-        }
+    private void renderSurface(GuiGraphics graphics, ShellRect bounds, ScholarControlState state) {
+        ScholarShellRenderer.drawControl(graphics, bounds, state);
     }
 
     private void renderDropdown(GuiGraphics graphics, Font font, int mouseX, int mouseY) {
@@ -252,19 +237,20 @@ public final class RibbonWidget {
         var x = Math.max(0, Math.min(commandBounds.x(), this.commandBounds.right() - popupWidth));
         var height = choices.size() * POPUP_ROW_HEIGHT + 4;
         var y = popupY(height);
-        ScholarShellRenderer.drawRaisedPanel(graphics, x, y, popupWidth, height, ScholarShellStyle.PANEL_RECESSED);
+        ScholarShellRenderer.drawPopupPanel(graphics, new ShellRect(x, y, popupWidth, height));
         for (var index = 0; index < choices.size(); index++) {
             var action = choices.get(index);
             var rowY = y + 2 + index * POPUP_ROW_HEIGHT;
             var enabled = controller.isEnabled(action);
-            if (mouseX >= x + 2 && mouseX < x + popupWidth - 2 && mouseY >= rowY && mouseY < rowY + POPUP_ROW_HEIGHT) {
-                graphics.fill(x + 2, rowY, x + popupWidth - 2, rowY + POPUP_ROW_HEIGHT, ScholarShellStyle.HOVER);
-            }
+            var hovered = mouseX >= x + 2 && mouseX < x + popupWidth - 2
+                    && mouseY >= rowY && mouseY < rowY + POPUP_ROW_HEIGHT;
+            ScholarShellRenderer.drawMenuRow(graphics,
+                    new ShellRect(x + 4, rowY + 1, popupWidth - 8, POPUP_ROW_HEIGHT - 2), hovered && enabled);
             if (controller.selectionState(action) == ActionSelectionState.ON) {
-                graphics.fill(x + 4, rowY + 5, x + 8, rowY + 13, 0xFF65B5D2);
+                graphics.fill(x + 5, rowY + 5, x + 9, rowY + 13, ScholarShellStyle.ACTIVE_INDICATOR);
             }
             graphics.drawString(font, ScholarText.actionLabel(action), x + 12, rowY + 5,
-                    enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED, false);
+                    enabled ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED, false);
         }
     }
 
@@ -310,9 +296,9 @@ public final class RibbonWidget {
 
     private void renderOverflowHints(GuiGraphics graphics) {
         if (scrollOffset > 0) graphics.fill(commandBounds.x(), commandBounds.y() + 3,
-                commandBounds.x() + 2, commandBounds.bottom() - 11, 0xFF65B5D2);
+                commandBounds.x() + 2, commandBounds.bottom() - 11, ScholarShellStyle.SCIENTIFIC_ACCENT);
         if (scrollOffset + commandBounds.width() < layout.contentWidth()) graphics.fill(commandBounds.right() - 2,
-                commandBounds.y() + 3, commandBounds.right(), commandBounds.bottom() - 11, 0xFF65B5D2);
+                commandBounds.y() + 3, commandBounds.right(), commandBounds.bottom() - 11, ScholarShellStyle.SCIENTIFIC_ACCENT);
     }
 
     private static void drawDropdownChevron(GuiGraphics graphics, int x, int y, int color) {
@@ -331,5 +317,4 @@ public final class RibbonWidget {
         return Math.max(POPUP_WIDTH, Math.min(220, labelWidth + 24));
     }
 
-    public enum VisualState { NORMAL, HOVERED, PRESSED, ACTIVE, DISABLED }
 }

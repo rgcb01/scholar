@@ -1,5 +1,9 @@
 package dev.rgcb.scholar.client.screen;
 
+import dev.rgcb.scholar.client.ui.ScholarButton;
+import dev.rgcb.scholar.client.ui.ScholarShellRenderer;
+import dev.rgcb.scholar.client.ui.ShellRect;
+
 import dev.rgcb.scholar.client.ui.ScholarScreenRendering;
 import dev.rgcb.scholar.client.ui.ScholarText;
 import dev.rgcb.scholar.data.ScientificDataset;
@@ -94,7 +98,7 @@ final class ScholarInterchangeDialog extends Screen {
             for (var i = 0; i < count; i++) {
                 var index = listPage * rowsPerPage + i;
                 var file = csvFiles.get(index);
-                addRenderableWidget(Button.builder(Component.literal(file.getFileName().toString()), b -> selectFile(index))
+                addRenderableWidget(ScholarButton.create(Component.literal(file.getFileName().toString()), b -> selectFile(index))
                         .bounds(x, 46 + i * 23, w, 20).build());
             }
             if (csvFiles.isEmpty() && message.isEmpty()) message = ScholarText.get("scholar.import.csv.place_file", directory);
@@ -104,7 +108,7 @@ final class ScholarInterchangeDialog extends Screen {
                 for (var i = 0; i < Math.min(rowsPerPage, Math.max(0, datasets.size() - listPage * rowsPerPage)); i++) {
                     var index = listPage * rowsPerPage + i;
                     var dataset = datasets.get(index);
-                    addRenderableWidget(Button.builder(Component.literal(dataset.displayLabel()), b -> selectDataset(index))
+                    addRenderableWidget(ScholarButton.create(Component.literal(dataset.displayLabel()), b -> selectDataset(index))
                             .bounds(x, 46 + i * 23, w, 20).build());
                 }
                 if (datasets.isEmpty()) message = ScholarText.get("scholar.export.no_datasets");
@@ -114,10 +118,10 @@ final class ScholarInterchangeDialog extends Screen {
                 : mode == Mode.EXPORT_CSV ? session.current().document().datasets().size() : 0;
         var navigationY = 46 + rowsPerPage * 23;
         if (count > rowsPerPage) {
-            var previous = addRenderableWidget(Button.builder(Component.literal("<"), b -> { listPage--; rebuildWidgets(); })
+            var previous = addRenderableWidget(ScholarButton.create(Component.literal("<"), b -> { listPage--; rebuildWidgets(); })
                     .bounds(x, navigationY, 32, 20).build());
             previous.active = listPage > 0;
-            var next = addRenderableWidget(Button.builder(Component.literal(">"), b -> { listPage++; rebuildWidgets(); })
+            var next = addRenderableWidget(ScholarButton.create(Component.literal(">"), b -> { listPage++; rebuildWidgets(); })
                     .bounds(x + 36, navigationY, 32, 20).build());
             next.active = (listPage + 1) * rowsPerPage < count;
         }
@@ -136,16 +140,16 @@ final class ScholarInterchangeDialog extends Screen {
         name.setValue(nameDraft == null ? defaultName : nameDraft);
         name.setResponder(value -> nameDraft = value);
         addRenderableWidget(name);
-        addRenderableWidget(Button.builder(ScholarText.component(mode == Mode.IMPORT_CSV
+        addRenderableWidget(ScholarButton.create(ScholarText.component(mode == Mode.IMPORT_CSV
                 ? "scholar.import.action" : "scholar.export.action"), b -> submit())
                 .bounds(x, inputY + 28, w / 2 - 3, 20).build());
-        addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.cancel"), b -> onClose())
+        addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.dialog.cancel"), b -> onClose())
                 .bounds(x + w / 2 + 3, inputY + 28, w / 2 - 3, 20).build());
         if (mode == Mode.IMPORT_CSV && preview != null && preview.columns().size() > visibleColumns()) {
-            var previous = addRenderableWidget(Button.builder(Component.literal("<"), b -> changeColumnPage(-1))
+            var previous = addRenderableWidget(ScholarButton.create(Component.literal("<"), b -> changeColumnPage(-1))
                     .bounds(x + w - 72, previewTop - 5, 32, 20).build());
             previous.active = columnPage > 0;
-            var next = addRenderableWidget(Button.builder(Component.literal(">"), b -> changeColumnPage(1))
+            var next = addRenderableWidget(ScholarButton.create(Component.literal(">"), b -> changeColumnPage(1))
                     .bounds(x + w - 36, previewTop - 5, 32, 20).build());
             next.active = (columnPage + 1) * visibleColumns() < preview.columns().size();
         }
@@ -247,7 +251,10 @@ final class ScholarInterchangeDialog extends Screen {
     }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        graphics.fill(0, 0, width, height, 0xFF202020);
+        ScholarShellRenderer.drawScreenBackground(graphics, width, height);
+        var frameWidth = Math.min(450, width - 8);
+        ScholarShellRenderer.drawDialogFrame(graphics,
+                new ShellRect((width - frameWidth) / 2, 8, frameWidth, Math.max(80, height - 16)));
         graphics.drawCenteredString(font, title, width / 2, 18, 0xFFFFFFFF);
         ScholarScreenRendering.renderWidgets(renderables, graphics, mouseX, mouseY, partialTick);
         var x = Math.max(12, (width - 430) / 2);

@@ -1,5 +1,9 @@
 package dev.rgcb.scholar.client.screen;
 
+import dev.rgcb.scholar.client.ui.ScholarButton;
+import dev.rgcb.scholar.client.ui.ScholarShellRenderer;
+import dev.rgcb.scholar.client.ui.ShellRect;
+
 import dev.rgcb.scholar.client.ui.ScholarScreenRendering;
 import dev.rgcb.scholar.client.ui.ScholarText;
 import dev.rgcb.scholar.compute.ScientificValue;
@@ -75,7 +79,7 @@ final class ScholarComputationDialog extends Screen {
                 variableMode() ? "scholar.dialog.unit_expression" : "scholar.dataset.display_unit_optional", "");
         label = variableMode() ? field(x, y + 126, w, "scholar.dialog.label_optional", "") : null;
         if (variableMode()) {
-            unitPickerButton = addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.choose_unit"), b -> openUnitPicker())
+            unitPickerButton = addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.dialog.choose_unit"), b -> openUnitPicker())
                     .bounds(x + w - 98, y + 90, 98, 20).build());
             unitSearch = new EditBox(font, x, y + 114, w, 20, ScholarText.component("scholar.dialog.search_units"));
             unitSearch.setHint(ScholarText.component("scholar.dialog.search_units"));
@@ -84,13 +88,13 @@ final class ScholarComputationDialog extends Screen {
             unitOptions.clear();
             for (var row = 0; row < 7; row++) {
                 var visibleRow = row;
-                unitOptions.add(Button.builder(Component.empty(), b -> {
+                unitOptions.add(ScholarButton.create(Component.empty(), b -> {
                     var index = unitScroll + visibleRow;
                     if (index < visibleUnits.size()) selectUnit(visibleUnits.get(index));
                 })
                         .bounds(x + 3, 0, w - 6, 18).build());
             }
-            semanticsButton = addRenderableWidget(Button.builder(Component.literal(semanticsLabel()), b -> {
+            semanticsButton = addRenderableWidget(ScholarButton.create(Component.literal(semanticsLabel()), b -> {
                 semantics = switch (semantics) {
                     case LINEAR -> QuantitySemantics.ABSOLUTE_TEMPERATURE;
                     case ABSOLUTE_TEMPERATURE -> QuantitySemantics.TEMPERATURE_DIFFERENCE;
@@ -110,7 +114,7 @@ final class ScholarComputationDialog extends Screen {
                 }
             });
         } else {
-            notationButton = addRenderableWidget(Button.builder(Component.literal(notationLabel()), b -> {
+            notationButton = addRenderableWidget(ScholarButton.create(Component.literal(notationLabel()), b -> {
                 notation = switch (notation) {
                     case DECIMAL -> NumberNotation.SCIENTIFIC;
                     case SCIENTIFIC -> NumberNotation.ENGINEERING;
@@ -139,8 +143,8 @@ final class ScholarComputationDialog extends Screen {
             notationButton.setMessage(Component.literal(notationLabel()));
         }
         var buttonsY = y + (variableMode() ? 190 : 158);
-        addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.apply"), b -> apply()).bounds(x, buttonsY, w / 2 - 3, 20).build());
-        addRenderableWidget(Button.builder(ScholarText.component("scholar.dialog.cancel"), b -> onClose()).bounds(x + w / 2 + 3, buttonsY, w / 2 - 3, 20).build());
+        addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.dialog.apply"), b -> apply()).bounds(x, buttonsY, w / 2 - 3, 20).build());
+        addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.dialog.cancel"), b -> onClose()).bounds(x + w / 2 + 3, buttonsY, w / 2 - 3, 20).build());
         setInitialFocus(primary);
     }
 
@@ -265,7 +269,11 @@ final class ScholarComputationDialog extends Screen {
     }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        graphics.fill(0, 0, width, height, 0xFF202020);
+        ScholarShellRenderer.drawScreenBackground(graphics, width, height);
+        var frameWidth = Math.min(380, width - 12);
+        ScholarShellRenderer.drawDialogFrame(graphics,
+                new ShellRect((width - frameWidth) / 2, Math.max(6, height / 2 - 138), frameWidth,
+                        Math.min(height - 12, 276)));
         graphics.drawCenteredString(font, title, width / 2, Math.max(18, height / 2 - 132), 0xFFFFFFFF);
         graphics.drawString(font, ScholarText.get(variableMode() ? "scholar.dialog.name" : "scholar.dialog.expression"), primary.getX(), primary.getY() - 10, 0xFFD1D5DB);
         graphics.drawString(font, ScholarText.get(variableMode() ? "scholar.dialog.value" : "scholar.dialog.label"), secondary.getX(), secondary.getY() - 10, 0xFFD1D5DB);
@@ -292,8 +300,8 @@ final class ScholarComputationDialog extends Screen {
         var top = pickerTop();
         var popupWidth = Math.min(340, width - 24);
         var rows = pickerRows();
-        graphics.fill(x - 2, top - 2, x + popupWidth + 2, top + 24 + rows * 18 + 2, 0xFFAAAAAA);
-        graphics.fill(x, top, x + popupWidth, top + 24 + rows * 18, 0xFF101010);
+        ScholarShellRenderer.drawPopupPanel(graphics,
+                new ShellRect(x - 2, top - 2, popupWidth + 4, 24 + rows * 18 + 4));
         unitSearch.setX(x + 3);
         unitSearch.setY(top + 2);
         unitSearch.setWidth(popupWidth - 6);

@@ -16,6 +16,9 @@ This is the current implementation map, not a public API promise. The semantic d
 | Layout/typesetting | Pure-Java layout derives logical pages, columns, line/atomic-block geometry and hit targets from semantic content and text measurement. M30 page settings are semantic; assigned pages are derived. |
 | Client/rendering | Minecraft screens, ribbon, dialogs, font resources, `DocumentViewTransform`, and renderers display laid-out content. Zoom/scroll/fit and the status bar belong here, not in `Document`. |
 
+The editor-specific ownership and dependency rules are detailed in
+[Editor Architecture](EDITOR_ARCHITECTURE.md).
+
 Core model, editor, scientific and transfer logic avoid Minecraft types where practical. Client screens may call into those layers; the core should not depend on screens, widgets, or `GuiGraphics`. `DocumentViewTransform` maps laid-out document coordinates to GUI coordinates for rendering, clipping, caret/selection, and hit testing. GUI scale and zoom do not alter the semantic document.
 
 ## Identity And Derived State

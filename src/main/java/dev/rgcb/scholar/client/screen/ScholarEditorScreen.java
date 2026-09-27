@@ -10,6 +10,11 @@ import dev.rgcb.scholar.client.render.MinecraftMathTextMeasurer;
 import dev.rgcb.scholar.client.render.MinecraftTextMeasurer;
 import dev.rgcb.scholar.client.render.MinecraftTypographyResolver;
 import dev.rgcb.scholar.client.ui.ContextMenuWidget;
+import dev.rgcb.scholar.client.ui.EditorContextMenuFactory;
+import dev.rgcb.scholar.client.ui.EditorDialogCoordinator;
+import dev.rgcb.scholar.client.ui.EditorInputDispatcher;
+import dev.rgcb.scholar.client.ui.EditorOutlinePanel;
+import dev.rgcb.scholar.client.ui.EditorStatusBar;
 import dev.rgcb.scholar.client.ui.CrossReferencePickerModel;
 import dev.rgcb.scholar.client.ui.ApplicationHeaderWidget;
 import dev.rgcb.scholar.client.ui.MenuBarWidget;
@@ -18,10 +23,7 @@ import dev.rgcb.scholar.client.ui.MenuDefinition;
 import dev.rgcb.scholar.client.ui.MenuEntry;
 import dev.rgcb.scholar.client.ui.MinecraftShortcutMatcher;
 import dev.rgcb.scholar.client.ui.ScholarShellLayout;
-import dev.rgcb.scholar.client.ui.ScholarStatusBarLayout;
 import dev.rgcb.scholar.client.ui.CaretBlink;
-import dev.rgcb.scholar.client.ui.DocumentStatus;
-import dev.rgcb.scholar.client.ui.ScholarIcons;
 import dev.rgcb.scholar.client.ui.ScholarShellRenderer;
 import dev.rgcb.scholar.client.ui.ScholarShellModel;
 import dev.rgcb.scholar.client.ui.ScholarShellStyle;
@@ -40,10 +42,8 @@ import dev.rgcb.scholar.editor.DocumentPosition;
 import dev.rgcb.scholar.editor.EditorAction;
 import dev.rgcb.scholar.editor.EditorActionId;
 import dev.rgcb.scholar.editor.EditorDocumentWorkspace;
-import dev.rgcb.scholar.editor.EditorContextActionResolver;
 import dev.rgcb.scholar.editor.EditorSession;
 import dev.rgcb.scholar.editor.EditorState;
-import dev.rgcb.scholar.editor.TextSelection;
 import dev.rgcb.scholar.editor.SelectionDragResolver;
 import dev.rgcb.scholar.editor.SelectionGeometryResolver;
 import dev.rgcb.scholar.editor.TableCaretGeometryResolver;
@@ -51,7 +51,6 @@ import dev.rgcb.scholar.editor.TableCellTextSelection;
 import dev.rgcb.scholar.editor.TableEditingSelection;
 import dev.rgcb.scholar.editor.TableHitTester;
 import dev.rgcb.scholar.editor.TableSelectionGeometryResolver;
-import dev.rgcb.scholar.editor.PlotEditingSelection;
 import dev.rgcb.scholar.editor.PlotEditTarget;
 import dev.rgcb.scholar.editor.PlotPropertyTarget;
 import dev.rgcb.scholar.editor.PlotProperty;
@@ -72,8 +71,6 @@ import dev.rgcb.scholar.diagram.layout.DiagramViewport;
 import dev.rgcb.scholar.diagram.layout.DiagramViewportStore;
 import dev.rgcb.scholar.document.DiagramBlock;
 import dev.rgcb.scholar.document.Document;
-import dev.rgcb.scholar.document.DocumentStructureResolver;
-import dev.rgcb.scholar.document.SectionEntry;
 import dev.rgcb.scholar.layout.LaidOutTableCell;
 import dev.rgcb.scholar.plot.layout.LaidOutPlot;
 import dev.rgcb.scholar.math.editor.MathCaretGeometryResolver;
@@ -85,18 +82,13 @@ import dev.rgcb.scholar.math.editor.MathSelectionGeometryResolver;
 import dev.rgcb.scholar.math.editor.SemanticMathTokenKind;
 import dev.rgcb.scholar.typography.ScholarTypography;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import net.minecraft.client.Minecraft;
 import net.minecraft.Util;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 public final class ScholarEditorScreen extends Screen {
-    private static final int BACKGROUND_COLOR = 0xFF202020;
     private static final int CARET_COLOR = 0xFF1F2933;
     private static final int SELECTION_COLOR = 0x663B82F6;
     private static final int OBJECT_SELECTION_FILL = 0x333B82F6;
@@ -273,41 +265,35 @@ public final class ScholarEditorScreen extends Screen {
     private final TableSelectionGeometryResolver tableSelectionGeometryResolver = new TableSelectionGeometryResolver();
     private final PlotHitTester plotHitTester = new PlotHitTester();
     private final DiagramHitTester diagramHitTester = new DiagramHitTester();
-    private final EditorContextActionResolver contextActionResolver = new EditorContextActionResolver();
+    private final EditorContextMenuFactory contextMenuFactory = new EditorContextMenuFactory(allActions);
     private ScholarEditorController controller;
     private MenuBarWidget menuBar;
     private ToolbarWidget toolbar;
     private RibbonWidget ribbon;
     private ContextMenuWidget contextMenu;
     private boolean equationToolbarActive;
-    private boolean semanticTokenPopupOpen;
+    private final EditorDialogCoordinator dialogCoordinator = new EditorDialogCoordinator();
+    private final EditorInputDispatcher inputDispatcher = new EditorInputDispatcher();
     private boolean semanticTokenTypeOpen;
     private SemanticMathTokenKind semanticTokenKind = SemanticMathTokenKind.NAMED_OPERATOR;
     private String semanticTokenContent = "";
-    private boolean crossReferencePopupOpen;
     private final CrossReferencePickerModel crossReferencePicker = new CrossReferencePickerModel();
-    private boolean plotValuePopupOpen;
     private boolean plotPointSecondField;
     private PlotEditTarget plotPopupTarget;
     private String plotValuePrimary = "";
     private String plotValueSecondary = "";
-    private boolean diagramLabelPopupOpen;
     private DiagramEditTarget diagramLabelPopupTarget;
     private String diagramLabelValue = "";
-    private boolean electricalComponentPopupOpen;
     private DiagramElementTarget electricalComponentPopupTarget;
     private String electricalReferenceValue = "";
     private String electricalComponentValue = "";
     private boolean electricalComponentSecondField;
-    private boolean diagramCanvasPopupOpen;
     private boolean diagramCanvasSecondField;
     private String diagramCanvasWidthValue = "";
     private String diagramCanvasHeightValue = "";
     private String diagramCanvasValidation = "";
     private final DiagramViewportStore diagramViewports = new DiagramViewportStore();
-    private final DocumentStructureResolver structureResolver = new DocumentStructureResolver();
-    private boolean outlineOpen;
-    private int outlineScroll;
+    private final EditorOutlinePanel outlinePanel;
     private boolean diagramPanning;
     private int diagramPanBlockIndex = -1;
     private ScholarShellLayout shellLayout = ScholarShellLayout.compute(0, 0);
@@ -322,11 +308,9 @@ public final class ScholarEditorScreen extends Screen {
     private int viewportHeight;
     private int scrollOffset;
     private float zoom = 1.0f;
+    private final EditorStatusBar statusBar;
     private final CaretBlink caretBlink = new CaretBlink();
     private boolean caretVisible;
-    private boolean zoomSliderDragging;
-    private Document statusWordDocument;
-    private int statusWordCount;
     private boolean dragging;
     private MathPosition mathDragAnchor;
     private TableCellTextSelection tableDragAnchor;
@@ -341,6 +325,9 @@ public final class ScholarEditorScreen extends Screen {
                 fileAction(EditorActionId.VIEW_FIT_PAGE, this::fitPage),
                 fileAction(EditorActionId.VIEW_FIT_WIDTH, this::fitWidth));
         session = workspace.session();
+        statusBar = new EditorStatusBar(this::executeViewportAction, this::setZoom, () -> zoom);
+        outlinePanel = new EditorOutlinePanel(
+                () -> session.current().document(), session::navigateToHeadingId);
         exportCsvAction = fileAction(EditorActionId.DATA_EXPORT_CSV, () -> minecraft.setScreen(ScholarInterchangeDialog.exportCsv(this, session)));
         fileActions = List.of(
                 fileAction(EditorActionId.FILE_NEW, () -> protectUnsaved(() -> {
@@ -502,7 +489,7 @@ public final class ScholarEditorScreen extends Screen {
                         && (toolbar == null || !toolbar.isPopupOpen())
                         && (ribbon == null || !ribbon.isPopupOpen()),
                 editorState().document(), editorState().selection());
-        graphics.fill(0, 0, width, height, BACKGROUND_COLOR);
+        graphics.fill(0, 0, width, height, ScholarShellStyle.WORKSPACE_BACKGROUND);
         if (laidOutDocument != null && typographyResolver != null && textMeasurer != null
                 && viewportWidth > 0 && viewportHeight > 0) {
             graphics.enableScissor(viewportX, viewportY, viewportX + viewportWidth, viewportY + viewportHeight);
@@ -565,7 +552,7 @@ public final class ScholarEditorScreen extends Screen {
 
     @Override
     public boolean charTyped(char codePoint, int modifiers) {
-        if (diagramCanvasPopupOpen) {
+        if (dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.DIAGRAM_CANVAS)) {
             if (Character.isDigit(codePoint) || codePoint == '.') {
                 if (diagramCanvasSecondField) {
                     diagramCanvasHeightValue = diagramCanvasHeightValue + codePoint;
@@ -576,7 +563,7 @@ public final class ScholarEditorScreen extends Screen {
             }
             return true;
         }
-        if (electricalComponentPopupOpen) {
+        if (dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.ELECTRICAL_COMPONENT)) {
             if (!Character.isISOControl(codePoint)) {
                 if (electricalComponentSecondField) {
                     electricalComponentValue = electricalComponentValue + codePoint;
@@ -586,25 +573,25 @@ public final class ScholarEditorScreen extends Screen {
             }
             return true;
         }
-        if (diagramLabelPopupOpen) {
+        if (dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.DIAGRAM_LABEL)) {
             if (!Character.isISOControl(codePoint)) {
                 diagramLabelValue = diagramLabelValue + codePoint;
             }
             return true;
         }
-        if (plotValuePopupOpen) {
+        if (dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.PLOT_VALUE)) {
             if (!Character.isISOControl(codePoint)) {
                 appendPlotPopupCharacter(codePoint);
             }
             return true;
         }
-        if (semanticTokenPopupOpen) {
+        if (dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.SEMANTIC_TOKEN)) {
             if (!Character.isISOControl(codePoint)) {
                 semanticTokenContent = semanticTokenContent + codePoint;
             }
             return true;
         }
-        if (crossReferencePopupOpen) {
+        if (dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.CROSS_REFERENCE)) {
             return true;
         }
         if (menuBar != null && menuBar.isOpen()) {
@@ -622,7 +609,7 @@ public final class ScholarEditorScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (diagramCanvasPopupOpen) {
+        if (dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.DIAGRAM_CANVAS)) {
             if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
                 closeDiagramCanvasPopup();
                 return true;
@@ -646,7 +633,7 @@ public final class ScholarEditorScreen extends Screen {
             }
             return true;
         }
-        if (electricalComponentPopupOpen) {
+        if (dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.ELECTRICAL_COMPONENT)) {
             if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
                 closeElectricalComponentPopup();
                 return true;
@@ -669,7 +656,7 @@ public final class ScholarEditorScreen extends Screen {
             }
             return true;
         }
-        if (diagramLabelPopupOpen) {
+        if (dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.DIAGRAM_LABEL)) {
             if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
                 closeDiagramLabelPopup();
                 return true;
@@ -684,7 +671,7 @@ public final class ScholarEditorScreen extends Screen {
             }
             return true;
         }
-        if (plotValuePopupOpen) {
+        if (dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.PLOT_VALUE)) {
             if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
                 closePlotValuePopup();
                 return true;
@@ -703,7 +690,7 @@ public final class ScholarEditorScreen extends Screen {
             }
             return true;
         }
-        if (semanticTokenPopupOpen) {
+        if (dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.SEMANTIC_TOKEN)) {
             if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
                 closeSemanticTokenPopup();
                 return true;
@@ -724,7 +711,7 @@ public final class ScholarEditorScreen extends Screen {
             }
             return true;
         }
-        if (crossReferencePopupOpen) {
+        if (dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.CROSS_REFERENCE)) {
             if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
                 closeCrossReferencePopup();
             } else if (keyCode == GLFW.GLFW_KEY_UP) {
@@ -743,28 +730,11 @@ public final class ScholarEditorScreen extends Screen {
             }
             return true;
         }
-        if (contextMenu != null) {
-            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
-                contextMenu = null;
-                return true;
-            }
-            if (contextMenu.keyPressed(keyCode)) {
-                if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
-                    contextMenu = null;
-                }
-                return true;
-            }
-        }
-        if (menuBar != null && menuBar.keyPressed(keyCode)) {
-            return true;
-        }
-        if (toolbar != null && toolbar.keyPressed(keyCode)) {
-            return true;
-        }
-        if (ribbon != null && ribbon.isPopupOpen() && keyCode == GLFW.GLFW_KEY_ESCAPE) {
-            ribbon.closePopup();
-            return true;
-        }
+        if (inputDispatcher.dispatchKey(keyCode, List.of(
+                this::dispatchContextMenuKey,
+                key -> menuBar != null && menuBar.keyPressed(key),
+                key -> toolbar != null && toolbar.keyPressed(key),
+                this::dispatchRibbonKey))) return true;
 
         var shiftDown = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;
         if (editorState().isTableEditingSelection()) {
@@ -973,22 +943,22 @@ public final class ScholarEditorScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (diagramCanvasPopupOpen) {
+        if (dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.DIAGRAM_CANVAS)) {
             return diagramCanvasPopupClicked(mouseX, mouseY);
         }
-        if (electricalComponentPopupOpen) {
+        if (dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.ELECTRICAL_COMPONENT)) {
             return electricalComponentPopupClicked(mouseX, mouseY);
         }
-        if (diagramLabelPopupOpen) {
+        if (dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.DIAGRAM_LABEL)) {
             return diagramLabelPopupClicked(mouseX, mouseY);
         }
-        if (plotValuePopupOpen) {
+        if (dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.PLOT_VALUE)) {
             return plotValuePopupClicked(mouseX, mouseY);
         }
-        if (semanticTokenPopupOpen) {
+        if (dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.SEMANTIC_TOKEN)) {
             return semanticTokenPopupClicked(mouseX, mouseY);
         }
-        if (crossReferencePopupOpen) {
+        if (dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.CROSS_REFERENCE)) {
             return crossReferencePopupClicked(mouseX, mouseY);
         }
         if (contextMenu != null) {
@@ -1001,13 +971,8 @@ public final class ScholarEditorScreen extends Screen {
                 return true;
             }
         }
-        if (shellLayout.statusBarBounds().contains(mouseX, mouseY)) {
-            if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) statusBarClicked(mouseX, mouseY);
-            return true;
-        }
-        if (outlineOpen && contains(outlinePanelRect(), mouseX, mouseY)) {
-            return outlinePanelClicked(mouseX, mouseY);
-        }
+        if (statusBar.mouseClicked(shellLayout.statusBarBounds(), mouseX, mouseY, button)) return true;
+        if (outlinePanel.mouseClicked(mouseX, mouseY, width, height)) return true;
         if (ribbon != null && ribbon.isPopupOpen()) {
             return ribbon.mouseClicked(mouseX, mouseY, button);
         }
@@ -1137,11 +1102,7 @@ public final class ScholarEditorScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        if (zoomSliderDragging && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-            setZoom(ScholarStatusBarLayout.zoomAt(
-                    ScholarStatusBarLayout.compute(shellLayout.statusBarBounds()).slider(), mouseX));
-            return true;
-        }
+        if (statusBar.mouseDragged(shellLayout.statusBarBounds(), mouseX, button)) return true;
         if (contextMenu != null) {
             return true;
         }
@@ -1207,10 +1168,7 @@ public final class ScholarEditorScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (zoomSliderDragging && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-            zoomSliderDragging = false;
-            return true;
-        }
+        if (statusBar.mouseReleased(button)) return true;
         if (button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE && diagramPanning) {
             diagramPanning = false;
             diagramPanBlockIndex = -1;
@@ -1255,7 +1213,7 @@ public final class ScholarEditorScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (crossReferencePopupOpen) {
+        if (dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.CROSS_REFERENCE)) {
             if (scrollY != 0.0) crossReferencePicker.movePage(scrollY > 0 ? -1 : 1);
             return true;
         }
@@ -1283,10 +1241,7 @@ public final class ScholarEditorScreen extends Screen {
             ribbon.mouseScrolled(mouseX, mouseY, scrollY);
             return true;
         }
-        if (outlineOpen && contains(outlinePanelRect(), mouseX, mouseY)) {
-            outlineScroll = clampOutlineScroll(outlineScroll - (int) Math.signum(scrollY) * ScholarShellLayout.DOCUMENT_SCROLL_STEP);
-            return true;
-        }
+        if (outlinePanel.mouseScrolled(mouseX, mouseY, scrollY, width, height)) return true;
         if (laidOutDocument == null || !isInsideViewport(mouseX, mouseY)) {
             return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         }
@@ -1340,14 +1295,8 @@ public final class ScholarEditorScreen extends Screen {
         if (!emptyArea) {
             emptyArea = !selectRightClickTarget(documentLocalX(mouseX), documentLocalY(mouseY));
         }
-        var entries = emptyArea
-                ? contextActionResolver.resolveEmptyArea(editorState(), actionMap())
-                : contextActionResolver.resolve(editorState(), actionMap());
-        if (entries.isEmpty()) {
-            contextMenu = null;
-            return true;
-        }
-        contextMenu = new ContextMenuWidget(controller, entries, (int) mouseX, (int) mouseY);
+        contextMenu = contextMenuFactory.create(
+                controller, editorState(), emptyArea, (int) mouseX, (int) mouseY);
         return true;
     }
 
@@ -1428,17 +1377,25 @@ public final class ScholarEditorScreen extends Screen {
                 && offset <= selection.selection().endOffset();
     }
 
-    private Map<EditorActionId, EditorAction> actionMap() {
-        return allActions.stream().collect(Collectors.toMap(EditorAction::id, Function.identity(), (first, duplicate) -> first));
+    private boolean anyModalPopupOpen() {
+        return dialogCoordinator.anyOpen();
     }
 
-    private boolean anyModalPopupOpen() {
-        return semanticTokenPopupOpen
-                || crossReferencePopupOpen
-                || plotValuePopupOpen
-                || diagramLabelPopupOpen
-                || diagramCanvasPopupOpen
-                || electricalComponentPopupOpen;
+    private boolean dispatchContextMenuKey(int keyCode) {
+        if (contextMenu == null) return false;
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            contextMenu = null;
+            return true;
+        }
+        if (!contextMenu.keyPressed(keyCode)) return false;
+        if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) contextMenu = null;
+        return true;
+    }
+
+    private boolean dispatchRibbonKey(int keyCode) {
+        if (ribbon == null || !ribbon.isPopupOpen() || keyCode != GLFW.GLFW_KEY_ESCAPE) return false;
+        ribbon.closePopup();
+        return true;
     }
 
     private void executeAction(EditorActionId actionId) {
@@ -1513,10 +1470,8 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void renderStatusBar(GuiGraphics graphics, int mouseX, int mouseY) {
-        var bar = shellLayout.statusBarBounds();
-        if (bar.height() < 18) return;
-        ScholarShellRenderer.drawRaisedPanel(graphics, bar.x(), bar.y(), bar.width(), bar.height(), ScholarShellStyle.PANEL);
-        var slots = ScholarStatusBarLayout.compute(bar);
+        var currentPage = 0;
+        var pageCount = 0;
         if (laidOutDocument != null) {
             int pageY = scrollOffset + logicalViewportHeight() / 2;
             if (editorState().isTextSelection() && textMeasurer != null) {
@@ -1524,63 +1479,11 @@ public final class ScholarEditorScreen extends Screen {
             } else if (editorState().isBlockSelection()) {
                 pageY = laidOutDocument.blocks().get(editorState().blockSelection().blockIndex()).y();
             }
-            drawStatusText(graphics, slots.page(), ScholarText.get("scholar.status.page",
-                    DocumentStatus.pageAt(laidOutDocument, pageY), laidOutDocument.pages().size()));
+            currentPage = dev.rgcb.scholar.client.ui.DocumentStatus.pageAt(laidOutDocument, pageY);
+            pageCount = laidOutDocument.pages().size();
         }
-        var document = editorState().document();
-        if (statusWordDocument != document) {
-            statusWordDocument = document;
-            statusWordCount = DocumentStatus.wordCount(document);
-        }
-        drawStatusText(graphics, slots.words(), ScholarText.get("scholar.status.words", statusWordCount));
-        drawStatusIcon(graphics, slots.fitPage(), ScholarIcons.FIT_PAGE, mouseX, mouseY);
-        drawStatusIcon(graphics, slots.fitWidth(), ScholarIcons.FIT_WIDTH, mouseX, mouseY);
-        drawStatusIcon(graphics, slots.zoomOut(), ScholarIcons.ZOOM_OUT, mouseX, mouseY);
-        if (slots.slider().width() > 0) {
-            var slot = slots.slider();
-            int trackY = slot.y() + slot.height() / 2;
-            graphics.fill(slot.x(), trackY, slot.right(), trackY + 2, ScholarShellStyle.SEPARATOR_DARK);
-            int thumbX = ScholarStatusBarLayout.thumbX(slot, zoom);
-            ScholarShellRenderer.drawRaisedPanel(graphics, thumbX - 3, slot.y() + 2, 7, 14,
-                    ScholarShellStyle.HIGHLIGHT);
-        }
-        drawStatusIcon(graphics, slots.zoomIn(), ScholarIcons.ZOOM_IN, mouseX, mouseY);
-        drawStatusText(graphics, slots.percentage(), Math.round(zoom * 100) + "%");
-        String tooltip = slots.fitPage().contains(mouseX, mouseY) ? ScholarText.get("scholar.action.view_fit_page")
-                : slots.fitWidth().contains(mouseX, mouseY) ? ScholarText.get("scholar.action.view_fit_width")
-                : slots.zoomOut().contains(mouseX, mouseY) ? ScholarText.get("scholar.action.view_zoom_out")
-                : slots.zoomIn().contains(mouseX, mouseY) ? ScholarText.get("scholar.action.view_zoom_in")
-                : slots.slider().contains(mouseX, mouseY) ? ScholarText.get("scholar.tooltip.zoom") : null;
-        if (tooltip != null) {
-            int tipWidth = font.width(tooltip) + 10;
-            int tipX = Math.max(2, Math.min(mouseX, width - tipWidth - 2));
-            graphics.fill(tipX, bar.y() - 18, tipX + tipWidth, bar.y() - 2, ScholarShellStyle.PANEL_RECESSED);
-            graphics.drawString(font, tooltip, tipX + 5, bar.y() - 14, ScholarShellStyle.TEXT, false);
-        }
-    }
-
-    private void drawStatusText(GuiGraphics graphics, ShellRect slot, String text) {
-        if (slot.width() > 0) graphics.drawString(font, text, slot.x(), slot.y() + 5, ScholarShellStyle.TEXT, false);
-    }
-
-    private void drawStatusIcon(GuiGraphics graphics, ShellRect slot, dev.rgcb.scholar.client.ui.ScholarIcon icon,
-                                int mouseX, int mouseY) {
-        if (slot.width() == 0) return;
-        if (slot.contains(mouseX, mouseY)) graphics.fill(slot.x(), slot.y(), slot.right(), slot.bottom(), ScholarShellStyle.HOVER);
-        icon.render(graphics, slot.x() + (slot.width() - icon.width()) / 2,
-                slot.y() + (slot.height() - icon.height()) / 2, 1, ScholarShellStyle.TEXT);
-    }
-
-    private void statusBarClicked(double mouseX, double mouseY) {
-        var slots = ScholarStatusBarLayout.compute(shellLayout.statusBarBounds());
-        if (slots.fitPage().contains(mouseX, mouseY)) executeViewportAction(EditorActionId.VIEW_FIT_PAGE);
-        else if (slots.fitWidth().contains(mouseX, mouseY)) executeViewportAction(EditorActionId.VIEW_FIT_WIDTH);
-        else if (slots.zoomOut().contains(mouseX, mouseY)) executeViewportAction(EditorActionId.VIEW_ZOOM_OUT);
-        else if (slots.zoomIn().contains(mouseX, mouseY)) executeViewportAction(EditorActionId.VIEW_ZOOM_IN);
-        else if (slots.slider().contains(mouseX, mouseY)) {
-            zoomSliderDragging = true;
-            setZoom(ScholarStatusBarLayout.zoomAt(slots.slider(), mouseX));
-        }
+        statusBar.render(graphics, font, shellLayout.statusBarBounds(), width, mouseX, mouseY,
+                editorState().document(), currentPage, pageCount);
     }
 
     private void executeViewportAction(EditorActionId id) {
@@ -2306,8 +2209,7 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void toggleOutline() {
-        outlineOpen = !outlineOpen;
-        outlineScroll = clampOutlineScroll(outlineScroll);
+        outlinePanel.toggle(width, height);
         if (menuBar != null) {
             menuBar.close();
         }
@@ -2316,79 +2218,8 @@ public final class ScholarEditorScreen extends Screen {
         }
     }
 
-    private boolean outlinePanelClicked(double mouseX, double mouseY) {
-        var rect = outlinePanelRect();
-        var closeRect = new ShellRect(rect.right() - 22, rect.y() + 5, 16, 14);
-        if (contains(closeRect, mouseX, mouseY)) {
-            outlineOpen = false;
-            return true;
-        }
-        var contentTop = rect.y() + 26;
-        var rowHeight = 18;
-        var y = contentTop - outlineScroll;
-        for (var section : outlineSections()) {
-            var row = new ShellRect(rect.x() + 6, y, rect.width() - 12, rowHeight);
-            if (contains(row, mouseX, mouseY)) {
-                section.id().ifPresent(controller::navigateToHeadingId);
-                return true;
-            }
-            y += rowHeight;
-        }
-        return true;
-    }
-
     private void renderOutlinePanel(GuiGraphics graphics, int mouseX, int mouseY) {
-        if (!outlineOpen) {
-            return;
-        }
-        var rect = outlinePanelRect();
-        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
-        graphics.drawString(font, ScholarText.get("scholar.action.toggle_outline"), rect.x() + 8, rect.y() + 9, ScholarShellStyle.TEXT, false);
-        var closeRect = new ShellRect(rect.right() - 22, rect.y() + 5, 16, 14);
-        renderDialogButton(graphics, closeRect, "x", true, contains(closeRect, mouseX, mouseY));
-
-        var contentTop = rect.y() + 26;
-        graphics.fill(rect.x() + 4, contentTop - 2, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_INSET);
-        graphics.enableScissor(rect.x() + 4, contentTop, rect.right() - 4, rect.bottom() - 4);
-        try {
-            var rowHeight = 18;
-            var y = contentTop - outlineScroll;
-            for (var section : outlineSections()) {
-                var row = new ShellRect(rect.x() + 6, y, rect.width() - 12, rowHeight);
-                if (row.bottom() >= contentTop && row.y() <= rect.bottom() - 4) {
-                    if (contains(row, mouseX, mouseY)) {
-                        graphics.fill(row.x(), row.y(), row.right(), row.bottom(), ScholarShellStyle.HOVER);
-                    }
-                    var indent = Math.max(0, section.level() - 1) * 10;
-                    graphics.drawString(
-                            font,
-                            clippedFromEnd(section.displayText(), row.width() - indent - 6),
-                            row.x() + indent + 3,
-                            row.y() + 5,
-                            section.id().isPresent() ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED,
-                            false);
-                }
-                y += rowHeight;
-            }
-        } finally {
-            graphics.disableScissor();
-        }
-    }
-
-    private List<SectionEntry> outlineSections() {
-        return structureResolver.resolve(editorState().document()).sections();
-    }
-
-    private ShellRect outlinePanelRect() {
-        var panelWidth = Math.min(260, Math.max(180, width / 3));
-        var panelHeight = Math.max(90, height - MenuBarWidget.HEIGHT - 18);
-        return new ShellRect(8, MenuBarWidget.HEIGHT + 8, panelWidth, panelHeight);
-    }
-
-    private int clampOutlineScroll(int value) {
-        var visibleHeight = Math.max(1, outlinePanelRect().height() - 32);
-        var contentHeight = outlineSections().size() * 18;
-        return Math.max(0, Math.min(value, Math.max(0, contentHeight - visibleHeight)));
+        outlinePanel.render(graphics, font, width, height, mouseX, mouseY);
     }
 
     private record TableCellDocumentHit(int blockIndex, dev.rgcb.scholar.editor.TableCellHit hit) {
@@ -2673,9 +2504,9 @@ public final class ScholarEditorScreen extends Screen {
         }
         semanticTokenKind = draft.orElseThrow().kind();
         semanticTokenContent = draft.orElseThrow().content();
-        semanticTokenPopupOpen = true;
+        dialogCoordinator.open(EditorDialogCoordinator.Dialog.SEMANTIC_TOKEN);
         semanticTokenTypeOpen = false;
-        crossReferencePopupOpen = false;
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.CROSS_REFERENCE);
         contextMenu = null;
         if (menuBar != null) {
             menuBar.close();
@@ -2686,7 +2517,7 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void closeSemanticTokenPopup() {
-        semanticTokenPopupOpen = false;
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.SEMANTIC_TOKEN);
         semanticTokenTypeOpen = false;
     }
 
@@ -2695,13 +2526,13 @@ public final class ScholarEditorScreen extends Screen {
         if (crossReferencePicker.isEmpty()) {
             return;
         }
-        crossReferencePopupOpen = true;
-        semanticTokenPopupOpen = false;
+        dialogCoordinator.open(EditorDialogCoordinator.Dialog.CROSS_REFERENCE);
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.SEMANTIC_TOKEN);
         semanticTokenTypeOpen = false;
-        plotValuePopupOpen = false;
-        diagramLabelPopupOpen = false;
-        diagramCanvasPopupOpen = false;
-        electricalComponentPopupOpen = false;
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.PLOT_VALUE);
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.DIAGRAM_LABEL);
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.DIAGRAM_CANVAS);
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.ELECTRICAL_COMPONENT);
         contextMenu = null;
         if (menuBar != null) {
             menuBar.close();
@@ -2712,7 +2543,7 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void closeCrossReferencePopup() {
-        crossReferencePopupOpen = false;
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.CROSS_REFERENCE);
         crossReferencePicker.setTargets(List.of());
     }
 
@@ -2751,31 +2582,31 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void renderCrossReferencePopup(GuiGraphics graphics, int mouseX, int mouseY) {
-        if (!crossReferencePopupOpen) {
+        if (!dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.CROSS_REFERENCE)) {
             return;
         }
         var rect = crossReferencePopupRect();
-        graphics.fill(0, 0, width, height, 0x88000000);
-        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
-        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 34, ScholarShellStyle.PANEL_INSET);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.cross_reference.title"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
+        graphics.fill(0, 0, width, height, ScholarShellStyle.WORKSPACE_OVERLAY);
+        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL_BACKGROUND);
+        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 34, ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.cross_reference.title"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT_PRIMARY, false);
         var listTop = rect.y() + 28;
         var targets = crossReferencePicker.visibleTargets();
         var visibleRows = targets.size();
         for (var i = 0; i < visibleRows; i++) {
             var row = new ShellRect(rect.x() + 8, listTop + i * 20, rect.width() - 16, 20);
             if (contains(row, mouseX, mouseY) || i == crossReferencePicker.selectedRow()) {
-                graphics.fill(row.x(), row.y(), row.right(), row.bottom(), ScholarShellStyle.HOVER);
+                graphics.fill(row.x(), row.y(), row.right(), row.bottom(), ScholarShellStyle.HOVER_BACKGROUND);
             }
             var target = targets.get(i);
-            graphics.drawString(font, clippedFromEnd(target.pickerLabel(), row.width() - 10), row.x() + 5, row.y() + 6, ScholarShellStyle.TEXT, false);
+            graphics.drawString(font, clippedFromEnd(target.pickerLabel(), row.width() - 10), row.x() + 5, row.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
         }
         if (crossReferencePicker.pageCount() > 1) {
             var footerY = rect.bottom() - 27;
-            graphics.drawString(font, "<", rect.x() + 18, footerY + 5, ScholarShellStyle.TEXT, false);
-            graphics.drawString(font, ">", rect.x() + 47, footerY + 5, ScholarShellStyle.TEXT, false);
+            graphics.drawString(font, "<", rect.x() + 18, footerY + 5, ScholarShellStyle.TEXT_PRIMARY, false);
+            graphics.drawString(font, ">", rect.x() + 47, footerY + 5, ScholarShellStyle.TEXT_PRIMARY, false);
             graphics.drawString(font, (crossReferencePicker.page() + 1) + " / " + crossReferencePicker.pageCount(),
-                    rect.x() + 72, footerY + 5, ScholarShellStyle.TEXT, false);
+                    rect.x() + 72, footerY + 5, ScholarShellStyle.TEXT_PRIMARY, false);
         }
         var cancelRect = new ShellRect(rect.x() + rect.width() - 72, rect.y() + rect.height() - 27, 58, 18);
         renderDialogButton(graphics, cancelRect, ScholarText.get("scholar.dialog.cancel"), true, contains(cancelRect, mouseX, mouseY));
@@ -2830,26 +2661,26 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void renderSemanticTokenPopup(GuiGraphics graphics, int mouseX, int mouseY) {
-        if (!semanticTokenPopupOpen) {
+        if (!dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.SEMANTIC_TOKEN)) {
             return;
         }
         var rect = semanticTokenPopupRect();
-        graphics.fill(0, 0, width, height, 0x88000000);
-        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
-        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_INSET);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.math_token.title"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.type"), rect.x() + 16, rect.y() + 40, ScholarShellStyle.TEXT, false);
+        graphics.fill(0, 0, width, height, ScholarShellStyle.WORKSPACE_OVERLAY);
+        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL_BACKGROUND);
+        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.math_token.title"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT_PRIMARY, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.type"), rect.x() + 16, rect.y() + 40, ScholarShellStyle.TEXT_PRIMARY, false);
 
         var typeRect = new ShellRect(rect.x() + 96, rect.y() + 35, 116, 18);
-        ScholarShellRenderer.drawRaisedPanel(graphics, typeRect.x(), typeRect.y(), typeRect.width(), typeRect.height(), ScholarShellStyle.PANEL_RAISED);
-        graphics.drawString(font, semanticTokenKind.displayName(), typeRect.x() + 6, typeRect.y() + 5, ScholarShellStyle.TEXT, false);
-        renderPopupTriangle(graphics, typeRect.right() - 12, typeRect.y() + 7, ScholarShellStyle.TEXT);
+        ScholarShellRenderer.drawRaisedPanel(graphics, typeRect.x(), typeRect.y(), typeRect.width(), typeRect.height(), ScholarShellStyle.PANEL_ELEVATED_BACKGROUND);
+        graphics.drawString(font, semanticTokenKind.displayName(), typeRect.x() + 6, typeRect.y() + 5, ScholarShellStyle.TEXT_PRIMARY, false);
+        renderPopupTriangle(graphics, typeRect.right() - 12, typeRect.y() + 7, ScholarShellStyle.TEXT_PRIMARY);
 
-        graphics.drawString(font, ScholarText.get("scholar.dialog.content"), rect.x() + 16, rect.y() + 66, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.content"), rect.x() + 16, rect.y() + 66, ScholarShellStyle.TEXT_PRIMARY, false);
         var contentRect = new ShellRect(rect.x() + 16, rect.y() + 78, rect.width() - 32, 20);
-        ScholarShellRenderer.drawInsetPanel(graphics, contentRect.x(), contentRect.y(), contentRect.width(), contentRect.height(), ScholarShellStyle.PANEL_RECESSED);
+        ScholarShellRenderer.drawInsetPanel(graphics, contentRect.x(), contentRect.y(), contentRect.width(), contentRect.height(), ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
         var displayed = semanticTokenContent + (((System.currentTimeMillis() / 500) % 2 == 0) ? "_" : "");
-        graphics.drawString(font, clipped(displayed, contentRect.width() - 10), contentRect.x() + 5, contentRect.y() + 6, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, clipped(displayed, contentRect.width() - 10), contentRect.x() + 5, contentRect.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
 
         var valid = controller.isValidSemanticTokenContent(semanticTokenKind, semanticTokenContent);
         if (!valid) {
@@ -2888,8 +2719,8 @@ public final class ScholarEditorScreen extends Screen {
             plotValueSecondary = "";
         }
         plotPointSecondField = false;
-        plotValuePopupOpen = true;
-        semanticTokenPopupOpen = false;
+        dialogCoordinator.open(EditorDialogCoordinator.Dialog.PLOT_VALUE);
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.SEMANTIC_TOKEN);
         semanticTokenTypeOpen = false;
         contextMenu = null;
         if (menuBar != null) {
@@ -2901,13 +2732,13 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void closePlotValuePopup() {
-        plotValuePopupOpen = false;
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.PLOT_VALUE);
         plotPointSecondField = false;
         plotPopupTarget = null;
     }
 
     private void applyPlotValuePopup() {
-        if (!plotValuePopupOpen || plotPopupTarget == null || !isPlotPopupValid()) {
+        if (!dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.PLOT_VALUE) || plotPopupTarget == null || !isPlotPopupValid()) {
             return;
         }
         if (plotPopupTarget instanceof PlotPointTarget) {
@@ -2984,22 +2815,22 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void renderPlotValuePopup(GuiGraphics graphics, int mouseX, int mouseY) {
-        if (!plotValuePopupOpen || plotPopupTarget == null) {
+        if (!dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.PLOT_VALUE) || plotPopupTarget == null) {
             return;
         }
         var rect = plotValuePopupRect();
-        graphics.fill(0, 0, width, height, 0x88000000);
-        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
-        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_INSET);
-        graphics.drawString(font, plotPopupTitle(), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
+        graphics.fill(0, 0, width, height, ScholarShellStyle.WORKSPACE_OVERLAY);
+        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL_BACKGROUND);
+        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
+        graphics.drawString(font, plotPopupTitle(), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT_PRIMARY, false);
 
         var point = plotPopupTarget instanceof PlotPointTarget;
-        graphics.drawString(font, point ? "X" : ScholarText.get("scholar.dialog.value"), rect.x() + 16, rect.y() + 45, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, point ? "X" : ScholarText.get("scholar.dialog.value"), rect.x() + 16, rect.y() + 45, ScholarShellStyle.TEXT_PRIMARY, false);
         var primaryRect = new ShellRect(rect.x() + 70, rect.y() + 39, rect.width() - 86, 20);
         renderPlotPopupField(graphics, primaryRect, plotValuePrimary, !plotPointSecondField);
 
         if (point) {
-            graphics.drawString(font, "Y", rect.x() + 16, rect.y() + 74, ScholarShellStyle.TEXT, false);
+            graphics.drawString(font, "Y", rect.x() + 16, rect.y() + 74, ScholarShellStyle.TEXT_PRIMARY, false);
             var secondaryRect = new ShellRect(rect.x() + 70, rect.y() + 68, rect.width() - 86, 20);
             renderPlotPopupField(graphics, secondaryRect, plotValueSecondary, plotPointSecondField);
         }
@@ -3018,9 +2849,9 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void renderPlotPopupField(GuiGraphics graphics, ShellRect rect, String value, boolean active) {
-        ScholarShellRenderer.drawInsetPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL_RECESSED);
+        ScholarShellRenderer.drawInsetPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
         var displayed = value + (active && (System.currentTimeMillis() / 500) % 2 == 0 ? "_" : "");
-        graphics.drawString(font, clipped(displayed, rect.width() - 10), rect.x() + 5, rect.y() + 6, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, clipped(displayed, rect.width() - 10), rect.x() + 5, rect.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
         if (active) {
             graphics.renderOutline(rect.x(), rect.y(), rect.width(), rect.height(), PLOT_TARGET_BORDER);
         }
@@ -3061,11 +2892,11 @@ public final class ScholarEditorScreen extends Screen {
         diagramCanvasHeightValue = formatDiagramDimension(canvas.orElseThrow().height());
         diagramCanvasSecondField = false;
         diagramCanvasValidation = "";
-        diagramCanvasPopupOpen = true;
-        diagramLabelPopupOpen = false;
-        electricalComponentPopupOpen = false;
-        plotValuePopupOpen = false;
-        semanticTokenPopupOpen = false;
+        dialogCoordinator.open(EditorDialogCoordinator.Dialog.DIAGRAM_CANVAS);
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.DIAGRAM_LABEL);
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.ELECTRICAL_COMPONENT);
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.PLOT_VALUE);
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.SEMANTIC_TOKEN);
         semanticTokenTypeOpen = false;
         contextMenu = null;
         if (menuBar != null) {
@@ -3077,7 +2908,7 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void closeDiagramCanvasPopup() {
-        diagramCanvasPopupOpen = false;
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.DIAGRAM_CANVAS);
         diagramCanvasWidthValue = "";
         diagramCanvasHeightValue = "";
         diagramCanvasValidation = "";
@@ -3085,7 +2916,7 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void applyDiagramCanvasPopup() {
-        if (!diagramCanvasPopupOpen) {
+        if (!dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.DIAGRAM_CANVAS)) {
             return;
         }
         try {
@@ -3137,26 +2968,26 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void renderDiagramCanvasPopup(GuiGraphics graphics, int mouseX, int mouseY) {
-        if (!diagramCanvasPopupOpen) {
+        if (!dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.DIAGRAM_CANVAS)) {
             return;
         }
         var rect = diagramCanvasPopupRect();
-        graphics.fill(0, 0, width, height, 0x88000000);
-        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
-        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_INSET);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.diagram.resize_canvas"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
+        graphics.fill(0, 0, width, height, ScholarShellStyle.WORKSPACE_OVERLAY);
+        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL_BACKGROUND);
+        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.diagram.resize_canvas"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT_PRIMARY, false);
 
         var widthField = new ShellRect(rect.x() + 88, rect.y() + 38, rect.width() - 104, 20);
         var heightField = new ShellRect(rect.x() + 88, rect.y() + 66, rect.width() - 104, 20);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.width"), rect.x() + 16, rect.y() + 44, ScholarShellStyle.TEXT, false);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.height"), rect.x() + 16, rect.y() + 72, ScholarShellStyle.TEXT, false);
-        ScholarShellRenderer.drawInsetPanel(graphics, widthField.x(), widthField.y(), widthField.width(), widthField.height(), ScholarShellStyle.PANEL_RECESSED);
-        ScholarShellRenderer.drawInsetPanel(graphics, heightField.x(), heightField.y(), heightField.width(), heightField.height(), ScholarShellStyle.PANEL_RECESSED);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.width"), rect.x() + 16, rect.y() + 44, ScholarShellStyle.TEXT_PRIMARY, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.height"), rect.x() + 16, rect.y() + 72, ScholarShellStyle.TEXT_PRIMARY, false);
+        ScholarShellRenderer.drawInsetPanel(graphics, widthField.x(), widthField.y(), widthField.width(), widthField.height(), ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
+        ScholarShellRenderer.drawInsetPanel(graphics, heightField.x(), heightField.y(), heightField.width(), heightField.height(), ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
         var blink = (System.currentTimeMillis() / 500) % 2 == 0 ? "_" : "";
         var widthText = diagramCanvasWidthValue + (!diagramCanvasSecondField ? blink : "");
         var heightText = diagramCanvasHeightValue + (diagramCanvasSecondField ? blink : "");
-        graphics.drawString(font, clipped(widthText, widthField.width() - 10), widthField.x() + 5, widthField.y() + 6, ScholarShellStyle.TEXT, false);
-        graphics.drawString(font, clipped(heightText, heightField.width() - 10), heightField.x() + 5, heightField.y() + 6, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, clipped(widthText, widthField.width() - 10), widthField.x() + 5, widthField.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
+        graphics.drawString(font, clipped(heightText, heightField.width() - 10), heightField.x() + 5, heightField.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
         var active = diagramCanvasSecondField ? heightField : widthField;
         graphics.renderOutline(active.x(), active.y(), active.width(), active.height(), DIAGRAM_TARGET_BORDER);
         if (!diagramCanvasValidation.isEmpty()) {
@@ -3199,9 +3030,9 @@ public final class ScholarEditorScreen extends Screen {
         }
         diagramLabelPopupTarget = editorState().diagramEditingSelection().target();
         diagramLabelValue = value.orElseThrow();
-        diagramLabelPopupOpen = true;
-        plotValuePopupOpen = false;
-        semanticTokenPopupOpen = false;
+        dialogCoordinator.open(EditorDialogCoordinator.Dialog.DIAGRAM_LABEL);
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.PLOT_VALUE);
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.SEMANTIC_TOKEN);
         semanticTokenTypeOpen = false;
         contextMenu = null;
         if (menuBar != null) {
@@ -3213,13 +3044,13 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void closeDiagramLabelPopup() {
-        diagramLabelPopupOpen = false;
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.DIAGRAM_LABEL);
         diagramLabelPopupTarget = null;
         diagramLabelValue = "";
     }
 
     private void applyDiagramLabelPopup() {
-        if (!diagramLabelPopupOpen || diagramLabelPopupTarget == null) {
+        if (!dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.DIAGRAM_LABEL) || diagramLabelPopupTarget == null) {
             return;
         }
         controller.applyDiagramText(diagramLabelValue);
@@ -3242,19 +3073,19 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void renderDiagramLabelPopup(GuiGraphics graphics, int mouseX, int mouseY) {
-        if (!diagramLabelPopupOpen || diagramLabelPopupTarget == null) {
+        if (!dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.DIAGRAM_LABEL) || diagramLabelPopupTarget == null) {
             return;
         }
         var rect = diagramLabelPopupRect();
-        graphics.fill(0, 0, width, height, 0x88000000);
-        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
-        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_INSET);
-        graphics.drawString(font, diagramLabelPopupTitle(), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.label"), rect.x() + 16, rect.y() + 45, ScholarShellStyle.TEXT, false);
+        graphics.fill(0, 0, width, height, ScholarShellStyle.WORKSPACE_OVERLAY);
+        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL_BACKGROUND);
+        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
+        graphics.drawString(font, diagramLabelPopupTitle(), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT_PRIMARY, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.label"), rect.x() + 16, rect.y() + 45, ScholarShellStyle.TEXT_PRIMARY, false);
         var field = new ShellRect(rect.x() + 70, rect.y() + 39, rect.width() - 86, 20);
-        ScholarShellRenderer.drawInsetPanel(graphics, field.x(), field.y(), field.width(), field.height(), ScholarShellStyle.PANEL_RECESSED);
+        ScholarShellRenderer.drawInsetPanel(graphics, field.x(), field.y(), field.width(), field.height(), ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
         var displayed = diagramLabelValue + ((System.currentTimeMillis() / 500) % 2 == 0 ? "_" : "");
-        graphics.drawString(font, clipped(displayed, field.width() - 10), field.x() + 5, field.y() + 6, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, clipped(displayed, field.width() - 10), field.x() + 5, field.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
         graphics.renderOutline(field.x(), field.y(), field.width(), field.height(), DIAGRAM_TARGET_BORDER);
 
         var cancelRect = new ShellRect(rect.x() + rect.width() - 124, rect.y() + rect.height() - 27, 52, 18);
@@ -3299,10 +3130,10 @@ public final class ScholarEditorScreen extends Screen {
         electricalReferenceValue = draft.orElseThrow().referenceDesignator();
         electricalComponentValue = draft.orElseThrow().valueLabel();
         electricalComponentSecondField = false;
-        electricalComponentPopupOpen = true;
-        diagramLabelPopupOpen = false;
-        plotValuePopupOpen = false;
-        semanticTokenPopupOpen = false;
+        dialogCoordinator.open(EditorDialogCoordinator.Dialog.ELECTRICAL_COMPONENT);
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.DIAGRAM_LABEL);
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.PLOT_VALUE);
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.SEMANTIC_TOKEN);
         semanticTokenTypeOpen = false;
         contextMenu = null;
         if (menuBar != null) {
@@ -3314,7 +3145,7 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void closeElectricalComponentPopup() {
-        electricalComponentPopupOpen = false;
+        dialogCoordinator.close(EditorDialogCoordinator.Dialog.ELECTRICAL_COMPONENT);
         electricalComponentPopupTarget = null;
         electricalReferenceValue = "";
         electricalComponentValue = "";
@@ -3322,7 +3153,7 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void applyElectricalComponentPopup() {
-        if (!electricalComponentPopupOpen || electricalComponentPopupTarget == null) {
+        if (!dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.ELECTRICAL_COMPONENT) || electricalComponentPopupTarget == null) {
             return;
         }
         controller.applyElectricalComponentAnnotations(electricalReferenceValue, electricalComponentValue);
@@ -3355,27 +3186,27 @@ public final class ScholarEditorScreen extends Screen {
     }
 
     private void renderElectricalComponentPopup(GuiGraphics graphics, int mouseX, int mouseY) {
-        if (!electricalComponentPopupOpen || electricalComponentPopupTarget == null) {
+        if (!dialogCoordinator.isOpen(EditorDialogCoordinator.Dialog.ELECTRICAL_COMPONENT) || electricalComponentPopupTarget == null) {
             return;
         }
         var rect = electricalComponentPopupRect();
-        graphics.fill(0, 0, width, height, 0x88000000);
-        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL);
-        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_INSET);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.diagram.edit_electrical_component"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT, false);
+        graphics.fill(0, 0, width, height, ScholarShellStyle.WORKSPACE_OVERLAY);
+        ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), ScholarShellStyle.PANEL_BACKGROUND);
+        graphics.fill(rect.x() + 4, rect.y() + 20, rect.right() - 4, rect.bottom() - 4, ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.diagram.edit_electrical_component"), rect.x() + 9, rect.y() + 8, ScholarShellStyle.TEXT_PRIMARY, false);
 
         var referenceField = electricalReferenceFieldRect(rect);
         var valueField = electricalValueFieldRect(rect);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.reference"), rect.x() + 16, referenceField.y() + 6, ScholarShellStyle.TEXT, false);
-        graphics.drawString(font, ScholarText.get("scholar.dialog.value"), rect.x() + 16, valueField.y() + 6, ScholarShellStyle.TEXT, false);
-        ScholarShellRenderer.drawInsetPanel(graphics, referenceField.x(), referenceField.y(), referenceField.width(), referenceField.height(), ScholarShellStyle.PANEL_RECESSED);
-        ScholarShellRenderer.drawInsetPanel(graphics, valueField.x(), valueField.y(), valueField.width(), valueField.height(), ScholarShellStyle.PANEL_RECESSED);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.reference"), rect.x() + 16, referenceField.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
+        graphics.drawString(font, ScholarText.get("scholar.dialog.value"), rect.x() + 16, valueField.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
+        ScholarShellRenderer.drawInsetPanel(graphics, referenceField.x(), referenceField.y(), referenceField.width(), referenceField.height(), ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
+        ScholarShellRenderer.drawInsetPanel(graphics, valueField.x(), valueField.y(), valueField.width(), valueField.height(), ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
 
         var blink = (System.currentTimeMillis() / 500) % 2 == 0 ? "_" : "";
         var referenceDisplayed = electricalReferenceValue + (!electricalComponentSecondField ? blink : "");
         var valueDisplayed = electricalComponentValue + (electricalComponentSecondField ? blink : "");
-        graphics.drawString(font, clipped(referenceDisplayed, referenceField.width() - 10), referenceField.x() + 5, referenceField.y() + 6, ScholarShellStyle.TEXT, false);
-        graphics.drawString(font, clipped(valueDisplayed, valueField.width() - 10), valueField.x() + 5, valueField.y() + 6, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, clipped(referenceDisplayed, referenceField.width() - 10), referenceField.x() + 5, referenceField.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
+        graphics.drawString(font, clipped(valueDisplayed, valueField.width() - 10), valueField.x() + 5, valueField.y() + 6, ScholarShellStyle.TEXT_PRIMARY, false);
         var active = electricalComponentSecondField ? valueField : referenceField;
         graphics.renderOutline(active.x(), active.y(), active.width(), active.height(), DIAGRAM_TARGET_BORDER);
 
@@ -3401,18 +3232,18 @@ public final class ScholarEditorScreen extends Screen {
 
     private void renderTypeChoice(GuiGraphics graphics, ShellRect typeRect, SemanticMathTokenKind kind, int row, int mouseX, int mouseY) {
         var option = new ShellRect(typeRect.x(), typeRect.bottom() + 2 + row * 18, typeRect.width(), 18);
-        ScholarShellRenderer.drawRaisedPanel(graphics, option.x(), option.y(), option.width(), option.height(), ScholarShellStyle.PANEL_RECESSED);
+        ScholarShellRenderer.drawRaisedPanel(graphics, option.x(), option.y(), option.width(), option.height(), ScholarShellStyle.PANEL_RECESSED_BACKGROUND);
         if (contains(option, mouseX, mouseY)) {
-            graphics.fill(option.x() + 2, option.y() + 1, option.right() - 2, option.bottom() - 1, ScholarShellStyle.HOVER);
+            graphics.fill(option.x() + 2, option.y() + 1, option.right() - 2, option.bottom() - 1, ScholarShellStyle.HOVER_BACKGROUND);
         }
-        graphics.drawString(font, kind.displayName(), option.x() + 6, option.y() + 5, ScholarShellStyle.TEXT, false);
+        graphics.drawString(font, kind.displayName(), option.x() + 6, option.y() + 5, ScholarShellStyle.TEXT_PRIMARY, false);
     }
 
     private void renderDialogButton(GuiGraphics graphics, ShellRect rect, String label, boolean enabled, boolean hovered) {
-        var fill = hovered && enabled ? ScholarShellStyle.PANEL_RAISED : ScholarShellStyle.PANEL;
+        var fill = hovered && enabled ? ScholarShellStyle.PANEL_ELEVATED_BACKGROUND : ScholarShellStyle.PANEL_BACKGROUND;
         ScholarShellRenderer.drawRaisedPanel(graphics, rect.x(), rect.y(), rect.width(), rect.height(), fill);
         graphics.drawString(font, label, rect.x() + Math.max(4, (rect.width() - font.width(label)) / 2), rect.y() + 5,
-                enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED, false);
+                enabled ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED, false);
     }
 
     private ShellRect semanticTokenPopupRect() {

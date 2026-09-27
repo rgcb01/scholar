@@ -8,16 +8,18 @@ public final class ApplicationHeaderWidget {
     public static final int HEIGHT = 22;
 
     public void render(GuiGraphics graphics, Font font, ShellRect bounds, String documentName, boolean dirty) {
-        graphics.fill(bounds.x(), bounds.y(), bounds.right(), bounds.bottom(), 0xFF292E35);
-        graphics.fill(bounds.x(), bounds.y(), bounds.right(), bounds.y() + 1, ScholarShellStyle.HIGHLIGHT);
-        graphics.fill(bounds.x(), bounds.bottom() - 1, bounds.right(), bounds.bottom(), ScholarShellStyle.DEEP_SHADOW);
-        ScholarIcons.SCHOLAR.render(graphics, bounds.x() + 7, bounds.y() + 7, 1, 0xFF73C4E2);
-        graphics.drawString(font, "Scholar", bounds.x() + 19, bounds.y() + 7, 0xFFFFFFFF, false);
+        ScholarShellRenderer.drawRaisedPanel(graphics, bounds.x(), bounds.y(), bounds.width(), bounds.height(),
+                ScholarShellStyle.HEADER_BACKGROUND);
+        ScholarIcons.SCHOLAR.render(graphics, bounds.x() + 7, bounds.y() + 7, 1, ScholarShellStyle.SCIENTIFIC_ACCENT);
+        graphics.drawString(font, "Scholar", bounds.x() + 19, bounds.y() + 7, ScholarShellStyle.TEXT_PRIMARY, false);
         var titleWidth = Math.max(24, bounds.width() / 2);
         var clippedTitle = font.plainSubstrByWidth(documentName, titleWidth);
-        graphics.drawCenteredString(font, clippedTitle, bounds.x() + bounds.width() / 2, bounds.y() + 7, 0xFFF2F5F8);
+        graphics.drawCenteredString(font, clippedTitle, bounds.x() + bounds.width() / 2, bounds.y() + 7, ScholarShellStyle.TEXT_PRIMARY);
         var status = ScholarText.get(dirty ? "scholar.status.unsaved" : "scholar.status.saved");
+        var statusX = bounds.right() - 8 - font.width(status);
+        graphics.fill(statusX - 8, bounds.y() + 9, statusX - 4, bounds.y() + 13,
+                dirty ? ScholarShellStyle.SCIENTIFIC_ACCENT : ScholarShellStyle.SCIENTIFIC_ACCENT_MUTED);
         graphics.drawString(font, status, bounds.right() - 8 - font.width(status), bounds.y() + 7,
-                dirty ? 0xFFFFD27A : 0xFFAAB4BF, false);
+                dirty ? ScholarShellStyle.TEXT_WARNING : ScholarShellStyle.TEXT_SECONDARY, false);
     }
 }

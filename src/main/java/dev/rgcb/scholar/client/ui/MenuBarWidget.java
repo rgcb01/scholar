@@ -37,9 +37,9 @@ public final class MenuBarWidget {
 
     public void render(GuiGraphics graphics, Font font, int width, int height, int mouseX, int mouseY) {
         setViewportSize(width, height);
-        ScholarShellRenderer.drawRaisedPanel(graphics, 0, 0, width, HEIGHT, ScholarShellStyle.PANEL);
-        graphics.fill(0, HEIGHT - 2, width, HEIGHT - 1, ScholarShellStyle.SHADOW);
-        graphics.fill(0, HEIGHT - 1, width, HEIGHT, ScholarShellStyle.DEEP_SHADOW);
+        ScholarShellRenderer.drawRaisedPanel(graphics, 0, 0, width, HEIGHT, ScholarShellStyle.PANEL_BACKGROUND);
+        graphics.fill(0, HEIGHT - 2, width, HEIGHT - 1, ScholarShellStyle.SUBTLE_SEPARATOR);
+        graphics.fill(0, HEIGHT - 1, width, HEIGHT, ScholarShellStyle.SUBTLE_SEPARATOR);
 
         graphics.enableScissor(0, 0, width, HEIGHT);
         try {
@@ -174,8 +174,7 @@ public final class MenuBarWidget {
     private void renderDropdown(GuiGraphics graphics, Font font, int mouseX, int mouseY) {
         var height = visibleDropdownHeight();
         var menuX = menuX(openMenuIndex);
-        ScholarShellRenderer.drawRaisedPanel(graphics, menuX, MENU_Y, MENU_WIDTH, height, ScholarShellStyle.PANEL_RECESSED);
-        graphics.fill(menuX + 3, MENU_Y + 3, menuX + MENU_WIDTH - 3, MENU_Y + height - 3, ScholarShellStyle.PANEL_INSET);
+        ScholarShellRenderer.drawPopupPanel(graphics, new ShellRect(menuX, MENU_Y, MENU_WIDTH, height));
 
         var visibleRows = visibleRowCount();
         var endRow = Math.min(openMenu().entries().size(), scrollRow + visibleRows);
@@ -193,7 +192,7 @@ public final class MenuBarWidget {
                 renderHoveredRow(graphics, menuX, y);
             }
             renderActionState(graphics, menuX, y, controller.selectionState(action));
-            var color = enabled ? ScholarShellStyle.TEXT : ScholarShellStyle.TEXT_DISABLED;
+            var color = enabled ? ScholarShellStyle.TEXT_PRIMARY : ScholarShellStyle.TEXT_DISABLED;
             graphics.drawString(font, ScholarText.actionLabel(action), menuX + LABEL_X, y + 5, color, false);
             action.shortcut().ifPresent(shortcut -> {
                 var shortcutText = shortcut.displayText();
@@ -207,14 +206,8 @@ public final class MenuBarWidget {
             });
         }
 
-        // Small Minecraft-native affordances make overflow discoverable without
-        // introducing a second scrollbar widget into the menu chrome.
-        if (scrollRow > 0) {
-            graphics.drawString(font, "▲", menuX + MENU_WIDTH - 12, MENU_Y + 4, ScholarShellStyle.TEXT_DISABLED, false);
-        }
-        if (scrollRow < maxScrollRow()) {
-            graphics.drawString(font, "▼", menuX + MENU_WIDTH - 12, MENU_Y + height - 12, ScholarShellStyle.TEXT_DISABLED, false);
-        }
+        ScholarShellRenderer.drawScrollbar(graphics, new ShellRect(menuX, MENU_Y, MENU_WIDTH, height),
+                openMenu().entries().size(), visibleRows, scrollRow);
     }
 
     private void renderTitle(GuiGraphics graphics, Font font, int index, int mouseX, int mouseY) {
@@ -222,25 +215,22 @@ public final class MenuBarWidget {
         var titleWidth = titleWidth(menus.get(index));
         var hovered = isInsideTitle(index, mouseX, mouseY);
         if (openMenuIndex == index) {
-            ScholarShellRenderer.drawInsetPanel(graphics, x, TITLE_Y, titleWidth, HEIGHT - TITLE_Y - 3, ScholarShellStyle.PRESSED);
+            ScholarShellRenderer.drawInsetPanel(graphics, x, TITLE_Y, titleWidth, HEIGHT - TITLE_Y - 3, ScholarShellStyle.PRESSED_BACKGROUND);
         } else if (hovered) {
-            ScholarShellRenderer.drawRaisedPanel(graphics, x, TITLE_Y, titleWidth, HEIGHT - TITLE_Y - 3, ScholarShellStyle.PANEL_RAISED);
+            ScholarShellRenderer.drawRaisedPanel(graphics, x, TITLE_Y, titleWidth, HEIGHT - TITLE_Y - 3, ScholarShellStyle.PANEL_ELEVATED_BACKGROUND);
         }
-        var textColor = openMenuIndex == index ? 0xFFFFFFFF : ScholarShellStyle.TEXT;
+        var textColor = openMenuIndex == index ? 0xFFFFFFFF : ScholarShellStyle.TEXT_PRIMARY;
         graphics.drawString(font, ScholarText.component(menus.get(index).title()), x + 8, TITLE_Y + 3, textColor, false);
     }
 
     private static void renderHoveredRow(GuiGraphics graphics, int menuX, int y) {
-        var x = menuX + 4;
-        var width = MENU_WIDTH - 8;
-        graphics.fill(x, y + 1, x + width, y + ROW_HEIGHT - 1, ScholarShellStyle.HOVER);
-        graphics.fill(x, y + 1, x + width, y + 2, ScholarShellStyle.HOVER_TOP);
-        graphics.fill(x, y + ROW_HEIGHT - 2, x + width, y + ROW_HEIGHT - 1, ScholarShellStyle.SHADOW);
+        ScholarShellRenderer.drawMenuRow(graphics,
+                new ShellRect(menuX + 4, y + 1, MENU_WIDTH - 8, ROW_HEIGHT - 2), true);
     }
 
     private static void renderActionState(GuiGraphics graphics, int menuX, int y, ActionSelectionState state) {
         if (state == ActionSelectionState.ON) {
-            graphics.fill(menuX + STATE_MARK_X, y + 5, menuX + STATE_MARK_X + 5, y + 10, ScholarShellStyle.TEXT);
+            graphics.fill(menuX + STATE_MARK_X, y + 5, menuX + STATE_MARK_X + 5, y + 10, ScholarShellStyle.TEXT_PRIMARY);
         } else if (state == ActionSelectionState.MIXED) {
             graphics.fill(menuX + STATE_MARK_X, y + 7, menuX + STATE_MARK_X + 5, y + 9, ScholarShellStyle.TEXT_DISABLED);
         }
