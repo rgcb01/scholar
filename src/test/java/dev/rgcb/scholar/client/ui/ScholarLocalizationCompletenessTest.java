@@ -19,7 +19,7 @@ class ScholarLocalizationCompletenessTest {
     private static final Path CLIENT = Path.of("src/main/java/dev/rgcb/scholar/client");
     private static final Pattern ENTRY = Pattern.compile("(?m)^\\s*\"([^\"]+)\"\\s*:");
     private static final Pattern SOURCE_KEY = Pattern.compile(
-            "\"(scholar\\.(?:action|menu|dialog|tooltip|status|home|template|dataset|diagram|figure|table|document|error|confirm|export|import|ribbon)\\.[a-z0-9_.]+)\"");
+            "\"(scholar\\.(?:action|menu|dialog|tooltip|status|home|recovery|template|dataset|diagram|figure|table|document|error|confirm|export|import|ribbon)\\.[a-z0-9_.]+)\"");
     private static final Pattern VALID_KEY = Pattern.compile("scholar\\.[a-z0-9_]+(?:\\.[a-z0-9_]+)+");
 
     @Test void englishAndMexicanSpanishResourcesAreCompleteAndWellFormed() throws Exception {

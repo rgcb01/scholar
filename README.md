@@ -28,7 +28,7 @@ Enter a Minecraft world and run `/scholar`. Home lets you create a blank or temp
 
 ## Architecture
 
-The semantic `Document` and its resources are canonical. Validation and editor transactions preserve invariants; layout derives pages, columns, geometry and labels; the Minecraft client renders that layout. Transfer and versioned persistence are separate boundaries, neither of which serializes transient view state. See [Architecture](docs/ARCHITECTURE.md) for the current layer map and ownership rules.
+The semantic `Document` and its resources are canonical. Validation and editor transactions preserve invariants; layout derives pages, columns, geometry and labels; the Minecraft client renders that layout. Transfer and versioned persistence are separate boundaries, neither of which serializes transient view state. Periodic recovery protects dirty work without marking it saved, while bounded backups preserve previous confirmed versions. See [Architecture](docs/ARCHITECTURE.md) and [Document Safety and Recovery](docs/DOCUMENT_SAFETY_AND_RECOVERY.md).
 
 M35 adds a deliberately small client-side addon API for documents, datasets, measurements, units, variables, analyses, and dataset-backed visuals. Only `dev.rgcb.scholar.api` and its documented subpackages are supported integration contracts; see [Scholar Addon API](docs/M35_SCHOLAR_API.md) and the [addon linking exception](LICENSE-EXCEPTION).
 

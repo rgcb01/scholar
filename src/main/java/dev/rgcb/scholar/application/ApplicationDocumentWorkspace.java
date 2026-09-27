@@ -11,6 +11,8 @@ import dev.rgcb.scholar.persistence.PersistenceResult;
 import dev.rgcb.scholar.validation.DocumentValidator;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
 /** One open application document and its clean baseline; never shared across opens. */
@@ -20,20 +22,49 @@ public final class ApplicationDocumentWorkspace implements EditorDocumentWorkspa
     private Document savedDocument;
     private final EditorSession session;
     private final Consumer<ScholarApplication.Event> events;
+    private final DocumentRecoveryService recovery;
+    private final RecoveryId recoveryId;
+    private boolean originallyUntitled;
+    private boolean canonicalPresent;
+    private boolean unconfirmed;
+    private long revision;
+    private long capturedRevision = -1;
 
     ApplicationDocumentWorkspace(ScholarDocumentRepository repository, OpenedScholarDocument opened) {
-        this(repository, opened, ignored -> {});
+        this(repository, opened, ignored -> {}, ScholarApplication.disabledRecovery(), false);
     }
 
     ApplicationDocumentWorkspace(ScholarDocumentRepository repository, OpenedScholarDocument opened,
                                  Consumer<ScholarApplication.Event> events) {
+        this(repository, opened, events, ScholarApplication.disabledRecovery(), false);
+    }
+
+    ApplicationDocumentWorkspace(ScholarDocumentRepository repository, OpenedScholarDocument opened,
+                                 Consumer<ScholarApplication.Event> events, DocumentRecoveryService recovery,
+                                 boolean originallyUntitled) {
+        this(repository, opened.descriptor(), opened.document(), opened.document(), events, recovery,
+                RecoveryId.create(), originallyUntitled, true, false);
+    }
+
+    ApplicationDocumentWorkspace(ScholarDocumentRepository repository, ScholarDocumentDescriptor descriptor,
+                                 Document savedDocument, Document workingDocument,
+                                 Consumer<ScholarApplication.Event> events, DocumentRecoveryService recovery,
+                                 RecoveryId recoveryId, boolean originallyUntitled,
+                                 boolean canonicalPresent, boolean unconfirmed) {
         this.repository = Objects.requireNonNull(repository);
         this.events = Objects.requireNonNull(events);
-        this.descriptor = opened.descriptor();
-        this.savedDocument = opened.document();
-        this.session = sessionFor(opened.document());
-        this.session.onDocumentChange(ignored -> this.events.accept(
-                new ScholarApplication.Event(ScholarApplication.EventKind.DOCUMENT_CHANGED, id())));
+        this.recovery = Objects.requireNonNull(recovery);
+        this.recoveryId = Objects.requireNonNull(recoveryId);
+        this.originallyUntitled = originallyUntitled;
+        this.canonicalPresent = canonicalPresent;
+        this.unconfirmed = unconfirmed;
+        this.descriptor = Objects.requireNonNull(descriptor);
+        this.savedDocument = Objects.requireNonNull(savedDocument);
+        this.session = sessionFor(workingDocument);
+        this.session.onDocumentChange(ignored -> {
+            revision++;
+            this.events.accept(new ScholarApplication.Event(ScholarApplication.EventKind.DOCUMENT_CHANGED, id()));
+        });
     }
 
     public ScholarDocumentDescriptor descriptor() { return descriptor; }
@@ -41,15 +72,21 @@ public final class ApplicationDocumentWorkspace implements EditorDocumentWorkspa
     public String displayName() { return descriptor.displayName(); }
     public Optional<String> name() { return Optional.of(displayName()); }
     public EditorSession session() { return session; }
-    public boolean isDirty() { return !savedDocument.equals(session.current().document()); }
+    public boolean isDirty() { return unconfirmed || !savedDocument.equals(session.current().document()); }
+    public RecoveryId recoveryId() { return recoveryId; }
+    long revision() { return revision; }
 
     public PersistenceResult<String> save() {
         var snapshot = session.current().document();
-        var result = repository.saveDocument(id(), snapshot);
+        if (!canonicalPresent) return saveAs(displayName());
+        var previousId = id();
+        var result = repository.saveDocument(previousId, snapshot);
         if (result instanceof PersistenceResult.Success<ScholarDocumentDescriptor> success) {
-            descriptor = success.value(); savedDocument = snapshot;
+            descriptor = success.value(); savedDocument = snapshot; unconfirmed = false; originallyUntitled = false;
+            var diagnostics = new ArrayList<>(success.diagnostics());
+            invalidateRecovery(diagnostics);
             events.accept(new ScholarApplication.Event(ScholarApplication.EventKind.DOCUMENT_SAVED, id()));
-            return new PersistenceResult.Success<>(displayName(), success.diagnostics());
+            return new PersistenceResult.Success<>(displayName(), List.copyOf(diagnostics));
         }
         return new PersistenceResult.Failure<>(result.diagnostics());
     }
@@ -59,8 +96,11 @@ public final class ApplicationDocumentWorkspace implements EditorDocumentWorkspa
         var result = repository.saveAs(displayName, snapshot);
         if (result instanceof PersistenceResult.Success<OpenedScholarDocument> success) {
             descriptor = success.value().descriptor(); savedDocument = snapshot;
+            canonicalPresent = true; unconfirmed = false; originallyUntitled = false;
+            var diagnostics = new ArrayList<>(success.diagnostics());
+            invalidateRecovery(diagnostics);
             events.accept(new ScholarApplication.Event(ScholarApplication.EventKind.DOCUMENT_SAVED, id()));
-            return new PersistenceResult.Success<>(this.displayName(), success.diagnostics());
+            return new PersistenceResult.Success<>(this.displayName(), List.copyOf(diagnostics));
         }
         return new PersistenceResult.Failure<>(result.diagnostics());
     }
@@ -72,6 +112,35 @@ public final class ApplicationDocumentWorkspace implements EditorDocumentWorkspa
             return new PersistenceResult.Success<>(this.displayName(), success.diagnostics());
         }
         return new PersistenceResult.Failure<>(result.diagnostics());
+    }
+
+    PersistenceResult<Boolean> captureRecovery(long capturedAtEpochMillis) {
+        if (!isDirty() || revision == capturedRevision) return new PersistenceResult.Success<>(false, List.of());
+        var snapshot = new RecoverySnapshot(recoveryId,
+                canonicalPresent ? Optional.of(id()) : Optional.empty(), originallyUntitled, displayName(),
+                capturedAtEpochMillis,
+                canonicalPresent ? Optional.of(descriptor.modifiedAtEpochMillis()) : Optional.empty(),
+                revision, session.current().document());
+        var result = recovery.capture(snapshot);
+        if (result instanceof PersistenceResult.Success<RecoveryCandidate> success) {
+            capturedRevision = revision;
+            return new PersistenceResult.Success<>(true, success.diagnostics());
+        }
+        return new PersistenceResult.Failure<>(result.diagnostics());
+    }
+
+    private void invalidateRecovery(ArrayList<dev.rgcb.scholar.persistence.PersistenceDiagnostic> diagnostics) {
+        var selected = recovery.discard(recoveryId);
+        if (selected instanceof PersistenceResult.Failure<Boolean> failure) diagnostics.addAll(asWarnings(failure.diagnostics()));
+        capturedRevision = revision;
+    }
+
+    private static List<dev.rgcb.scholar.persistence.PersistenceDiagnostic> asWarnings(
+            List<dev.rgcb.scholar.persistence.PersistenceDiagnostic> diagnostics
+    ) {
+        return diagnostics.stream().map(value -> new dev.rgcb.scholar.persistence.PersistenceDiagnostic(
+                dev.rgcb.scholar.persistence.PersistenceDiagnostic.Severity.WARNING, value.code(), value.path(),
+                "Document saved, but stale recovery cleanup could not be completed.")).toList();
     }
 
     private static EditorSession sessionFor(Document document) {

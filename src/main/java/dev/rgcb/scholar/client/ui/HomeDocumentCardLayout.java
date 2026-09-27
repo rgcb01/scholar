@@ -13,8 +13,12 @@ public final class HomeDocumentCardLayout {
     private HomeDocumentCardLayout() { }
 
     public static Result compute(int screenWidth, int screenHeight, int documentCount, int page) {
+        return compute(screenWidth, screenHeight, documentCount, page, TOP);
+    }
+
+    public static Result compute(int screenWidth, int screenHeight, int documentCount, int page, int top) {
         var columns = Math.max(1, (Math.max(CARD_WIDTH, screenWidth - 28) + GAP) / (CARD_WIDTH + GAP));
-        var rows = Math.max(1, (Math.max(CARD_HEIGHT, screenHeight - TOP - 34) + GAP) / (CARD_HEIGHT + GAP));
+        var rows = Math.max(1, (Math.max(CARD_HEIGHT, screenHeight - top - 34) + GAP) / (CARD_HEIGHT + GAP));
         var slots = Math.max(2, columns * rows);
         var documentsPerPage = Math.max(1, slots - 1);
         var maxPage = Math.max(0, (Math.max(0, documentCount) - 1) / documentsPerPage);
@@ -28,7 +32,7 @@ public final class HomeDocumentCardLayout {
         for (var slot = 0; slot < visibleSlots; slot++) {
             var column = slot % columns;
             var row = slot / columns;
-            cards.add(new ShellRect(startX + column * (CARD_WIDTH + GAP), TOP + row * (CARD_HEIGHT + GAP),
+            cards.add(new ShellRect(startX + column * (CARD_WIDTH + GAP), top + row * (CARD_HEIGHT + GAP),
                     CARD_WIDTH, CARD_HEIGHT));
         }
         return new Result(cards.getFirst(), List.copyOf(cards.subList(1, cards.size())),
