@@ -3,6 +3,9 @@ package dev.rgcb.scholar.client.screen;
 import dev.rgcb.scholar.client.ui.ScholarButton;
 import dev.rgcb.scholar.integration.ScholarApiRuntime;
 import dev.rgcb.scholar.application.ScholarApplication;
+import dev.rgcb.scholar.application.DocumentTemplateCatalog;
+import dev.rgcb.scholar.application.DocumentTemplateDescriptor;
+import dev.rgcb.scholar.application.DocumentTemplateKey;
 import dev.rgcb.scholar.application.ScholarDocumentDescriptor;
 import dev.rgcb.scholar.application.ScholarDocumentId;
 import dev.rgcb.scholar.client.ui.ScholarShellRenderer;
@@ -19,15 +22,14 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 /** Production entry point for the Scholar document library. */
 public final class ScholarHomeScreen extends Screen {
+    private static final List<DocumentTemplateDescriptor> TEMPLATES = DocumentTemplateCatalog.templates();
     private final ScholarApplication application;
     private List<ScholarDocumentDescriptor> documents = List.of();
     private String message = "";
@@ -137,17 +139,11 @@ public final class ScholarHomeScreen extends Screen {
                 return true;
             }
             if (choosingTemplate) {
-                if (blankTemplateCard().contains(mouseX, mouseY)) {
-                    createDocument(dev.rgcb.scholar.document.DocumentTemplateId.BLANK);
-                    return true;
-                }
-                if (ieeeTemplateCard().contains(mouseX, mouseY)) {
-                    createDocument(dev.rgcb.scholar.document.DocumentTemplateId.IEEE_STYLE);
-                    return true;
-                }
-                if (m34TemplateCard().contains(mouseX, mouseY)) {
-                    createReadabilitySample();
-                    return true;
+                for (var index = 0; index < TEMPLATES.size(); index++) {
+                    if (templateCard(index).contains(mouseX, mouseY)) {
+                        createDocument(TEMPLATES.get(index).id());
+                        return true;
+                    }
                 }
                 choosingTemplate = false;
                 return true;
@@ -234,15 +230,8 @@ public final class ScholarHomeScreen extends Screen {
         }
     }
 
-    private void createDocument(dev.rgcb.scholar.document.DocumentTemplateId template) {
+    private void createDocument(DocumentTemplateKey template) {
         var result = application.createDocument(template);
-        if (result instanceof PersistenceResult.Success<dev.rgcb.scholar.application.ApplicationDocumentWorkspace> success) {
-            minecraft.setScreen(ScholarEditorScreen.forApplication(application, success.value()));
-        } else message = result.diagnostics().getFirst().message();
-    }
-
-    private void createReadabilitySample() {
-        var result = application.createReadabilitySample();
         if (result instanceof PersistenceResult.Success<dev.rgcb.scholar.application.ApplicationDocumentWorkspace> success) {
             minecraft.setScreen(ScholarEditorScreen.forApplication(application, success.value()));
         } else message = result.diagnostics().getFirst().message();
@@ -262,36 +251,27 @@ public final class ScholarHomeScreen extends Screen {
         } else message = listed.diagnostics().getFirst().message();
     }
 
-    private ShellRect blankTemplateCard() {
-        if (width < 610) return compactTemplateCard(0);
-        return new ShellRect(width / 2 - 288, Math.max(52, height / 2 - 72), 184, 144);
-    }
-
-    private ShellRect ieeeTemplateCard() {
-        if (width < 610) return compactTemplateCard(1);
-        return new ShellRect(width / 2 - 92, Math.max(52, height / 2 - 72), 184, 144);
-    }
-
-    private ShellRect m34TemplateCard() {
-        if (width < 610) return compactTemplateCard(2);
-        return new ShellRect(width / 2 + 104, Math.max(52, height / 2 - 72), 184, 144);
-    }
-
-    private ShellRect compactTemplateCard(int index) {
+    private ShellRect templateCard(int index) {
         var cardWidth = Math.min(300, width - 24);
-        return new ShellRect((width - cardWidth) / 2, Math.max(55, height / 2 - 42) + index * 34,
-                cardWidth, 28);
+        var wideCardWidth = 184;
+        var gap = 12;
+        var totalWidth = TEMPLATES.size() * wideCardWidth + Math.max(0, TEMPLATES.size() - 1) * gap;
+        if (width < 610 || totalWidth > width - 24) {
+            return new ShellRect((width - cardWidth) / 2, Math.max(55, height / 2 - 42) + index * 34,
+                    cardWidth, 28);
+        }
+        return new ShellRect((width - totalWidth) / 2 + index * (wideCardWidth + gap),
+                Math.max(52, height / 2 - 72), wideCardWidth, 144);
     }
 
     private void renderTemplateChooser(GuiGraphics graphics, int mouseX, int mouseY) {
         graphics.fill(0, 32, width, height, ScholarShellStyle.MODAL_OVERLAY);
         graphics.drawCenteredString(font, ScholarText.get("scholar.template.choose"), width / 2, Math.max(38, height / 2 - 98), 0xFFFFFFFF);
-        renderTemplateCard(graphics, blankTemplateCard(), ScholarText.get("scholar.template.blank.title"),
-                ScholarText.get("scholar.template.blank.description"), false, mouseX, mouseY);
-        renderTemplateCard(graphics, ieeeTemplateCard(), ScholarText.get("scholar.template.ieee.title"),
-                ScholarText.get("scholar.template.ieee.description"), true, mouseX, mouseY);
-        renderTemplateCard(graphics, m34TemplateCard(), ScholarText.get("scholar.template.readability.title"),
-                ScholarText.get("scholar.template.readability.description"), true, mouseX, mouseY);
+        for (var index = 0; index < TEMPLATES.size(); index++) {
+            var template = TEMPLATES.get(index);
+            renderTemplateCard(graphics, templateCard(index), ScholarText.get(template.titleKey()),
+                    ScholarText.get(template.descriptionKey()), template.preview().twoColumns(), mouseX, mouseY);
+        }
     }
 
     private void renderTemplateCard(GuiGraphics graphics, ShellRect card, String title, String subtitle,

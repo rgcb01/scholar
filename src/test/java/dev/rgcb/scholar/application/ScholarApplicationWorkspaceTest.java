@@ -80,6 +80,20 @@ class ScholarApplicationWorkspaceTest {
         assertEquals(1, first.session().undoDepth());
     }
 
+    @Test void everyCatalogTemplateStartsWithCleanHistoryAndPersistedFactoryOutput() {
+        var application = application();
+
+        for (var template : DocumentTemplateCatalog.templates()) {
+            var created = success(application.createDocument(template.id()));
+            assertEquals(template.createDocument(), created.session().current().document(), template.id().value());
+            assertEquals(0, created.session().undoDepth(), template.id().value());
+            assertFalse(created.isDirty(), template.id().value());
+            success(created.save());
+            assertEquals(template.createDocument(),
+                    success(application.openDocument(created.id())).session().current().document());
+        }
+    }
+
     @Test void templateCreationPersistsTheSelectedScientificDocumentPolicy() {
         var application = application();
         var created = success(application.createDocument(DocumentTemplateId.IEEE_STYLE));
