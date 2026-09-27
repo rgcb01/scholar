@@ -2,35 +2,16 @@ package dev.rgcb.scholar.editor;
 
 import dev.rgcb.scholar.document.BlockNode;
 import dev.rgcb.scholar.document.Document;
-import dev.rgcb.scholar.diagram.DiagramBounds;
-import dev.rgcb.scholar.diagram.DiagramCanvas;
-import dev.rgcb.scholar.diagram.DiagramConnection;
-import dev.rgcb.scholar.diagram.DiagramDefinition;
-import dev.rgcb.scholar.diagram.DiagramElementId;
-import dev.rgcb.scholar.diagram.DiagramEndpoint;
-import dev.rgcb.scholar.diagram.DiagramNode;
-import dev.rgcb.scholar.diagram.DiagramPort;
-import dev.rgcb.scholar.diagram.DiagramPortId;
-import dev.rgcb.scholar.diagram.DiagramPortPlacement;
-import dev.rgcb.scholar.diagram.DiagramPortSide;
-import dev.rgcb.scholar.document.DiagramBlock;
 import dev.rgcb.scholar.document.CrossReference;
 import dev.rgcb.scholar.document.EquationBlock;
 import dev.rgcb.scholar.document.Heading;
 import dev.rgcb.scholar.document.InlineContent;
 import dev.rgcb.scholar.document.InlineNode;
 import dev.rgcb.scholar.document.Paragraph;
-import dev.rgcb.scholar.document.PlotBlock;
-import dev.rgcb.scholar.document.TableBlock;
 import dev.rgcb.scholar.document.TableOfContentsBlock;
 import dev.rgcb.scholar.document.Text;
 import dev.rgcb.scholar.document.TextMark;
 import dev.rgcb.scholar.math.MathSequence;
-import dev.rgcb.scholar.plot.AxisDefinition;
-import dev.rgcb.scholar.plot.DataPoint;
-import dev.rgcb.scholar.plot.PlotDefinition;
-import dev.rgcb.scholar.plot.PlotSeries;
-import dev.rgcb.scholar.plot.PlotSeriesKind;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -479,7 +460,7 @@ public final class DocumentEditor {
     }
 
     public EditResult insertDefaultTable(EditorState state) {
-        return insertBlock(state, TableBlock.empty(2, 2));
+        return insertBlock(state, ScientificContentCreationPolicy.table());
     }
 
     public EditResult insertTableOfContents(EditorState state) {
@@ -487,11 +468,11 @@ public final class DocumentEditor {
     }
 
     public EditResult insertDefaultPlot(EditorState state) {
-        return insertBlock(state, ScientificContentDefaults.plot());
+        return insertBlock(state, ScientificContentCreationPolicy.plot());
     }
 
     public EditResult insertDefaultDiagram(EditorState state) {
-        return insertBlock(state, ScientificContentDefaults.diagram());
+        return insertBlock(state, ScientificContentCreationPolicy.diagram());
     }
 
     public EditResult insertBlock(EditorState state, BlockNode block) {

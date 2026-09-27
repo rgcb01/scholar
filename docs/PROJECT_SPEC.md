@@ -55,8 +55,8 @@ production readability sample. None of these milestones creates the public addon
 - Text supports controlled font family/size, bold, italic, underline, superscript, and subscript.
 - Paragraphs support semantic style, alignment/justification, line/paragraph spacing, and indentation.
 - Style resolution layers template defaults, semantic style, then explicit local overrides.
-- Production templates are Blank Document and IEEE-style Scientific Paper; the latter is an
-  architecture preset and not a universal venue-compliance claim.
+- Production creation templates are Blank Document, IEEE-style Scientific Paper, and the deliberate
+  M34 Readability Sample. IEEE style is an architecture preset, not a universal venue-compliance claim.
 - Production rendering consumes `LaidOutPage`/`LaidOutColumn` results and shows distinct clipped sheets.
 - Zoom, Fit, scroll, and ribbon presentation are transient workspace state and not semantic history.
 - Scholar JSON V2 stores M30 semantics; strict V1 documents remain readable with default M30 settings.

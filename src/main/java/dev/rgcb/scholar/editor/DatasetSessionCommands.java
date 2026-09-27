@@ -41,7 +41,7 @@ final class DatasetSessionCommands {
     }
 
     boolean createDefault() {
-        return add(ScientificContentDefaults.dataset(uniqueId("dataset")));
+        return add(ScientificContentCreationPolicy.dataset(uniqueId("dataset")));
     }
 
     boolean add(ScientificDataset dataset) {

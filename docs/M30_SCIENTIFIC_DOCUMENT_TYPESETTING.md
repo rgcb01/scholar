@@ -87,8 +87,9 @@ those defaults into caption text nodes.
 
 ## Templates And Creation
 
-`DocumentTemplates` is pure configuration plus a useful initial semantic structure. Production Home
-offers Minecraft-native cards for Blank Document and IEEE-style Scientific Paper.
+`DocumentTemplates` owns the persisted Blank/IEEE document settings and initial semantic structures.
+`DocumentTemplateCatalog` is the production creation catalog and exposes Minecraft-native Home cards
+for Blank Document, IEEE-style Scientific Paper, and the deliberate M34 Readability Sample.
 
 The IEEE-style preset uses Letter paper, publication-oriented margins, two columns, page numbering,
 and semantic Title/Author/Affiliation/Abstract/Keywords/body/reference defaults. Its initial document
