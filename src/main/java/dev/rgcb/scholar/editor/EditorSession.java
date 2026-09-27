@@ -4,7 +4,6 @@ import dev.rgcb.scholar.document.Document;
 import dev.rgcb.scholar.document.EquationBlock;
 import dev.rgcb.scholar.document.DiagramBlock;
 import dev.rgcb.scholar.document.FigureBlock;
-import dev.rgcb.scholar.document.FigureNumbering;
 import dev.rgcb.scholar.document.BlockNode;
 import dev.rgcb.scholar.document.CrossReference;
 import dev.rgcb.scholar.document.CrossReferenceResolver;
@@ -12,7 +11,6 @@ import dev.rgcb.scholar.document.CrossReferenceTarget;
 import dev.rgcb.scholar.document.CrossReferenceTargetKind;
 import dev.rgcb.scholar.document.DocumentStructureResolver;
 import dev.rgcb.scholar.document.TableBlock;
-import dev.rgcb.scholar.document.TableOfContentsBlock;
 import dev.rgcb.scholar.document.Heading;
 import dev.rgcb.scholar.document.PlotBlock;
 import dev.rgcb.scholar.document.Paragraph;
@@ -24,17 +22,9 @@ import dev.rgcb.scholar.document.InlineContent;
 import dev.rgcb.scholar.document.InlineNode;
 import dev.rgcb.scholar.document.Text;
 import dev.rgcb.scholar.document.QuantityInline;
-import dev.rgcb.scholar.document.VariableDefinition;
-import dev.rgcb.scholar.document.ComputedResult;
 import dev.rgcb.scholar.document.DatasetAnalysisBlock;
 import dev.rgcb.scholar.analysis.AnalysisKind;
-import dev.rgcb.scholar.analysis.DatasetAnalysisEngine;
-import dev.rgcb.scholar.compute.ComputationEngine;
 import dev.rgcb.scholar.compute.ComputationSnapshot;
-import dev.rgcb.scholar.compute.ExpressionParser;
-import dev.rgcb.scholar.compute.Expression;
-import dev.rgcb.scholar.compute.ExpressionBinder;
-import dev.rgcb.scholar.compute.ExpressionEvaluator;
 import dev.rgcb.scholar.compute.ScientificValue;
 import dev.rgcb.scholar.clipboard.ScholarClipboardPayload;
 import dev.rgcb.scholar.clipboard.DocumentFragmentClipboardPayload;
@@ -43,13 +33,11 @@ import dev.rgcb.scholar.clipboard.FragmentPlainTextExporter;
 import dev.rgcb.scholar.transfer.*;
 import dev.rgcb.scholar.data.DatasetColumn;
 import dev.rgcb.scholar.data.DatasetColumnType;
-import dev.rgcb.scholar.data.DatasetPlotBinding;
 import dev.rgcb.scholar.data.DatasetRow;
 import dev.rgcb.scholar.data.DatasetTableBinding;
 import dev.rgcb.scholar.data.DatasetTableResolver;
 import dev.rgcb.scholar.data.DatasetValue;
 import dev.rgcb.scholar.data.ScientificDataset;
-import dev.rgcb.scholar.layout.LaidOutBlock;
 import dev.rgcb.scholar.math.MathDelimiter;
 import dev.rgcb.scholar.math.clipboard.MathClipboardPayload;
 import dev.rgcb.scholar.math.clipboard.MathPlainTextImporter;
@@ -61,10 +49,7 @@ import dev.rgcb.scholar.math.editor.ScriptSlot;
 import dev.rgcb.scholar.math.editor.SemanticMathTokenDraft;
 import dev.rgcb.scholar.math.editor.SemanticMathTokenKind;
 import dev.rgcb.scholar.plot.DataPoint;
-import dev.rgcb.scholar.plot.PlotDefinition;
-import dev.rgcb.scholar.plot.PlotSeries;
 import dev.rgcb.scholar.plot.PlotSeriesKind;
-import dev.rgcb.scholar.plot.AxisDefinition;
 import dev.rgcb.scholar.quantity.QuantityValue;
 import dev.rgcb.scholar.quantity.Quantity;
 import dev.rgcb.scholar.quantity.MeasuredQuantity;
@@ -74,7 +59,6 @@ import dev.rgcb.scholar.validation.DocumentValidator;
 import dev.rgcb.scholar.diagram.DiagramCanvas;
 import dev.rgcb.scholar.electrical.ElectricalComponent;
 import dev.rgcb.scholar.electrical.ElectricalComponentKind;
-import dev.rgcb.scholar.electrical.ElectricalJunction;
 import dev.rgcb.scholar.electrical.editor.ElectricalComponentDraft;
 import dev.rgcb.scholar.electrical.editor.ElectricalDiagramEditor;
 import dev.rgcb.scholar.mechanical.MechanicalPrimitiveKind;
@@ -104,182 +88,48 @@ public final class EditorSession {
         return history.applyEdit(new EditResult(replacement, current().selection(),
                 current().explicitTypingMarks(), true));
     }
-    private final ComputationEngine computationEngine = new ComputationEngine();
+    public boolean supportsInsertAnalysis() { return scientificCommands.supportsInsertAnalysis(); }
 
-    public boolean supportsInsertAnalysis() { return supportsInsertComputation() && !current().document().datasets().isEmpty(); }
-
-    public boolean supportsEditAnalysis() {
-        return current().isBlockSelection() && current().document().blocks()
-                .get(current().blockSelection().blockIndex()) instanceof DatasetAnalysisBlock;
-    }
+    public boolean supportsEditAnalysis() { return scientificCommands.supportsEditAnalysis(); }
 
     public boolean insertAnalysis(String datasetId, AnalysisKind kind, Optional<String> xColumnId,
                                   String yColumnId, Optional<UnitExpression> displayUnit, NumberNotation notation) {
-        if (!supportsInsertAnalysis()) return false;
-        var existing = current().document().blocks().stream().filter(DatasetAnalysisBlock.class::isInstance)
-                .map(DatasetAnalysisBlock.class::cast).map(DatasetAnalysisBlock::id).collect(java.util.stream.Collectors.toSet());
-        var id = dev.rgcb.scholar.document.StableIdAllocator.firstFree("analysis", existing);
-        var block = new DatasetAnalysisBlock(id, datasetId, kind, xColumnId, yColumnId, displayUnit, notation);
-        if (new DatasetAnalysisEngine().evaluate(current().document(), block).result().isEmpty()) return false;
-        return history.applyEdit(editor.insertBlock(current(), block));
+        return scientificCommands.insertAnalysis(datasetId, kind, xColumnId, yColumnId, displayUnit, notation);
     }
 
     public boolean editAnalysis(String datasetId, AnalysisKind kind, Optional<String> xColumnId,
                                 String yColumnId, Optional<UnitExpression> displayUnit, NumberNotation notation) {
-        if (!supportsEditAnalysis()) return false;
-        var index = current().blockSelection().blockIndex();
-        var original = (DatasetAnalysisBlock) current().document().blocks().get(index);
-        var replacement = new DatasetAnalysisBlock(original.id(), datasetId, kind, xColumnId, yColumnId, displayUnit, notation);
-        if (original.equals(replacement) || new DatasetAnalysisEngine().evaluate(current().document(), replacement).result().isEmpty()) return false;
-        var blocks = new java.util.ArrayList<>(current().document().blocks());
-        blocks.set(index, replacement);
-        return history.applyEdit(new EditResult(withCurrentDatasets(blocks), current().selection(), current().explicitTypingMarks(), true));
+        return scientificCommands.editAnalysis(datasetId, kind, xColumnId, yColumnId, displayUnit, notation);
     }
 
-    public List<DatasetAnalysisBlock> availableFitAnalyses() {
-        var plot = selectedPlotBlock();
-        if (plot.isEmpty()) return List.of();
-        return current().document().blocks().stream().filter(DatasetAnalysisBlock.class::isInstance)
-                .map(DatasetAnalysisBlock.class::cast).filter(analysis -> analysis.kind().isFit())
-                .filter(analysis -> plot.orElseThrow().definition().series().stream().anyMatch(series ->
-                        series.datasetBinding().filter(binding -> binding.datasetId().equals(analysis.datasetId())
-                                && binding.xColumnId().equals(analysis.xColumnId().orElse(""))
-                                && binding.yColumnId().equals(analysis.yColumnId())).isPresent()))
-                .filter(analysis -> plot.orElseThrow().definition().series().stream().noneMatch(series ->
-                        series.fitAnalysisId().filter(analysis.id()::equals).isPresent())).toList();
-    }
+    public List<DatasetAnalysisBlock> availableFitAnalyses() { return scientificCommands.availableFitAnalyses(); }
 
-    public boolean supportsAddFitOverlay() { return !availableFitAnalyses().isEmpty(); }
+    public boolean supportsAddFitOverlay() { return scientificCommands.supportsAddFitOverlay(); }
 
-    public boolean addFitOverlay(String analysisId) {
-        if (!supportsAddFitOverlay()) return false;
-        var analysis = availableFitAnalyses().stream().filter(value -> value.id().equals(analysisId)).findFirst();
-        if (analysis.isEmpty() || new DatasetAnalysisEngine().evaluate(current().document(), analysis.orElseThrow()).result().isEmpty()) return false;
-        var index = selectedPlotIndex();
-        var blocks = new java.util.ArrayList<>(current().document().blocks());
-        var plot = selectedPlotBlock().orElseThrow();
-        if (plot.definition().series().stream().anyMatch(series -> series.fitAnalysisId().filter(analysisId::equals).isPresent())) return false;
-        var series = new java.util.ArrayList<>(plot.definition().series());
-        series.add(PlotSeries.fit("Fit: " + analysisId, analysisId));
-        var definition = plot.definition();
-        blocks.set(index, replacePlotContent(blocks.get(index), new PlotBlock(new PlotDefinition(definition.title(),
-                definition.xAxis(), definition.yAxis(), series, definition.legendVisible(), definition.gridVisible(), definition.height()))));
-        return history.applyEdit(new EditResult(withCurrentDatasets(blocks), current().selection(), current().explicitTypingMarks(), true));
-    }
+    public boolean addFitOverlay(String analysisId) { return scientificCommands.addFitOverlay(analysisId); }
 
-    private int selectedPlotIndex() {
-        if (current().isPlotEditingSelection()) return current().plotEditingSelection().blockIndex();
-        if (current().isBlockSelection()) return current().blockSelection().blockIndex();
-        return -1;
-    }
+    public ComputationSnapshot computations() { return scientificCommands.computations(); }
 
-    private Optional<PlotBlock> selectedPlotBlock() {
-        var index = selectedPlotIndex();
-        if (index < 0 || index >= current().document().blocks().size()) return Optional.empty();
-        var block = current().document().blocks().get(index);
-        if (block instanceof PlotBlock plot) return Optional.of(plot);
-        if (block instanceof FigureBlock figure && figure.content() instanceof PlotBlock plot) return Optional.of(plot);
-        return Optional.empty();
-    }
+    public boolean supportsInsertComputation() { return scientificCommands.supportsInsertComputation(); }
 
-    public ComputationSnapshot computations() {
-        return computationEngine.update(current().document());
-    }
-
-    public boolean supportsInsertComputation() {
-        return !current().isEquationEditingSelection() && !current().isTableEditingSelection()
-                && !current().isPlotEditingSelection() && !current().isDiagramEditingSelection()
-                && !current().isFigureCaptionSelection() && editor.supportsInsertBlock(current());
-    }
-
-    public boolean insertVariable(String name, ScientificValue value, Optional<String> label) {
-        if (!supportsInsertComputation()) return false;
-        var existing = current().document().blocks().stream()
-                .filter(VariableDefinition.class::isInstance).map(VariableDefinition.class::cast)
-                .map(VariableDefinition::id).collect(java.util.stream.Collectors.toSet());
-        var id = dev.rgcb.scholar.document.StableIdAllocator.firstFree("variable-" + name, existing);
-        return history.applyEdit(bindNewlyAvailableVariables(
-                editor.insertBlock(current(), new VariableDefinition(id, name, value, label))));
-    }
+    public boolean insertVariable(String name, ScientificValue value, Optional<String> label) { return scientificCommands.insertVariable(name, value, label); }
 
     public boolean insertComputedResult(String source, Optional<String> label,
                                         Optional<UnitExpression> displayUnit, NumberNotation notation) {
-        if (!supportsInsertComputation()) return false;
-        var expression = new ExpressionParser().parse(source, current().document()).expression();
-        if (!compatibleComputationDisplay(expression, displayUnit)) return false;
-        return history.applyEdit(editor.insertBlock(current(), new ComputedResult(expression, source, label, displayUnit, notation)));
+        return scientificCommands.insertComputedResult(source, label, displayUnit, notation);
     }
 
-    public boolean supportsEditVariable() {
-        return current().isBlockSelection() && current().document().blocks().get(current().blockSelection().blockIndex()) instanceof VariableDefinition;
-    }
+    public boolean supportsEditVariable() { return scientificCommands.supportsEditVariable(); }
 
-    public boolean supportsEditComputedResult() {
-        return current().isBlockSelection() && current().document().blocks().get(current().blockSelection().blockIndex()) instanceof ComputedResult;
-    }
+    public boolean supportsEditComputedResult() { return scientificCommands.supportsEditComputedResult(); }
 
-    public boolean editVariable(String name, ScientificValue value, Optional<String> label) {
-        if (!supportsEditVariable()) return false;
-        var index = current().blockSelection().blockIndex();
-        var prior = (VariableDefinition) current().document().blocks().get(index);
-        var blocks = new java.util.ArrayList<>(current().document().blocks());
-        var replacement = new VariableDefinition(prior.id(), name, value, label);
-        if (prior.equals(replacement)) return false;
-        blocks.set(index, replacement);
-        return history.applyEdit(bindNewlyAvailableVariables(new EditResult(withCurrentDatasets(blocks),
-                current().selection(), current().explicitTypingMarks(), true)));
-    }
+    public boolean editVariable(String name, ScientificValue value, Optional<String> label) { return scientificCommands.editVariable(name, value, label); }
 
     public boolean editComputedResult(String source, Optional<String> label,
                                       Optional<UnitExpression> displayUnit, NumberNotation notation) {
-        if (!supportsEditComputedResult()) return false;
-        var index = current().blockSelection().blockIndex();
-        var expression = new ExpressionParser().parse(source, current().document()).expression();
-        if (!compatibleComputationDisplay(expression, displayUnit)) return false;
-        return replaceComputationBlock(index, new ComputedResult(expression, source, label, displayUnit, notation));
+        return scientificCommands.editComputedResult(source, label, displayUnit, notation);
     }
 
-    private boolean compatibleComputationDisplay(Expression expression, Optional<UnitExpression> displayUnit) {
-        if (displayUnit.isEmpty()) return true;
-        var evaluated = new ExpressionEvaluator().evaluate(expression, current().document());
-        if (evaluated.value().isEmpty()) return true;
-        if (!(evaluated.value().orElseThrow() instanceof ScientificValue.Physical physical)) return false;
-        try {
-            var target = displayUnit.orElseThrow();
-            var converter = new dev.rgcb.scholar.quantity.UnitConverter();
-            if (physical.value() instanceof MeasuredQuantity measured) converter.convert(measured, target);
-            else converter.convert(physical.value().nominal(), target);
-            return true;
-        } catch (IllegalArgumentException failure) {
-            return false;
-        }
-    }
-
-    private boolean replaceComputationBlock(int index, BlockNode replacement) {
-        var blocks = new java.util.ArrayList<>(current().document().blocks());
-        if (blocks.get(index).equals(replacement)) return false;
-        blocks.set(index, replacement);
-        return history.applyEdit(new EditResult(withCurrentDatasets(blocks), current().selection(), current().explicitTypingMarks(), true));
-    }
-
-    private EditResult bindNewlyAvailableVariables(EditResult edit) {
-        if (!edit.changed()) return edit;
-        var document = edit.document();
-        var blocks = new java.util.ArrayList<>(document.blocks());
-        var binder = new ExpressionBinder();
-        var changed = false;
-        for (var index = 0; index < blocks.size(); index++) {
-            if (!(blocks.get(index) instanceof ComputedResult computed)) continue;
-            var bound = binder.bindAvailable(computed.expression(), document);
-            if (!bound.equals(computed.expression())) {
-                blocks.set(index, computed.withExpression(bound, computed.authoredSource()));
-                changed = true;
-            }
-        }
-        if (!changed) return edit;
-        return new EditResult(new Document(blocks, document.datasets(), document.settings()), edit.selection(),
-                edit.explicitTypingMarks(), true);
-    }
     private final DocumentEditor editor;
     private final MathExpressionEditor mathEditor;
     private final TableEditor tableEditor;
@@ -294,6 +144,9 @@ public final class EditorSession {
     private final DatasetTableResolver datasetTableResolver;
     private final PlainTextClipboard clipboard;
     private final EditorHistory history;
+    private final DatasetSessionCommands datasetCommands;
+    private final DiagramSessionCommands diagramCommands;
+    private final ScientificInsertionCommands scientificCommands;
 
     /** Observes committed semantic state, including undo/redo, but not caret-only movement. */
     public void onDocumentChange(java.util.function.Consumer<Document> listener) {
@@ -307,9 +160,6 @@ public final class EditorSession {
     private final TableCellTextNavigator tableCellTextNavigator = new TableCellTextNavigator();
     private Optional<Integer> preferredCaretX = Optional.empty();
     private DiagramDragInteraction diagramDragInteraction;
-    private DiagramPortTarget diagramConnectionSource;
-    private DiagramElementTarget mechanicalConstraintSource;
-    private MechanicalConstraintKind pendingMechanicalConstraintKind;
 
     public EditorSession(Document initialDocument, int initialBlockIndex) {
         this(new DocumentEditor(), initialDocument, initialBlockIndex);
@@ -338,10 +188,35 @@ public final class EditorSession {
         datasetTableResolver = new DatasetTableResolver();
         clipboard = new PlainTextClipboard(editor);
         history = new EditorHistory(Objects.requireNonNull(initialState, "initialState"));
+        datasetCommands = new DatasetSessionCommands(this);
+        diagramCommands = new DiagramSessionCommands(
+                this, diagramEditor, electricalDiagramEditor, mechanicalDiagramEditor);
+        scientificCommands = new ScientificInsertionCommands(this);
     }
 
     public EditorState current() {
         return history.current();
+    }
+
+    DocumentEditor commandEditor() {
+        return editor;
+    }
+
+    boolean applyCommandEdit(EditResult edit) {
+        return history.applyEdit(edit);
+    }
+
+    boolean applyDiagramCommand(DiagramEditResult result) {
+        return history.applyEdit(applyDiagramEditResult(result));
+    }
+
+    DiagramBlock currentDiagramForCommands() {
+        return currentDiagram();
+    }
+
+    Optional<ClipboardCopyResult> copyDatasetForCommands(String datasetId) {
+        return clipboardCopy(new FragmentExtractor().extract(current().document(),
+                new FragmentExtractionRequest.Datasets(List.of(datasetId)), Optional.of(documentToken)));
     }
 
     public EditorFocusOwner focusOwner() {
@@ -367,9 +242,7 @@ public final class EditorSession {
     public void setCurrent(EditorState state) {
         clearPreferredCaretX();
         diagramDragInteraction = null;
-        diagramConnectionSource = null;
-        mechanicalConstraintSource = null;
-        pendingMechanicalConstraintKind = null;
+        diagramCommands.resetTransientState();
         history.setCurrent(state);
     }
 
@@ -964,9 +837,7 @@ public final class EditorSession {
         Objects.requireNonNull(target, "target");
         clearPreferredCaretX();
         cancelDiagramElementDrag();
-        diagramConnectionSource = null;
-        mechanicalConstraintSource = null;
-        pendingMechanicalConstraintKind = null;
+        diagramCommands.resetTransientState();
         if (blockIndex < 0 || blockIndex >= current().document().blocks().size()) {
             return;
         }
@@ -980,9 +851,7 @@ public final class EditorSession {
     public void exitDiagramEditing() {
         clearPreferredCaretX();
         cancelDiagramElementDrag();
-        diagramConnectionSource = null;
-        mechanicalConstraintSource = null;
-        pendingMechanicalConstraintKind = null;
+        diagramCommands.resetTransientState();
         if (current().isDiagramEditingSelection()) {
             history.setCurrent(current().selectBlock(current().diagramEditingSelection().blockIndex()));
         }
@@ -994,7 +863,7 @@ public final class EditorSession {
      */
     public boolean beginDiagramElementDrag(double pointerLogicalX, double pointerLogicalY) {
         clearPreferredCaretX();
-        diagramConnectionSource = null;
+        diagramCommands.clearConnection();
         if (hasPendingMechanicalConstraint()) {
             diagramDragInteraction = null;
             return false;
@@ -1109,7 +978,7 @@ public final class EditorSession {
         if (!current().isDiagramEditingSelection()) {
             return false;
         }
-        diagramConnectionSource = null;
+        diagramCommands.clearConnection();
         var target = current().diagramEditingSelection().target();
         if(mechanicalDiagramEditor.selectedPartReference(currentDiagram(),target).isPresent())return history.applyEdit(applyDiagramEditResult(mechanicalDiagramEditor.setPartReferenceName(currentDiagram(),target,text)));
         if(mechanicalDiagramEditor.selectedAnnotation(currentDiagram(),target).isPresent())return history.applyEdit(applyDiagramEditResult(mechanicalDiagramEditor.setAnnotationText(currentDiagram(),target,text)));
@@ -1137,7 +1006,7 @@ public final class EditorSession {
             return false;
         }
         clearPreferredCaretX();
-        diagramConnectionSource = null;
+        diagramCommands.clearConnection();
         cancelDiagramElementDrag();
         return history.applyEdit(applyDiagramEditResult(
                 diagramEditor.resizeCanvas(
@@ -1149,7 +1018,7 @@ public final class EditorSession {
             return false;
         }
         clearPreferredCaretX();
-        diagramConnectionSource = null;
+        diagramCommands.clearConnection();
         cancelDiagramElementDrag();
         return history.applyEdit(applyDiagramEditResult(
                 diagramEditor.scaleWorkspaceHeight(
@@ -1161,7 +1030,7 @@ public final class EditorSession {
             return false;
         }
         clearPreferredCaretX();
-        diagramConnectionSource = null;
+        diagramCommands.clearConnection();
         cancelDiagramElementDrag();
         return history.applyEdit(applyDiagramEditResult(
                 diagramEditor.resetWorkspaceHeight(
@@ -1178,7 +1047,7 @@ public final class EditorSession {
             return false;
         }
         clearPreferredCaretX();
-        diagramConnectionSource = null;
+        diagramCommands.clearConnection();
         cancelDiagramElementDrag();
         return history.applyEdit(applyDiagramEditResult(
                 electricalDiagramEditor.scaleAllComponents(
@@ -1189,7 +1058,7 @@ public final class EditorSession {
         if (!supportsDiagramEditingAction()) {
             return false;
         }
-        diagramConnectionSource = null;
+        diagramCommands.clearConnection();
         cancelDiagramElementDrag();
         return history.applyEdit(applyDiagramEditResult(
                 diagramEditor.addNode(currentDiagram(), current().diagramEditingSelection().target())));
@@ -1204,7 +1073,7 @@ public final class EditorSession {
         if (!supportsDeleteDiagramNode()) {
             return false;
         }
-        diagramConnectionSource = null;
+        diagramCommands.clearConnection();
         cancelDiagramElementDrag();
         return history.applyEdit(applyDiagramEditResult(
                 diagramEditor.deleteNode(currentDiagram(), current().diagramEditingSelection().target())));
@@ -1215,7 +1084,7 @@ public final class EditorSession {
         if (!supportsDiagramEditingAction()) {
             return false;
         }
-        diagramConnectionSource = null;
+        diagramCommands.clearConnection();
         cancelDiagramElementDrag();
         return history.applyEdit(applyDiagramEditResult(
                 mechanicalDiagramEditor.addPrimitive(
@@ -1240,7 +1109,7 @@ public final class EditorSession {
     public boolean deleteMechanicalAnnotation(){if(!supportsDeleteMechanicalAnnotation())return false;cancelDiagramElementDrag();return history.applyEdit(applyDiagramEditResult(mechanicalDiagramEditor.deleteAnnotation(currentDiagram(),current().diagramEditingSelection().target())));}
 
     public boolean addMechanicalSymbol(MechanicalSymbolKind kind) {
-        Objects.requireNonNull(kind); if(!supportsDiagramEditingAction()) return false; diagramConnectionSource=null; cancelDiagramElementDrag();
+        Objects.requireNonNull(kind); if(!supportsDiagramEditingAction()) return false; diagramCommands.clearConnection(); cancelDiagramElementDrag();
         return history.applyEdit(applyDiagramEditResult(mechanicalDiagramEditor.addSymbol(currentDiagram(), current().diagramEditingSelection().target(), kind)));
     }
 
@@ -1250,99 +1119,32 @@ public final class EditorSession {
     public boolean addMechanicalDimension(MechanicalDimensionKind kind) {
         Objects.requireNonNull(kind, "kind");
         if (!supportsDiagramEditingAction()) return false;
-        diagramConnectionSource = null;
+        diagramCommands.clearConnection();
         cancelDiagramElementDrag();
         return history.applyEdit(applyDiagramEditResult(
                 mechanicalDiagramEditor.addDimension(
                         currentDiagram(), current().diagramEditingSelection().target(), kind)));
     }
 
-    public boolean supportsAddMechanicalUnaryConstraint(MechanicalConstraintKind kind) {
-        return current().isDiagramEditingSelection()
-                && mechanicalDiagramEditor.canApplyUnaryConstraint(
-                        currentDiagram(), current().diagramEditingSelection().target(), kind);
-    }
+    public boolean supportsAddMechanicalUnaryConstraint(MechanicalConstraintKind kind) { return diagramCommands.supportsAddMechanicalUnaryConstraint(kind); }
 
-    public boolean addMechanicalUnaryConstraint(MechanicalConstraintKind kind) {
-        Objects.requireNonNull(kind, "kind");
-        if (!supportsAddMechanicalUnaryConstraint(kind)) return false;
-        diagramConnectionSource = null;
-        mechanicalConstraintSource = null;
-        pendingMechanicalConstraintKind = null;
-        cancelDiagramElementDrag();
-        return history.applyEdit(applyDiagramEditResult(
-                mechanicalDiagramEditor.addUnaryConstraint(
-                        currentDiagram(), current().diagramEditingSelection().target(), kind)));
-    }
+    public boolean addMechanicalUnaryConstraint(MechanicalConstraintKind kind) { return diagramCommands.addMechanicalUnaryConstraint(kind); }
 
-    public boolean supportsStartMechanicalConstraint(MechanicalConstraintKind kind) {
-        return current().isDiagramEditingSelection()
-                && mechanicalDiagramEditor.canStartBinaryConstraint(
-                        currentDiagram(), current().diagramEditingSelection().target(), kind);
-    }
+    public boolean supportsStartMechanicalConstraint(MechanicalConstraintKind kind) { return diagramCommands.supportsStartMechanicalConstraint(kind); }
 
-    public boolean startMechanicalConstraint(MechanicalConstraintKind kind) {
-        Objects.requireNonNull(kind, "kind");
-        if (!supportsStartMechanicalConstraint(kind)
-                || !(current().diagramEditingSelection().target() instanceof DiagramElementTarget source)) {
-            return false;
-        }
-        diagramConnectionSource = null;
-        cancelDiagramElementDrag();
-        mechanicalConstraintSource = source;
-        pendingMechanicalConstraintKind = kind;
-        return true;
-    }
+    public boolean startMechanicalConstraint(MechanicalConstraintKind kind) { return diagramCommands.startMechanicalConstraint(kind); }
 
-    public boolean supportsFinishMechanicalConstraint() {
-        return current().isDiagramEditingSelection()
-                && mechanicalConstraintSource != null
-                && pendingMechanicalConstraintKind != null
-                && mechanicalDiagramEditor.canFinishBinaryConstraint(
-                        currentDiagram(),
-                        mechanicalConstraintSource,
-                        current().diagramEditingSelection().target(),
-                        pendingMechanicalConstraintKind);
-    }
+    public boolean supportsFinishMechanicalConstraint() { return diagramCommands.supportsFinishMechanicalConstraint(); }
 
-    public boolean finishMechanicalConstraint() {
-        if (!supportsFinishMechanicalConstraint()) return false;
-        var source = mechanicalConstraintSource;
-        var kind = pendingMechanicalConstraintKind;
-        mechanicalConstraintSource = null;
-        pendingMechanicalConstraintKind = null;
-        cancelDiagramElementDrag();
-        return history.applyEdit(applyDiagramEditResult(
-                mechanicalDiagramEditor.addBinaryConstraint(
-                        currentDiagram(), source, current().diagramEditingSelection().target(), kind)));
-    }
+    public boolean finishMechanicalConstraint() { return diagramCommands.finishMechanicalConstraint(); }
 
-    public boolean cancelMechanicalConstraint() {
-        var active = mechanicalConstraintSource != null || pendingMechanicalConstraintKind != null;
-        mechanicalConstraintSource = null;
-        pendingMechanicalConstraintKind = null;
-        return active;
-    }
+    public boolean cancelMechanicalConstraint() { return diagramCommands.cancelMechanicalConstraint(); }
 
-    public boolean hasPendingMechanicalConstraint() {
-        return mechanicalConstraintSource != null && pendingMechanicalConstraintKind != null;
-    }
+    public boolean hasPendingMechanicalConstraint() { return diagramCommands.hasPendingMechanicalConstraint(); }
 
-    public boolean supportsDeleteMechanicalConstraint() {
-        return current().isDiagramEditingSelection()
-                && mechanicalDiagramEditor.canDeleteConstraint(
-                        currentDiagram(), current().diagramEditingSelection().target());
-    }
+    public boolean supportsDeleteMechanicalConstraint() { return diagramCommands.supportsDeleteMechanicalConstraint(); }
 
-    public boolean deleteMechanicalConstraint() {
-        if (!supportsDeleteMechanicalConstraint()) return false;
-        mechanicalConstraintSource = null;
-        pendingMechanicalConstraintKind = null;
-        cancelDiagramElementDrag();
-        return history.applyEdit(applyDiagramEditResult(
-                mechanicalDiagramEditor.deleteConstraint(
-                        currentDiagram(), current().diagramEditingSelection().target())));
-    }
+    public boolean deleteMechanicalConstraint() { return diagramCommands.deleteMechanicalConstraint(); }
 
     public boolean supportsDeleteMechanicalDimension() {
         return current().isDiagramEditingSelection()
@@ -1352,7 +1154,7 @@ public final class EditorSession {
 
     public boolean deleteMechanicalDimension() {
         if (!supportsDeleteMechanicalDimension()) return false;
-        diagramConnectionSource = null;
+        diagramCommands.clearConnection();
         cancelDiagramElementDrag();
         return history.applyEdit(applyDiagramEditResult(
                 mechanicalDiagramEditor.deleteDimension(
@@ -1369,196 +1171,56 @@ public final class EditorSession {
         if (!supportsDeleteMechanicalPrimitive()) {
             return false;
         }
-        diagramConnectionSource = null;
+        diagramCommands.clearConnection();
         cancelDiagramElementDrag();
         return history.applyEdit(applyDiagramEditResult(
                 mechanicalDiagramEditor.deletePrimitive(
                         currentDiagram(), current().diagramEditingSelection().target())));
     }
 
-    public boolean addElectricalJunction() {
-        if (!supportsDiagramEditingAction()) {
-            return false;
-        }
-        diagramConnectionSource = null;
-        cancelDiagramElementDrag();
-        return history.applyEdit(applyDiagramEditResult(
-                electricalDiagramEditor.addJunction(
-                        currentDiagram(), current().diagramEditingSelection().target())));
-    }
+    public boolean addElectricalJunction() { return diagramCommands.addElectricalJunction(); }
 
-    public boolean supportsDeleteElectricalJunction() {
-        return current().isDiagramEditingSelection()
-                && electricalDiagramEditor.canDeleteJunction(
-                        currentDiagram(), current().diagramEditingSelection().target());
-    }
+    public boolean supportsDeleteElectricalJunction() { return diagramCommands.supportsDeleteElectricalJunction(); }
 
-    public boolean deleteElectricalJunction() {
-        if (!supportsDeleteElectricalJunction()) {
-            return false;
-        }
-        diagramConnectionSource = null;
-        cancelDiagramElementDrag();
-        return history.applyEdit(applyDiagramEditResult(
-                electricalDiagramEditor.deleteJunction(
-                        currentDiagram(), current().diagramEditingSelection().target())));
-    }
+    public boolean deleteElectricalJunction() { return diagramCommands.deleteElectricalJunction(); }
 
-    public boolean addElectricalComponent(ElectricalComponentKind kind) {
-        Objects.requireNonNull(kind, "kind");
-        if (!supportsDiagramEditingAction()) {
-            return false;
-        }
-        diagramConnectionSource = null;
-        cancelDiagramElementDrag();
-        return history.applyEdit(applyDiagramEditResult(
-                electricalDiagramEditor.addComponent(
-                        currentDiagram(), current().diagramEditingSelection().target(), kind)));
-    }
+    public boolean addElectricalComponent(ElectricalComponentKind kind) { return diagramCommands.addElectricalComponent(kind); }
 
-    public Optional<ElectricalComponent> selectedElectricalComponent() {
-        if (!current().isDiagramEditingSelection()) {
-            return Optional.empty();
-        }
-        return electricalDiagramEditor.selectedComponent(
-                currentDiagram(), current().diagramEditingSelection().target());
-    }
+    public Optional<ElectricalComponent> selectedElectricalComponent() { return diagramCommands.selectedElectricalComponent(); }
 
-    public Optional<ElectricalComponentDraft> electricalComponentDraft() {
-        if (!current().isDiagramEditingSelection()) {
-            return Optional.empty();
-        }
-        return electricalDiagramEditor.draft(
-                currentDiagram(), current().diagramEditingSelection().target());
-    }
+    public Optional<ElectricalComponentDraft> electricalComponentDraft() { return diagramCommands.electricalComponentDraft(); }
 
-    public boolean applyElectricalComponentAnnotations(String referenceDesignator, String valueLabel) {
-        Objects.requireNonNull(referenceDesignator, "referenceDesignator");
-        Objects.requireNonNull(valueLabel, "valueLabel");
-        if (!current().isDiagramEditingSelection()) {
-            return false;
-        }
-        diagramConnectionSource = null;
-        cancelDiagramElementDrag();
-        return history.applyEdit(applyDiagramEditResult(
-                electricalDiagramEditor.setAnnotations(
-                        currentDiagram(),
-                        current().diagramEditingSelection().target(),
-                        referenceDesignator,
-                        valueLabel)));
-    }
+    public boolean applyElectricalComponentAnnotations(String referenceDesignator, String valueLabel) { return diagramCommands.applyElectricalComponentAnnotations(referenceDesignator, valueLabel); }
 
-    public boolean supportsRotateElectricalComponent() {
-        return current().isDiagramEditingSelection()
-                && electricalDiagramEditor.canRotate(
-                        currentDiagram(), current().diagramEditingSelection().target());
-    }
+    public boolean supportsRotateElectricalComponent() { return diagramCommands.supportsRotateElectricalComponent(); }
 
-    public boolean rotateElectricalComponentClockwise() {
-        if (!supportsRotateElectricalComponent()) {
-            return false;
-        }
-        diagramConnectionSource = null;
-        cancelDiagramElementDrag();
-        return history.applyEdit(applyDiagramEditResult(
-                electricalDiagramEditor.rotateClockwise(
-                        currentDiagram(), current().diagramEditingSelection().target())));
-    }
+    public boolean rotateElectricalComponentClockwise() { return diagramCommands.rotateElectricalComponentClockwise(); }
 
-    public boolean rotateElectricalComponentCounterClockwise() {
-        if (!supportsRotateElectricalComponent()) {
-            return false;
-        }
-        diagramConnectionSource = null;
-        cancelDiagramElementDrag();
-        return history.applyEdit(applyDiagramEditResult(
-                electricalDiagramEditor.rotateCounterClockwise(
-                        currentDiagram(), current().diagramEditingSelection().target())));
-    }
+    public boolean rotateElectricalComponentCounterClockwise() { return diagramCommands.rotateElectricalComponentCounterClockwise(); }
 
-    public boolean supportsDeleteElectricalComponent() {
-        return current().isDiagramEditingSelection()
-                && electricalDiagramEditor.canDelete(
-                        currentDiagram(), current().diagramEditingSelection().target());
-    }
+    public boolean supportsDeleteElectricalComponent() { return diagramCommands.supportsDeleteElectricalComponent(); }
 
-    public boolean deleteElectricalComponent() {
-        if (!supportsDeleteElectricalComponent()) {
-            return false;
-        }
-        diagramConnectionSource = null;
-        cancelDiagramElementDrag();
-        return history.applyEdit(applyDiagramEditResult(
-                electricalDiagramEditor.deleteComponent(
-                        currentDiagram(), current().diagramEditingSelection().target())));
-    }
+    public boolean deleteElectricalComponent() { return diagramCommands.deleteElectricalComponent(); }
 
-    public boolean supportsBeginDiagramConnection() {
-        return current().isDiagramEditingSelection()
-                && diagramConnectionSource == null
-                && current().diagramEditingSelection().target() instanceof DiagramPortTarget;
-    }
+    public boolean supportsBeginDiagramConnection() { return diagramCommands.supportsBeginConnection(); }
 
     /** Arms the currently selected port as the explicit source endpoint. */
-    public boolean beginDiagramConnection() {
-        if (!supportsBeginDiagramConnection()) {
-            return false;
-        }
-        diagramConnectionSource = (DiagramPortTarget) current().diagramEditingSelection().target();
-        cancelDiagramElementDrag();
-        return true;
-    }
+    public boolean beginDiagramConnection() { return diagramCommands.beginConnection(); }
 
-    public boolean diagramConnectionInProgress() {
-        return diagramConnectionSource != null;
-    }
+    public boolean diagramConnectionInProgress() { return diagramCommands.connectionInProgress(); }
 
-    public Optional<DiagramPortTarget> diagramConnectionSourceTarget() {
-        return Optional.ofNullable(diagramConnectionSource);
-    }
+    public Optional<DiagramPortTarget> diagramConnectionSourceTarget() { return diagramCommands.connectionSourceTarget(); }
 
-    public boolean supportsCompleteDiagramConnection() {
-        if (!current().isDiagramEditingSelection()
-                || diagramConnectionSource == null
-                || !(current().diagramEditingSelection().target() instanceof DiagramPortTarget target)) {
-            return false;
-        }
-        return diagramEditor.canAddConnection(currentDiagram(), diagramConnectionSource, target);
-    }
+    public boolean supportsCompleteDiagramConnection() { return diagramCommands.supportsCompleteConnection(); }
 
     /** Commits a complete source/target pair; incomplete connections never enter the AST. */
-    public boolean completeDiagramConnection() {
-        if (!supportsCompleteDiagramConnection()) {
-            return false;
-        }
-        var source = diagramConnectionSource;
-        var target = (DiagramPortTarget) current().diagramEditingSelection().target();
-        diagramConnectionSource = null;
-        cancelDiagramElementDrag();
-        return history.applyEdit(applyDiagramEditResult(
-                diagramEditor.addConnection(currentDiagram(), source, target)));
-    }
+    public boolean completeDiagramConnection() { return diagramCommands.completeConnection(); }
 
-    public boolean cancelDiagramConnection() {
-        var active = diagramConnectionSource != null;
-        diagramConnectionSource = null;
-        return active;
-    }
+    public boolean cancelDiagramConnection() { return diagramCommands.cancelConnection(); }
 
-    public boolean supportsDeleteDiagramConnection() {
-        return current().isDiagramEditingSelection()
-                && diagramEditor.canDeleteConnection(currentDiagram(), current().diagramEditingSelection().target());
-    }
+    public boolean supportsDeleteDiagramConnection() { return diagramCommands.supportsDeleteConnection(); }
 
-    public boolean deleteDiagramConnection() {
-        if (!supportsDeleteDiagramConnection()) {
-            return false;
-        }
-        diagramConnectionSource = null;
-        cancelDiagramElementDrag();
-        return history.applyEdit(applyDiagramEditResult(
-                diagramEditor.deleteConnection(currentDiagram(), current().diagramEditingSelection().target())));
-    }
+    public boolean deleteDiagramConnection() { return diagramCommands.deleteConnection(); }
 
     Optional<Integer> preferredCaretX() {
         return preferredCaretX;
@@ -1567,18 +1229,14 @@ public final class EditorSession {
     public boolean undo() {
         clearPreferredCaretX();
         diagramDragInteraction = null;
-        diagramConnectionSource = null;
-        mechanicalConstraintSource = null;
-        pendingMechanicalConstraintKind = null;
+        diagramCommands.resetTransientState();
         return history.undo();
     }
 
     public boolean redo() {
         clearPreferredCaretX();
         diagramDragInteraction = null;
-        diagramConnectionSource = null;
-        mechanicalConstraintSource = null;
-        pendingMechanicalConstraintKind = null;
+        diagramCommands.resetTransientState();
         return history.redo();
     }
 
@@ -1907,7 +1565,7 @@ public final class EditorSession {
         transferDiagnostics = staged.diagnostics();
         if (!(staged instanceof TransferInsertionResult.Success success) || current() != captured || !success.edit().changed()) { return false; }
         clearPreferredCaretX();
-        diagramConnectionSource = null;
+        diagramCommands.clearConnection();
         diagramDragInteraction = null;
         return history.applyEdit(clearTypingMarks(success.edit()));
     }
@@ -1982,99 +1640,38 @@ public final class EditorSession {
         return editor.supportsInsertBlock(current());
     }
 
-    public boolean supportsDatasetDocumentAction() {
-        return !current().isEquationEditingSelection()
-                && !current().isTableEditingSelection()
-                && !current().isPlotEditingSelection()
-                && !current().isDiagramEditingSelection()
-                && !current().isFigureCaptionSelection();
-    }
+    public boolean supportsDatasetDocumentAction() { return datasetCommands.supportsDocumentAction(); }
 
-    public boolean createDefaultDataset() {
-        return addDataset(ScientificContentDefaults.dataset(uniqueDatasetId("dataset")));
-    }
+    public boolean createDefaultDataset() { return datasetCommands.createDefault(); }
 
-    public boolean addDataset(ScientificDataset dataset) {
-        Objects.requireNonNull(dataset, "dataset");
-        if (!supportsDatasetDocumentAction()) {
-            return false;
-        }
-        var datasets = new java.util.ArrayList<>(current().document().datasets());
-        var candidate = dataset;
-        var candidateId = candidate.id();
-        if (datasets.stream().anyMatch(existing -> existing.id().equals(candidateId))) {
-            candidate = candidate.withId(uniqueDatasetId(candidate.id()));
-        }
-        datasets.add(candidate);
-        return history.applyEdit(new EditResult(new Document(current().document().blocks(), datasets, current().document().settings()), current().selection(), current().explicitTypingMarks(), true));
-    }
+    public boolean addDataset(ScientificDataset dataset) { return datasetCommands.add(dataset); }
 
-    public boolean deleteDataset(String datasetId) {
-        Objects.requireNonNull(datasetId, "datasetId");
-        var datasets = current().document().datasets().stream()
-                .filter(dataset -> !dataset.id().equals(datasetId))
-                .toList();
-        if (datasets.size() == current().document().datasets().size()) {
-            return false;
-        }
-        return history.applyEdit(new EditResult(new Document(current().document().blocks(), datasets, current().document().settings()), current().selection(), current().explicitTypingMarks(), true));
-    }
+    public boolean deleteDataset(String datasetId) { return datasetCommands.delete(datasetId); }
 
-    public Optional<ClipboardCopyResult> copyDatasetForClipboard(String datasetId) {
-        return clipboardCopy(new FragmentExtractor().extract(current().document(),
-                new FragmentExtractionRequest.Datasets(List.of(datasetId)), Optional.of(documentToken)));
-    }
+    public Optional<ClipboardCopyResult> copyDatasetForClipboard(String datasetId) { return datasetCommands.copyForClipboard(datasetId); }
 
-    public boolean renameDataset(String datasetId, String displayName) {
-        return replaceDataset(datasetId, dataset -> dataset.withDisplayName(displayName));
-    }
+    public boolean renameDataset(String datasetId, String displayName) { return datasetCommands.rename(datasetId, displayName); }
 
-    public boolean renameDatasetColumn(String datasetId, String columnId, String displayName) {
-        return replaceDataset(datasetId, dataset -> dataset.withColumnDisplayName(columnId, displayName));
-    }
+    public boolean renameDatasetColumn(String datasetId, String columnId, String displayName) { return datasetCommands.renameColumn(datasetId, columnId, displayName); }
 
     public boolean setDatasetColumnUnit(String datasetId, String columnId, Optional<UnitExpression> unit) {
-        return setDatasetColumnUnit(datasetId, columnId, unit,
-                unit.map(dev.rgcb.scholar.quantity.QuantitySemantics::defaultFor)
-                        .orElse(dev.rgcb.scholar.quantity.QuantitySemantics.LINEAR));
+        return datasetCommands.setColumnUnit(datasetId, columnId, unit);
     }
 
     public boolean setDatasetColumnUnit(String datasetId, String columnId, Optional<UnitExpression> unit,
                                         dev.rgcb.scholar.quantity.QuantitySemantics semantics) {
-        Objects.requireNonNull(unit, "unit");
-        Objects.requireNonNull(semantics, "semantics");
-        return replaceDataset(datasetId, dataset -> dataset.withColumnUnit(columnId, unit, semantics));
+        return datasetCommands.setColumnUnit(datasetId, columnId, unit, semantics);
     }
 
-    public boolean supportsSetSelectedDatasetColumnUnit() {
-        if (!current().isTableEditingSelection()) return false;
-        var selection = current().tableEditingSelection();
-        if (!(current().document().blocks().get(selection.blockIndex()) instanceof TableBlock table)
-                || table.datasetBinding().isEmpty()) return false;
-        var binding = table.datasetBinding().orElseThrow();
-        return current().document().datasets().stream().filter(dataset -> dataset.id().equals(binding.datasetId())).findFirst()
-                .flatMap(dataset -> datasetColumnId(dataset, binding, selection.selection().cell().columnIndex())
-                        .flatMap(dataset::column))
-                .filter(column -> column.type() == DatasetColumnType.NUMBER)
-                .isPresent();
-    }
+    public boolean supportsSetSelectedDatasetColumnUnit() { return datasetCommands.supportsSetSelectedColumnUnit(); }
 
     public boolean setSelectedDatasetColumnUnit(Optional<UnitExpression> unit) {
-        return setSelectedDatasetColumnUnit(unit, unit.map(dev.rgcb.scholar.quantity.QuantitySemantics::defaultFor)
-                .orElse(dev.rgcb.scholar.quantity.QuantitySemantics.LINEAR));
+        return datasetCommands.setSelectedColumnUnit(unit);
     }
 
     public boolean setSelectedDatasetColumnUnit(Optional<UnitExpression> unit,
                                                 dev.rgcb.scholar.quantity.QuantitySemantics semantics) {
-        Objects.requireNonNull(unit, "unit");
-        if (!supportsSetSelectedDatasetColumnUnit()) return false;
-        var selection = current().tableEditingSelection();
-        var table = (TableBlock) current().document().blocks().get(selection.blockIndex());
-        var binding = table.datasetBinding().orElseThrow();
-        var dataset = current().document().datasets().stream()
-                .filter(candidate -> candidate.id().equals(binding.datasetId())).findFirst().orElseThrow();
-        var columnId = datasetColumnId(dataset, binding, selection.selection().cell().columnIndex()).orElseThrow();
-        return setDatasetColumnUnit(dataset.id(), columnId, unit, semantics);
+        return datasetCommands.setSelectedColumnUnit(unit, semantics);
     }
 
     public boolean supportsInsertQuantity() {
@@ -2117,100 +1714,42 @@ public final class EditorSession {
     }
 
     public boolean setPlotAxisDisplayUnit(int blockIndex, boolean xAxis, Optional<UnitExpression> unit) {
-        return setPlotAxisDisplayUnit(blockIndex, xAxis, unit, unit.map(dev.rgcb.scholar.quantity.QuantitySemantics::defaultFor));
+        return datasetCommands.setPlotAxisUnit(blockIndex, xAxis, unit);
     }
 
     public boolean setPlotAxisDisplayUnit(int blockIndex, boolean xAxis, Optional<UnitExpression> unit,
                                           Optional<dev.rgcb.scholar.quantity.QuantitySemantics> semantics) {
-        Objects.requireNonNull(unit, "unit");
-        Objects.requireNonNull(semantics, "semantics");
-        if (blockIndex < 0 || blockIndex >= current().document().blocks().size()
-                || !(current().document().blocks().get(blockIndex) instanceof PlotBlock plot)) return false;
-        var definition = plot.definition();
-        var source = xAxis ? definition.xAxis() : definition.yAxis();
-        var replacement = new AxisDefinition(source.label(), source.explicitRange(), source.scale(), unit, semantics);
-        var updatedDefinition = new PlotDefinition(definition.title(), xAxis ? replacement : definition.xAxis(),
-                xAxis ? definition.yAxis() : replacement, definition.series(), definition.legendVisible(),
-                definition.gridVisible(), definition.height());
-        var blocks = new java.util.ArrayList<BlockNode>(current().document().blocks());
-        blocks.set(blockIndex, new PlotBlock(updatedDefinition));
-        return history.applyEdit(new EditResult(new Document(blocks, current().document().datasets(),
-                current().document().settings()), current().selection(), current().explicitTypingMarks(), true));
+        return datasetCommands.setPlotAxisUnit(blockIndex, xAxis, unit, semantics);
     }
 
-    public boolean supportsSetSelectedPlotAxisDisplayUnit() {
-        return selectedPlotBlockIndex().isPresent();
-    }
+    public boolean supportsSetSelectedPlotAxisDisplayUnit() { return datasetCommands.supportsSetSelectedPlotAxisUnit(); }
 
     public boolean setSelectedPlotAxisDisplayUnit(boolean xAxis, Optional<UnitExpression> unit) {
-        return selectedPlotBlockIndex().map(index -> setPlotAxisDisplayUnit(index, xAxis, unit)).orElse(false);
+        return datasetCommands.setSelectedPlotAxisUnit(xAxis, unit);
     }
 
     public boolean setSelectedPlotAxisDisplayUnit(boolean xAxis, Optional<UnitExpression> unit,
                                                   Optional<dev.rgcb.scholar.quantity.QuantitySemantics> semantics) {
-        return selectedPlotBlockIndex().map(index -> setPlotAxisDisplayUnit(index, xAxis, unit, semantics)).orElse(false);
+        return datasetCommands.setSelectedPlotAxisUnit(xAxis, unit, semantics);
     }
 
-    public boolean editDatasetCell(String datasetId, int rowIndex, String columnId, DatasetValue value) {
-        return replaceDataset(datasetId, dataset -> dataset.withCell(rowIndex, columnId, value));
-    }
+    public boolean editDatasetCell(String datasetId, int rowIndex, String columnId, DatasetValue value) { return datasetCommands.editCell(datasetId, rowIndex, columnId, value); }
 
-    public boolean addDatasetRow(String datasetId, DatasetRow row) {
-        return replaceDataset(datasetId, dataset -> dataset.withAddedRow(row));
-    }
+    public boolean addDatasetRow(String datasetId, DatasetRow row) { return datasetCommands.addRow(datasetId, row); }
 
-    public boolean deleteDatasetRow(String datasetId, int rowIndex) {
-        return replaceDataset(datasetId, dataset -> dataset.withoutRow(rowIndex));
-    }
+    public boolean deleteDatasetRow(String datasetId, int rowIndex) { return datasetCommands.deleteRow(datasetId, rowIndex); }
 
-    public boolean addDatasetColumn(String datasetId, DatasetColumn column, DatasetValue defaultValue) {
-        return replaceDataset(datasetId, dataset -> dataset.withAddedColumn(column, defaultValue));
-    }
+    public boolean addDatasetColumn(String datasetId, DatasetColumn column, DatasetValue defaultValue) { return datasetCommands.addColumn(datasetId, column, defaultValue); }
 
-    public boolean deleteDatasetColumn(String datasetId, String columnId) {
-        return replaceDataset(datasetId, dataset -> dataset.withoutColumn(columnId));
-    }
+    public boolean deleteDatasetColumn(String datasetId, String columnId) { return datasetCommands.deleteColumn(datasetId, columnId); }
 
-    public boolean supportsInsertDatasetTable() {
-        return supportsDatasetDocumentAction()
-                && !current().document().datasets().isEmpty()
-                && editor.supportsInsertBlock(current());
-    }
+    public boolean supportsInsertDatasetTable() { return datasetCommands.supportsInsertTable(); }
 
-    public boolean insertDatasetTableForFirstDataset() {
-        if (!supportsInsertDatasetTable()) {
-            return false;
-        }
-        var dataset = current().document().datasets().get(0);
-        return history.applyEdit(editor.insertBlock(current(), new TableBlock(new DatasetTableBinding(dataset.id()))));
-    }
+    public boolean insertDatasetTableForFirstDataset() { return datasetCommands.insertTableForFirstDataset(); }
 
-    public boolean supportsBindSelectedPlotToFirstDataset() {
-        return current().isBlockSelection()
-                && current().document().blocks().get(current().blockSelection().blockIndex()) instanceof PlotBlock
-                && current().document().datasets().stream().anyMatch(dataset -> dataset.columns().size() >= 2);
-    }
+    public boolean supportsBindSelectedPlotToFirstDataset() { return datasetCommands.supportsBindSelectedPlot(); }
 
-    public boolean bindSelectedPlotToFirstDataset() {
-        if (!supportsBindSelectedPlotToFirstDataset()) {
-            return false;
-        }
-        var blockIndex = current().blockSelection().blockIndex();
-        var plot = (PlotBlock) current().document().blocks().get(blockIndex);
-        var dataset = current().document().datasets().stream()
-                .filter(candidate -> candidate.columns().size() >= 2)
-                .findFirst()
-                .orElseThrow();
-        var binding = new DatasetPlotBinding(dataset.id(), dataset.columns().get(0).id(), dataset.columns().get(1).id());
-        var definition = plot.definition();
-        var series = definition.series().isEmpty()
-                ? List.of(new PlotSeries(dataset.displayLabel(), PlotSeriesKind.LINE, binding))
-                : replaceFirstSeriesBinding(definition.series(), binding);
-        var updatedPlot = new PlotBlock(new PlotDefinition(definition.title(), definition.xAxis(), definition.yAxis(), series, definition.legendVisible(), definition.gridVisible(), definition.height()));
-        var blocks = new java.util.ArrayList<BlockNode>(current().document().blocks());
-        blocks.set(blockIndex, updatedPlot);
-        return history.applyEdit(new EditResult(new Document(blocks, current().document().datasets(), current().document().settings()), new BlockSelection(blockIndex), Optional.empty(), true));
-    }
+    public boolean bindSelectedPlotToFirstDataset() { return datasetCommands.bindSelectedPlot(); }
 
     public boolean supportsInsertTable() {
         if (current().isEquationEditingSelection() || current().isTableEditingSelection() || current().isPlotEditingSelection() || current().isDiagramEditingSelection() || current().isFigureCaptionSelection()) {
@@ -2755,8 +2294,7 @@ public final class EditorSession {
                     mechanicalDiagramEditor.reconcileConstraints(result.diagram()),
                     result.target(),
                     true);
-            mechanicalConstraintSource = null;
-            pendingMechanicalConstraintKind = null;
+            diagramCommands.clearMechanicalConstraint();
         }
         var blockIndex = current().diagramEditingSelection().blockIndex();
         var document = documentWithDiagramEdit(result);
@@ -2996,36 +2534,6 @@ public final class EditorSession {
     }
 
 
-    private boolean replaceDataset(String datasetId, java.util.function.UnaryOperator<ScientificDataset> replacement) {
-        Objects.requireNonNull(datasetId, "datasetId");
-        Objects.requireNonNull(replacement, "replacement");
-        var datasets = new java.util.ArrayList<>(current().document().datasets());
-        for (var index = 0; index < datasets.size(); index++) {
-            if (datasets.get(index).id().equals(datasetId)) {
-                var updated = replacement.apply(datasets.get(index));
-                if (updated.equals(datasets.get(index))) {
-                    return false;
-                }
-                datasets.set(index, updated);
-                return history.applyEdit(new EditResult(new Document(current().document().blocks(), datasets, current().document().settings()), current().selection(), current().explicitTypingMarks(), true));
-            }
-        }
-        return false;
-    }
-
-    private String uniqueDatasetId(String baseId) {
-        var existing = current().document().datasets().stream()
-                .map(ScientificDataset::id)
-                .collect(java.util.stream.Collectors.toSet());
-        return dev.rgcb.scholar.document.StableIdAllocator.firstFree(baseId, existing);
-    }
-
-    private static List<PlotSeries> replaceFirstSeriesBinding(List<PlotSeries> source, DatasetPlotBinding binding) {
-        var updated = new java.util.ArrayList<>(source);
-        updated.set(0, source.get(0).withDatasetBinding(binding));
-        return List.copyOf(updated);
-    }
-
     private EquationBlock currentEquation() {
         var selection = current().equationEditingSelection();
         return (EquationBlock) current().document().blocks().get(selection.blockIndex());
@@ -3100,15 +2608,6 @@ public final class EditorSession {
             return plotBlock;
         }
         throw new IllegalStateException("Current selection does not target a plot block.");
-    }
-
-    private Optional<Integer> selectedPlotBlockIndex() {
-        if (current().isPlotEditingSelection()) return Optional.of(current().plotEditingSelection().blockIndex());
-        if (current().isBlockSelection()
-                && current().document().blocks().get(current().blockSelection().blockIndex()) instanceof PlotBlock) {
-            return Optional.of(current().blockSelection().blockIndex());
-        }
-        return Optional.empty();
     }
 
     private Optional<QuantityLocation> quantityAtCaret() {
