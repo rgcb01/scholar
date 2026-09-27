@@ -2,6 +2,7 @@ package dev.rgcb.scholar.application;
 
 import dev.rgcb.scholar.persistence.PersistenceDiagnostic;
 import dev.rgcb.scholar.persistence.PersistenceResult;
+import dev.rgcb.scholar.document.DocumentTemplateId;
 import java.util.List;
 import java.util.Objects;
 import java.util.Collections;
@@ -50,17 +51,22 @@ public final class ScholarApplication {
     }
 
     public PersistenceResult<ApplicationDocumentWorkspace> createDocument() {
-        return createDocument(dev.rgcb.scholar.document.DocumentTemplateId.BLANK);
+        return createDocument(DocumentTemplateCatalog.BLANK);
     }
 
-    public PersistenceResult<ApplicationDocumentWorkspace> createDocument(dev.rgcb.scholar.document.DocumentTemplateId template) {
+    public PersistenceResult<ApplicationDocumentWorkspace> createDocument(DocumentTemplateId template) {
+        return createDocument(DocumentTemplateCatalog.keyFor(template));
+    }
+
+    public PersistenceResult<ApplicationDocumentWorkspace> createDocument(DocumentTemplateKey templateId) {
         var listed = documents();
         if (listed instanceof PersistenceResult.Failure<List<ScholarDocumentDescriptor>> failure) {
             return new PersistenceResult.Failure<>(failure.diagnostics());
         }
+        var template = DocumentTemplateCatalog.require(templateId);
         var names = ((PersistenceResult.Success<List<ScholarDocumentDescriptor>>) listed).value().stream()
                 .map(ScholarDocumentDescriptor::displayName).toList();
-        var created = repository.createDocument(ScholarDocumentNames.untitled(names), ScholarDocuments.fromTemplate(template));
+        var created = repository.createDocument(template.uniqueDocumentName(names), template.createDocument());
         return workspaceFrom(created);
     }
 
@@ -77,15 +83,7 @@ public final class ScholarApplication {
     }
 
     public PersistenceResult<ApplicationDocumentWorkspace> createReadabilitySample() {
-        var listed = documents();
-        if (listed instanceof PersistenceResult.Failure<List<ScholarDocumentDescriptor>> failure) {
-            return new PersistenceResult.Failure<>(failure.diagnostics());
-        }
-        var names = ((PersistenceResult.Success<List<ScholarDocumentDescriptor>>) listed).value().stream()
-                .map(ScholarDocumentDescriptor::displayName).toList();
-        var name = "M34";
-        for (var suffix = 2; names.contains(name); suffix++) name = "M34 " + suffix;
-        return workspaceFrom(repository.createDocument(name, ScholarDocuments.m34Readability()));
+        return createDocument(DocumentTemplateCatalog.READABILITY_SAMPLE);
     }
 
     public void closeWorkspace(ApplicationDocumentWorkspace workspace) {

@@ -12,10 +12,12 @@ final class ScholarDocumentNames {
         return result.length() <= 64 ? result : result.substring(0, 64).strip();
     }
 
-    static String untitled(Collection<String> existing) {
-        if (!existing.contains("Untitled")) return "Untitled";
+    static String unique(String base, Collection<String> existing) {
+        base = normalize(base);
+        Objects.requireNonNull(existing, "existing");
+        if (!existing.contains(base)) return base;
         for (var suffix = 2; ; suffix++) {
-            var candidate = "Untitled " + suffix;
+            var candidate = base + " " + suffix;
             if (!existing.contains(candidate)) return candidate;
         }
     }

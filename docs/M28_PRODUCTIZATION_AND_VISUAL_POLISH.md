@@ -16,7 +16,7 @@ Figure ownership, or public extension surface. No M29 work is included.
 | I2 development runtime ungated | Important | `ScholarClient`, development command boundary | NeoForge `FMLEnvironment.production` gates registration; fixture commands live behind `DevelopmentClientCommands`. | `DevelopmentRuntimeGateTest` | RESOLVED |
 | I3 repeated modal geometry/input | Important | shell UI / editor screen | Extracted pure viewport-clamped `ModalGeometry`; all six editor modal rectangles share it. Existing focus priority remains intact. | `M28ShellPolicyTest`, existing input tests | RESOLVED |
 | I4 shortcut label/matcher split | Important | action metadata / client matcher | `ActionShortcut` owns semantic strokes and labels; `MinecraftShortcutMatcher` consumes the same strokes. | `M28ShellPolicyTest` | RESOLVED |
-| I5 demo insertion defaults | Important | `ScientificContentDefaults` | Plot, Diagram, and Dataset insertion now creates minimal neutral editable values. Equation/Table were already minimal; Figure remains an explicit wrapper action. | `M28ProductizationTest` | RESOLVED |
+| I5 demo insertion defaults | Important | `ScientificContentCreationPolicy` | Plot, Diagram, and Dataset insertion creates minimal neutral editable values. The post-1.0 policy also owns initial Table and Figure construction. | `M28ProductizationTest` | RESOLVED |
 | I6 EditorSession concentration | Important | editor defaults | Broad refactor rejected. Only M28-owned scientific default construction moved out of the session; remaining concentration stays deferred. | defaults and full editor regression | RECLASSIFIED WITH EVIDENCE |
 | M1 stale M27 status | Minor | project docs | M27 is recorded as complete/accepted; M28 is recorded as technical complete/manual pending. | documentation review | RESOLVED |
 | M2 duplicate scroll policy | Minor | shell layout / viewer / editor | Shared scroll step and pure `ScrollGeometry.clamp` now serve both document screens. | existing `ScrollGeometryTest` | RESOLVED |
@@ -40,7 +40,7 @@ document. No environment guessing, config sentinel, or persistence coupling was 
 
 ## Authoring Defaults
 
-`ScientificContentDefaults` owns only current minimal production defaults:
+`ScientificContentCreationPolicy` owns current minimal production defaults:
 
 - Plot: Untitled Plot, x/y axes, one empty line series.
 - Diagram: Untitled Diagram, valid canvas, no elements or connections.

@@ -15,9 +15,6 @@ import dev.rgcb.scholar.document.Heading;
 import dev.rgcb.scholar.document.PlotBlock;
 import dev.rgcb.scholar.document.Paragraph;
 import dev.rgcb.scholar.document.TextMark;
-import dev.rgcb.scholar.document.TableRow;
-import dev.rgcb.scholar.document.TableCell;
-import dev.rgcb.scholar.document.TableCellContent;
 import dev.rgcb.scholar.document.InlineContent;
 import dev.rgcb.scholar.document.InlineNode;
 import dev.rgcb.scholar.document.Text;
@@ -67,6 +64,7 @@ import dev.rgcb.scholar.mechanical.MechanicalAnnotationKind;
 import dev.rgcb.scholar.mechanical.MechanicalPartReference;
 import dev.rgcb.scholar.mechanical.MechanicalDimensionKind;
 import dev.rgcb.scholar.mechanical.MechanicalConstraintKind;
+import dev.rgcb.scholar.mechanical.MechanicalContentCreationPolicy;
 import dev.rgcb.scholar.mechanical.editor.MechanicalDiagramEditor;
 import dev.rgcb.scholar.layout.LaidOutDocument;
 import dev.rgcb.scholar.layout.TextMeasurer;
@@ -1095,14 +1093,26 @@ public final class EditorSession {
     public boolean addMechanicalPartReference(){if(!supportsAddMechanicalPartReference())return false;return history.applyEdit(applyDiagramEditResult(mechanicalDiagramEditor.addPartReference(currentDiagram(),current().diagramEditingSelection().target())));}
     public boolean supportsDeleteMechanicalPartReference(){return current().isDiagramEditingSelection()&&mechanicalDiagramEditor.canDeletePartReference(currentDiagram(),current().diagramEditingSelection().target());}
     public boolean deleteMechanicalPartReference(){if(!supportsDeleteMechanicalPartReference())return false;cancelDiagramElementDrag();return history.applyEdit(applyDiagramEditResult(mechanicalDiagramEditor.deletePartReference(currentDiagram(),current().diagramEditingSelection().target())));}
-    public boolean supportsGenerateMechanicalBom(){return current().isDiagramEditingSelection()&&currentDiagram().definition().elements().stream().anyMatch(MechanicalPartReference.class::isInstance);}
-    public boolean generateMechanicalBom(){
-        if(!supportsGenerateMechanicalBom())return false;var refs=currentDiagram().definition().elements().stream().filter(MechanicalPartReference.class::isInstance).map(MechanicalPartReference.class::cast).sorted(java.util.Comparator.comparingInt(MechanicalPartReference::itemNumber)).toList();
-        var rows=new java.util.ArrayList<TableRow>();rows.add(bomRow("ITEM","PART","QTY","DESCRIPTION"));for(var ref:refs)rows.add(bomRow(Integer.toString(ref.itemNumber()),ref.partName(),Integer.toString(ref.quantity()),ref.description()));
-        var table=new TableBlock(rows,1);var blockIndex=current().diagramEditingSelection().blockIndex();var blocks=new java.util.ArrayList<>(current().document().blocks());blocks.add(blockIndex+1,table);var document=withCurrentDatasets(blocks);return history.applyEdit(new EditResult(document,new BlockSelection(blockIndex+1),Optional.empty(),true));
+    public boolean supportsGenerateMechanicalBom() {
+        return current().isDiagramEditingSelection()
+                && currentDiagram().definition().elements().stream()
+                .anyMatch(MechanicalPartReference.class::isInstance);
     }
-    private static TableRow bomRow(String item,String part,String qty,String description){return new TableRow(java.util.List.of(bomCell(item),bomCell(part),bomCell(qty),bomCell(description)));}
-    private static TableCell bomCell(String text){return new TableCell(new TableCellContent(new InlineContent(java.util.List.of((InlineNode)new Text(text,Set.of())))));}
+
+    public boolean generateMechanicalBom() {
+        if (!supportsGenerateMechanicalBom()) return false;
+        var references = currentDiagram().definition().elements().stream()
+                .filter(MechanicalPartReference.class::isInstance)
+                .map(MechanicalPartReference.class::cast)
+                .toList();
+        var table = MechanicalContentCreationPolicy.billOfMaterials(references);
+        var blockIndex = current().diagramEditingSelection().blockIndex();
+        var blocks = new java.util.ArrayList<>(current().document().blocks());
+        blocks.add(blockIndex + 1, table);
+        var document = withCurrentDatasets(blocks);
+        return history.applyEdit(new EditResult(
+                document, new BlockSelection(blockIndex + 1), Optional.empty(), true));
+    }
 
     public boolean addMechanicalAnnotation(MechanicalAnnotationKind kind){if(!supportsDiagramEditingAction())return false;return history.applyEdit(applyDiagramEditResult(mechanicalDiagramEditor.addAnnotation(currentDiagram(),current().diagramEditingSelection().target(),kind)));}
     public boolean supportsDeleteMechanicalAnnotation(){return current().isDiagramEditingSelection()&&mechanicalDiagramEditor.canDeleteAnnotation(currentDiagram(),current().diagramEditingSelection().target());}
@@ -2168,7 +2178,8 @@ public final class EditorSession {
         if (!FigureBlock.supportsContent(block)) {
             return false;
         }
-        var figure = new FigureBlock(uniqueFigureId(current().document(), idBase, Optional.empty()), block, new InlineContent(List.of()));
+        var figure = ScientificContentCreationPolicy.figure(
+                uniqueFigureId(current().document(), idBase, Optional.empty()), block);
         var blocks = new java.util.ArrayList<BlockNode>(current().document().blocks());
         blocks.set(blockIndex, figure);
         return history.applyEdit(new EditResult(
