@@ -3,6 +3,8 @@ package dev.rgcb.scholar.application;
 import dev.rgcb.scholar.persistence.PersistenceDiagnostic;
 import dev.rgcb.scholar.persistence.PersistenceResult;
 import dev.rgcb.scholar.document.DocumentTemplateId;
+import java.time.Clock;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Collections;
@@ -16,8 +18,13 @@ public final class ScholarApplication {
     public enum EventKind { DOCUMENT_OPENED, DOCUMENT_CHANGED, DOCUMENT_SAVED, DOCUMENT_CLOSED }
     public record Event(EventKind kind, ScholarDocumentId id) {}
     private final ScholarDocumentRepository repository;
+    private final DocumentRecoveryService recovery;
+    private final Clock clock;
+    private final RecoveryPolicy recoveryPolicy;
     private final Set<ApplicationDocumentWorkspace> openWorkspaces = Collections.newSetFromMap(new WeakHashMap<>());
     private final CopyOnWriteArrayList<Consumer<Event>> listeners = new CopyOnWriteArrayList<>();
+    private volatile List<PersistenceDiagnostic> recoveryDiagnostics = List.of();
+    private long nextRecoveryAt;
 
     public AutoCloseable subscribe(Consumer<Event> listener) {
         listeners.add(Objects.requireNonNull(listener));
@@ -43,7 +50,16 @@ public final class ScholarApplication {
     }
 
     public ScholarApplication(ScholarDocumentRepository repository) {
+        this(repository, disabledRecovery(), Clock.systemUTC(), RecoveryPolicy.DEFAULT);
+    }
+
+    public ScholarApplication(ScholarDocumentRepository repository, DocumentRecoveryService recovery,
+                              Clock clock, RecoveryPolicy recoveryPolicy) {
         this.repository = Objects.requireNonNull(repository);
+        this.recovery = Objects.requireNonNull(recovery);
+        this.clock = Objects.requireNonNull(clock);
+        this.recoveryPolicy = Objects.requireNonNull(recoveryPolicy);
+        this.nextRecoveryAt = clock.millis() + recoveryPolicy.interval().toMillis();
     }
 
     public PersistenceResult<List<ScholarDocumentDescriptor>> documents() {
@@ -67,11 +83,11 @@ public final class ScholarApplication {
         var names = ((PersistenceResult.Success<List<ScholarDocumentDescriptor>>) listed).value().stream()
                 .map(ScholarDocumentDescriptor::displayName).toList();
         var created = repository.createDocument(template.uniqueDocumentName(names), template.createDocument());
-        return workspaceFrom(created);
+        return workspaceFrom(created, true);
     }
 
     public PersistenceResult<ApplicationDocumentWorkspace> openDocument(ScholarDocumentId id) {
-        return workspaceFrom(repository.openDocument(id));
+        return workspaceFrom(repository.openDocument(id), false);
     }
 
     /** Reuses an active editor workspace when an integration and the GUI address the same document. */
@@ -87,7 +103,94 @@ public final class ScholarApplication {
     }
 
     public void closeWorkspace(ApplicationDocumentWorkspace workspace) {
+        if (workspace.isDirty()) recordRecoveryResult(workspace.captureRecovery(clock.millis()));
         if (openWorkspaces.remove(workspace)) emit(new Event(EventKind.DOCUMENT_CLOSED, workspace.id()));
+    }
+
+    /** Called by the client lifecycle; snapshot capture is synchronous and never mutates editor state. */
+    public void recoveryTick() {
+        var now = clock.millis();
+        if (now < nextRecoveryAt) return;
+        nextRecoveryAt = now + recoveryPolicy.interval().toMillis();
+        captureRecoveryNow();
+    }
+
+    public void captureRecoveryNow() {
+        var now = clock.millis();
+        var diagnostics = new ArrayList<PersistenceDiagnostic>();
+        for (var workspace : List.copyOf(openWorkspaces)) {
+            var result = workspace.captureRecovery(now);
+            if (result instanceof PersistenceResult.Failure<Boolean> failure) diagnostics.addAll(failure.diagnostics());
+            else diagnostics.addAll(result.diagnostics());
+        }
+        recoveryDiagnostics = List.copyOf(diagnostics);
+    }
+
+    public List<PersistenceDiagnostic> recoveryDiagnostics() { return recoveryDiagnostics; }
+
+    public PersistenceResult<List<RecoveryCandidate>> recoveryCandidates() {
+        var discovered = recovery.discover();
+        if (discovered instanceof PersistenceResult.Failure<List<RecoveryCandidate>> failure) {
+            return new PersistenceResult.Failure<>(failure.diagnostics());
+        }
+        var candidates = new ArrayList<RecoveryCandidate>();
+        var diagnostics = new ArrayList<>(discovered.diagnostics());
+        for (var candidate : ((PersistenceResult.Success<List<RecoveryCandidate>>) discovered).value()) {
+            if (candidate.documentId().isEmpty()) {
+                candidates.add(candidate.withSourceState(RecoveryCandidate.SourceState.UNTITLED));
+                continue;
+            }
+            var opened = repository.openDocument(candidate.documentId().orElseThrow());
+            if (opened instanceof PersistenceResult.Success<OpenedScholarDocument> canonical) {
+                var snapshot = recovery.load(candidate.recoveryId());
+                if (snapshot instanceof PersistenceResult.Success<RecoverySnapshot> loaded
+                        && loaded.value().document().equals(canonical.value().document())) {
+                    var discarded = recovery.discard(candidate.recoveryId());
+                    if (discarded instanceof PersistenceResult.Failure<Boolean> failure) {
+                        diagnostics.addAll(asWarnings(failure.diagnostics(), "Stale recovery could not be removed."));
+                    }
+                    continue;
+                }
+                candidates.add(candidate.withSourceState(candidate.sourceState() == RecoveryCandidate.SourceState.UNTITLED
+                        ? RecoveryCandidate.SourceState.UNTITLED : RecoveryCandidate.SourceState.EXISTING_DOCUMENT));
+            } else {
+                candidates.add(candidate.withSourceState(candidate.sourceState() == RecoveryCandidate.SourceState.UNTITLED
+                        ? RecoveryCandidate.SourceState.UNTITLED : RecoveryCandidate.SourceState.MISSING_DOCUMENT));
+            }
+        }
+        return new PersistenceResult.Success<>(List.copyOf(candidates), List.copyOf(diagnostics));
+    }
+
+    public PersistenceResult<ApplicationDocumentWorkspace> recover(RecoveryId id) {
+        var loaded = recovery.load(Objects.requireNonNull(id));
+        if (loaded instanceof PersistenceResult.Failure<RecoverySnapshot> failure) {
+            return new PersistenceResult.Failure<>(failure.diagnostics());
+        }
+        var snapshot = ((PersistenceResult.Success<RecoverySnapshot>) loaded).value();
+        OpenedScholarDocument canonical = null;
+        if (snapshot.documentId().isPresent()) {
+            var opened = repository.openDocument(snapshot.documentId().orElseThrow());
+            if (opened instanceof PersistenceResult.Success<OpenedScholarDocument> success) canonical = success.value();
+        }
+        var descriptor = canonical == null
+                ? new ScholarDocumentDescriptor(snapshot.documentId().orElseGet(ScholarDocumentId::create),
+                        snapshot.displayName(), 0, 0, DocumentPreview.from(snapshot.document(), snapshot.displayName()))
+                : canonical.descriptor();
+        var baseline = canonical == null ? snapshot.document() : canonical.document();
+        try {
+            var workspace = new ApplicationDocumentWorkspace(repository, descriptor, baseline, snapshot.document(),
+                    this::emit, recovery, snapshot.recoveryId(), snapshot.originallyUntitled(), canonical != null, true);
+            openWorkspaces.add(workspace);
+            emit(new Event(EventKind.DOCUMENT_OPENED, workspace.id()));
+            return new PersistenceResult.Success<>(workspace, loaded.diagnostics());
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            return PersistenceResult.failure(PersistenceDiagnostic.Code.VALIDATION_FAILURE, "recovery",
+                    "Recovered document has no valid editor entry selection.");
+        }
+    }
+
+    public PersistenceResult<Boolean> discardRecovery(RecoveryId id) {
+        return recovery.discard(Objects.requireNonNull(id));
     }
 
     public PersistenceResult<Boolean> deleteDocument(ScholarDocumentId id) {
@@ -113,18 +216,51 @@ public final class ScholarApplication {
         return new PersistenceResult.Failure<>(renamed.diagnostics());
     }
 
-    private PersistenceResult<ApplicationDocumentWorkspace> workspaceFrom(PersistenceResult<OpenedScholarDocument> result) {
+    private PersistenceResult<ApplicationDocumentWorkspace> workspaceFrom(PersistenceResult<OpenedScholarDocument> result,
+                                                                          boolean originallyUntitled) {
         if (result instanceof PersistenceResult.Failure<OpenedScholarDocument> failure) {
             return new PersistenceResult.Failure<>(failure.diagnostics());
         }
         try {
             var opened = ((PersistenceResult.Success<OpenedScholarDocument>) result).value();
-            var workspace = new ApplicationDocumentWorkspace(repository, opened, this::emit);
+            var workspace = new ApplicationDocumentWorkspace(repository, opened, this::emit, recovery, originallyUntitled);
             openWorkspaces.add(workspace);
             emit(new Event(EventKind.DOCUMENT_OPENED, workspace.id()));
             return new PersistenceResult.Success<>(workspace, result.diagnostics());
         } catch (IllegalArgumentException | IllegalStateException exception) {
             return PersistenceResult.failure(PersistenceDiagnostic.Code.VALIDATION_FAILURE, "document", "Document has no valid editor entry selection.");
+        }
+    }
+
+    private void recordRecoveryResult(PersistenceResult<Boolean> result) {
+        recoveryDiagnostics = result.diagnostics();
+    }
+
+    private static List<PersistenceDiagnostic> asWarnings(List<PersistenceDiagnostic> diagnostics, String message) {
+        return diagnostics.stream().map(value -> new PersistenceDiagnostic(PersistenceDiagnostic.Severity.WARNING,
+                value.code(), value.path(), message)).toList();
+    }
+
+    static DocumentRecoveryService disabledRecovery() { return DisabledRecovery.INSTANCE; }
+
+    private enum DisabledRecovery implements DocumentRecoveryService {
+        INSTANCE;
+        @Override public PersistenceResult<RecoveryCandidate> capture(RecoverySnapshot snapshot) {
+            return new PersistenceResult.Success<>(new RecoveryCandidate(snapshot.recoveryId(), snapshot.documentId(),
+                    snapshot.displayName(), snapshot.capturedAtEpochMillis(), snapshot.confirmedModifiedAtEpochMillis(),
+                    snapshot.revision(), RecoveryCandidate.SourceState.MISSING_DOCUMENT), List.of());
+        }
+        @Override public PersistenceResult<List<RecoveryCandidate>> discover() {
+            return new PersistenceResult.Success<>(List.of(), List.of());
+        }
+        @Override public PersistenceResult<RecoverySnapshot> load(RecoveryId id) {
+            return PersistenceResult.failure(PersistenceDiagnostic.Code.IO_FAILURE, "recovery", "Recovery is unavailable.");
+        }
+        @Override public PersistenceResult<Boolean> discard(RecoveryId id) {
+            return new PersistenceResult.Success<>(true, List.of());
+        }
+        @Override public PersistenceResult<Boolean> discardForDocument(ScholarDocumentId id) {
+            return new PersistenceResult.Success<>(true, List.of());
         }
     }
 }

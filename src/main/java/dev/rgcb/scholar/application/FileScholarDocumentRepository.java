@@ -34,6 +34,7 @@ public final class FileScholarDocumentRepository implements ScholarDocumentRepos
     private final Path root;
     private final Path indexPath;
     private final FileDocumentStorage storage;
+    private final DocumentBackupService backups;
     private final Clock clock;
     private final Supplier<ScholarDocumentId> ids;
 
@@ -42,9 +43,20 @@ public final class FileScholarDocumentRepository implements ScholarDocumentRepos
     }
 
     public FileScholarDocumentRepository(Path root, Clock clock, Supplier<ScholarDocumentId> ids) {
+        this(root, clock, ids, new FileDocumentBackupService(root.resolve("backups")));
+    }
+
+    FileScholarDocumentRepository(Path root, Clock clock, Supplier<ScholarDocumentId> ids,
+                                  DocumentBackupService backups) {
+        this(root, clock, ids, new FileDocumentStorage(root.resolve("documents")), backups);
+    }
+
+    FileScholarDocumentRepository(Path root, Clock clock, Supplier<ScholarDocumentId> ids,
+                                  FileDocumentStorage storage, DocumentBackupService backups) {
         this.root = Objects.requireNonNull(root).toAbsolutePath().normalize();
         this.indexPath = this.root.resolve("workspace.json");
-        this.storage = new FileDocumentStorage(this.root.resolve("documents"));
+        this.storage = Objects.requireNonNull(storage);
+        this.backups = Objects.requireNonNull(backups);
         this.clock = Objects.requireNonNull(clock);
         this.ids = Objects.requireNonNull(ids);
     }
@@ -96,14 +108,38 @@ public final class FileScholarDocumentRepository implements ScholarDocumentRepos
     @Override public PersistenceResult<ScholarDocumentDescriptor> saveDocument(ScholarDocumentId id, Document document) {
         var existing = openDocument(id);
         if (existing instanceof PersistenceResult.Failure<OpenedScholarDocument> failure) return new PersistenceResult.Failure<>(failure.diagnostics());
-        var current = ((PersistenceResult.Success<OpenedScholarDocument>) existing).value().descriptor();
+        var previous = ((PersistenceResult.Success<OpenedScholarDocument>) existing).value();
+        var current = previous.descriptor();
+        BackupDescriptor backup = null;
+        if (!previous.document().equals(document)) {
+            var preserved = backups.preserve(id, current.modifiedAtEpochMillis(), previous.document());
+            if (preserved instanceof PersistenceResult.Failure<BackupDescriptor> failure) {
+                return new PersistenceResult.Failure<>(failure.diagnostics());
+            }
+            backup = ((PersistenceResult.Success<BackupDescriptor>) preserved).value();
+        }
         var saved = storage.save(id.value(), document);
-        if (saved instanceof PersistenceResult.Failure<String> failure) return new PersistenceResult.Failure<>(failure.diagnostics());
+        if (saved instanceof PersistenceResult.Failure<String> failure) {
+            var diagnostics = new ArrayList<>(failure.diagnostics());
+            var rolledBack = backup == null ? new PersistenceResult.Success<Boolean>(true, List.of()) : backups.rollback(backup);
+            if (backup != null && rolledBack instanceof PersistenceResult.Failure<Boolean>) {
+                diagnostics.add(new PersistenceDiagnostic(PersistenceDiagnostic.Severity.WARNING,
+                        PersistenceDiagnostic.Code.IO_FAILURE, "backup", "Uncommitted backup could not be removed."));
+            }
+            return new PersistenceResult.Failure<>(diagnostics);
+        }
         var descriptor = new ScholarDocumentDescriptor(id, current.displayName(), current.createdAtEpochMillis(),
                 clock.millis(), DocumentPreview.from(document, current.displayName()));
         var records = loadIndex(); records.put(id.value(), descriptor);
         var metadata = saveIndex(records);
-        return new PersistenceResult.Success<>(descriptor, metadataWarnings(metadata));
+        var diagnostics = new ArrayList<>(metadataWarnings(metadata));
+        if (backup != null) {
+            var completed = backups.complete(backup);
+            if (completed instanceof PersistenceResult.Success<Boolean> success) diagnostics.addAll(success.diagnostics());
+            else diagnostics.add(new PersistenceDiagnostic(PersistenceDiagnostic.Severity.WARNING,
+                    PersistenceDiagnostic.Code.IO_FAILURE, "backup", "Backup retention could not be completed."));
+        }
+        return new PersistenceResult.Success<>(descriptor, List.copyOf(diagnostics));
     }
 
     @Override public PersistenceResult<OpenedScholarDocument> saveAs(String displayName, Document document) {

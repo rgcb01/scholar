@@ -8,6 +8,7 @@ import dev.rgcb.scholar.application.DocumentTemplateDescriptor;
 import dev.rgcb.scholar.application.DocumentTemplateKey;
 import dev.rgcb.scholar.application.ScholarDocumentDescriptor;
 import dev.rgcb.scholar.application.ScholarDocumentId;
+import dev.rgcb.scholar.application.RecoveryCandidate;
 import dev.rgcb.scholar.client.ui.ScholarShellRenderer;
 import dev.rgcb.scholar.client.ui.ScholarShellStyle;
 import dev.rgcb.scholar.client.ui.ScholarControlState;
@@ -32,6 +33,8 @@ public final class ScholarHomeScreen extends Screen {
     private static final List<DocumentTemplateDescriptor> TEMPLATES = DocumentTemplateCatalog.templates();
     private final ScholarApplication application;
     private List<ScholarDocumentDescriptor> documents = List.of();
+    private List<RecoveryCandidate> recoveries = List.of();
+    private int recoveryIndex;
     private String message = "";
     private int page;
     private boolean choosingTemplate;
@@ -55,6 +58,29 @@ public final class ScholarHomeScreen extends Screen {
         var listed = application.documents();
         if (listed instanceof PersistenceResult.Success<List<ScholarDocumentDescriptor>> success) documents = success.value();
         else message = listed.diagnostics().getFirst().message();
+        var discovered = application.recoveryCandidates();
+        if (discovered instanceof PersistenceResult.Success<List<RecoveryCandidate>> success) {
+            recoveries = success.value();
+            recoveryIndex = Math.min(recoveryIndex, Math.max(0, recoveries.size() - 1));
+            if (!success.diagnostics().isEmpty()) message = ScholarText.get("scholar.recovery.warning");
+        } else message = ScholarText.get("scholar.recovery.error");
+        if (!application.recoveryDiagnostics().isEmpty()) message = ScholarText.get("scholar.recovery.error");
+
+        if (!recoveries.isEmpty()) {
+            var actionY = 54;
+            addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.recovery.recover"), b -> recoverSelected())
+                    .bounds(width - 154, actionY, 68, 20).build());
+            addRenderableWidget(ScholarButton.create(ScholarText.component("scholar.recovery.discard"), b -> discardSelected())
+                    .bounds(width - 80, actionY, 68, 20).build());
+            if (recoveries.size() > 1) {
+                addRenderableWidget(ScholarButton.create(Component.literal("<"), b -> {
+                    recoveryIndex = Math.floorMod(recoveryIndex - 1, recoveries.size());
+                }).bounds(width - 202, actionY, 20, 20).build());
+                addRenderableWidget(ScholarButton.create(Component.literal(">"), b -> {
+                    recoveryIndex = (recoveryIndex + 1) % recoveries.size();
+                }).bounds(width - 178, actionY, 20, 20).build());
+            }
+        }
 
         var layout = cardLayout();
         page = layout.page();
@@ -80,6 +106,7 @@ public final class ScholarHomeScreen extends Screen {
             ScholarScreenRendering.renderWidgets(renderables, graphics, mouseX, mouseY, partialTick);
             return;
         }
+        if (!recoveries.isEmpty()) renderRecovery(graphics);
         var layout = cardLayout();
         renderNewCard(graphics, layout.newDocumentCard(), mouseX, mouseY);
         var first = layout.page() * layout.documentsPerPage();
@@ -180,7 +207,44 @@ public final class ScholarHomeScreen extends Screen {
     }
 
     private HomeDocumentCardLayout.Result cardLayout() {
-        return HomeDocumentCardLayout.compute(width, height, documents.size(), page);
+        return HomeDocumentCardLayout.compute(width, height, documents.size(), page, recoveries.isEmpty() ? 48 : 98);
+    }
+
+    private void renderRecovery(GuiGraphics graphics) {
+        var candidate = recoveries.get(recoveryIndex);
+        var bounds = new ShellRect(8, 38, width - 16, 48);
+        ScholarShellRenderer.drawPanel(graphics, bounds, ScholarShellStyle.PANEL_ELEVATED_BACKGROUND, true);
+        graphics.fill(bounds.x(), bounds.y(), bounds.x() + 2, bounds.bottom(), ScholarShellStyle.SCIENTIFIC_ACCENT);
+        var count = recoveries.size() > 1 ? " " + (recoveryIndex + 1) + "/" + recoveries.size() : "";
+        graphics.drawString(font, clipped(ScholarText.get("scholar.recovery.title") + count, Math.max(40, width - 230)),
+                18, 47, ScholarShellStyle.TEXT_PRIMARY, false);
+        var sourceKey = candidate.sourceState() == RecoveryCandidate.SourceState.UNTITLED
+                ? "scholar.recovery.source_unsaved" : candidate.sourceState() == RecoveryCandidate.SourceState.EXISTING_DOCUMENT
+                ? "scholar.recovery.source_saved" : "scholar.recovery.source_missing";
+        var captured = DateTimeFormatter.ofPattern(ScholarText.get("scholar.home.modified_pattern")).format(
+                Instant.ofEpochMilli(candidate.capturedAtEpochMillis()).atZone(ZoneId.systemDefault()));
+        var detail = candidate.displayName() + " - " + ScholarText.get(sourceKey) + " - " + captured;
+        graphics.drawString(font, clipped(detail, Math.max(40, width - 230)), 18, 66,
+                ScholarShellStyle.TEXT_SECONDARY, false);
+    }
+
+    private void recoverSelected() {
+        var result = application.recover(recoveries.get(recoveryIndex).recoveryId());
+        if (result instanceof PersistenceResult.Success<dev.rgcb.scholar.application.ApplicationDocumentWorkspace> success) {
+            minecraft.setScreen(ScholarEditorScreen.forApplication(application, success.value()));
+        } else message = result.diagnostics().getFirst().message();
+    }
+
+    private void discardSelected() {
+        var result = application.discardRecovery(recoveries.get(recoveryIndex).recoveryId());
+        if (result instanceof PersistenceResult.Failure<Boolean> failure) {
+            message = failure.diagnostics().getFirst().message();
+        } else {
+            recoveries = recoveries.stream().filter(candidate -> !candidate.recoveryId().equals(
+                    recoveries.get(recoveryIndex).recoveryId())).toList();
+            recoveryIndex = Math.min(recoveryIndex, Math.max(0, recoveries.size() - 1));
+            rebuildWidgets();
+        }
     }
 
     private void renderNewCard(GuiGraphics graphics, ShellRect card, int mouseX, int mouseY) {
